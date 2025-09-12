@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Watermark Overlay Kit</title>
+    <title>Enhanced Watermark Overlay Kit (EWOK)</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="shortcut icon" href="/static/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/ewok.png">
     <style>
         * {
             margin: 0;
@@ -89,6 +92,19 @@
             margin-bottom: 10px;
             position: relative;
             z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        .header .logo {
+            width: 48px;
+            height: 48px;
+            background-image: url('/static/ewok.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
         }
         
         .header p {
@@ -474,7 +490,7 @@
         <div class="header">
             <div class="moon-star">🌙</div>
             <div class="star">⭐</div>
-            <h1><i class="fas fa-paw"></i> Enhanced Watermark Overlay Kit (EWOK)</h1>
+            <h1><div class="logo"></div> Enhanced Watermark Overlay Kit (EWOK)</h1>
             <p>🌲 Transform images with woodland wisdom 🌲</p>
         </div>
         
