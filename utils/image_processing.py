@@ -85,17 +85,27 @@ def resize_for_wallpaper(img, target_size, fit_mode='fit'):
 
 
 def add_text_overlays(img, text_overlays):
-    """Add text overlays to image with center-aligned positioning and effects"""
+    """Add text overlays to image with alignment support and percentage-based sizing"""
     draw = ImageDraw.Draw(img)
-    
+
     for overlay in text_overlays:
         text = overlay.get('text', '')
         if not text:
             continue
-            
+
         x = overlay.get('x', 0)
         y = overlay.get('y', 0)
-        size = overlay.get('size', 24)
+
+        # Handle percentage-based sizing (new) or absolute sizing (legacy)
+        size_percent = overlay.get('size_percent')
+        if size_percent:
+            # Calculate size as percentage of image width
+            size = int(img.width * (size_percent / 100))
+        else:
+            # Fallback to absolute size (legacy)
+            size = overlay.get('size', 24)
+
+        alignment = overlay.get('alignment', 'center')  # left, center, right
         color = overlay.get('color', '#FFFFFF')
         text_effect = overlay.get('text_effect', 'none')
         effect_color = overlay.get('effect_color', '#000000')
@@ -139,19 +149,30 @@ def add_text_overlays(img, text_overlays):
         elif not isinstance(y, (int, float)):
             y = img.height // 2  # fallback to center
         
-        # Adjust position to center the text at the specified coordinates
-        centered_x = x - (text_width // 2)
-        centered_y = y - (text_height // 2)
-        
+        # Apply alignment to x position
+        # The x,y coordinates from frontend represent the "anchor point" for the alignment
+        if alignment == 'center':
+            # Center the text around the x coordinate
+            positioned_x = x - (text_width // 2)
+        elif alignment == 'right':
+            # Right-align the text at the x coordinate
+            positioned_x = x - text_width
+        else:  # left (default)
+            # Left-align the text at the x coordinate
+            positioned_x = x
+
+        # Y position stays the same for all alignments (top edge)
+        positioned_y = y
+
         # Ensure text doesn't go off the edges of the image
-        centered_x = max(0, min(centered_x, img.width - text_width))
-        centered_y = max(0, min(centered_y, img.height - text_height))
+        positioned_x = max(0, min(positioned_x, img.width - text_width))
+        positioned_y = max(0, min(positioned_y, img.height - text_height))
         
         # Apply text effects
         if text_effect == 'shadow':
             # Drop shadow effect
             shadow_offset = effect_strength
-            draw.text((centered_x + shadow_offset, centered_y + shadow_offset), text, fill=effect_color, font=font)
+            draw.text((positioned_x + shadow_offset, positioned_y + shadow_offset), text, fill=effect_color, font=font)
         elif text_effect == 'outline':
             # Outline/stroke effect
             stroke_width = effect_strength
@@ -159,7 +180,7 @@ def add_text_overlays(img, text_overlays):
             for adj in range(-stroke_width, stroke_width + 1):
                 for adj2 in range(-stroke_width, stroke_width + 1):
                     if adj != 0 or adj2 != 0:  # Don't draw at center position yet
-                        draw.text((centered_x + adj, centered_y + adj2), text, fill=effect_color, font=font)
+                        draw.text((positioned_x + adj, positioned_y + adj2), text, fill=effect_color, font=font)
         elif text_effect == 'glow':
             # Glow effect - multiple layers with decreasing opacity
             glow_radius = effect_strength * 2
@@ -171,12 +192,12 @@ def add_text_overlays(img, text_overlays):
                 # Draw glow layer
                 for angle in range(0, 360, 30):  # 12 points around circle
                     import math
-                    glow_x = centered_x + radius * math.cos(math.radians(angle))
-                    glow_y = centered_y + radius * math.sin(math.radians(angle))
+                    glow_x = positioned_x + radius * math.cos(math.radians(angle))
+                    glow_y = positioned_y + radius * math.sin(math.radians(angle))
                     draw.text((glow_x, glow_y), text, fill=glow_color_with_alpha, font=font)
         
         # Draw main text on top
-        draw.text((centered_x, centered_y), text, fill=color, font=font)
+        draw.text((positioned_x, positioned_y), text, fill=color, font=font)
     
     return img
 
