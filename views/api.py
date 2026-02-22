@@ -125,10 +125,29 @@ def process_image():
             if 'watermark' in data:
                 result_img = add_watermark(result_img, data['watermark'])
             
-            # Save processed image
-            output_filename = f"processed_{uuid.uuid4()}.png"
+            # Determine output format
+            output_format = data.get('output_format', 'png').lower()
+            format_map = {
+                'png': ('PNG', '.png'),
+                'jpeg': ('JPEG', '.jpg'),
+                'webp': ('WEBP', '.webp'),
+            }
+            pil_format, ext = format_map.get(output_format, ('PNG', '.png'))
+
+            output_filename = f"processed_{uuid.uuid4()}{ext}"
             output_path = os.path.join(TEMP_FOLDER, output_filename)
-            result_img.save(output_path, 'PNG')
+
+            # JPEG doesn't support alpha — convert to RGB
+            if pil_format == 'JPEG':
+                if result_img.mode == 'RGBA':
+                    bg = Image.new('RGB', result_img.size, (255, 255, 255))
+                    bg.paste(result_img, mask=result_img.split()[3])
+                    result_img = bg
+                result_img.save(output_path, pil_format, quality=95)
+            elif pil_format == 'WEBP':
+                result_img.save(output_path, pil_format, quality=90)
+            else:
+                result_img.save(output_path, pil_format)
             
             return jsonify({
                 'success': True,

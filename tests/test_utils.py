@@ -3,7 +3,7 @@
 import pytest
 from PIL import Image
 
-from utils.image_processing import hex_to_rgb, load_font, resize_for_wallpaper
+from utils.image_processing import hex_to_rgb, load_font, resize_for_wallpaper, add_text_overlays
 
 
 # ── hex_to_rgb ─────────────────────────────────
@@ -98,3 +98,47 @@ class TestResizeForWallpaper:
         img = self._make_image(200, 300)
         result = resize_for_wallpaper(img, (500, 500), "fit")
         assert result.mode == "RGBA"
+
+
+# ── add_text_overlays ────────────────────────────
+
+
+class TestAddTextOverlays:
+    def _make_image(self, w=400, h=400):
+        return Image.new("RGBA", (w, h), (128, 128, 128, 255))
+
+    def test_alignment_left(self):
+        img = self._make_image()
+        result = add_text_overlays(img, [
+            {"text": "Left", "x": "10%", "y": "50%", "size": 20, "alignment": "left"}
+        ])
+        assert result.size == (400, 400)
+
+    def test_alignment_right(self):
+        img = self._make_image()
+        result = add_text_overlays(img, [
+            {"text": "Right", "x": "90%", "y": "50%", "size": 20, "alignment": "right"}
+        ])
+        assert result.size == (400, 400)
+
+    def test_alignment_center(self):
+        img = self._make_image()
+        result = add_text_overlays(img, [
+            {"text": "Center", "x": "50%", "y": "50%", "size": 20, "alignment": "center"}
+        ])
+        assert result.size == (400, 400)
+
+    def test_size_percent(self):
+        img = self._make_image(400, 400)
+        result = add_text_overlays(img, [
+            {"text": "Pct", "x": "50%", "y": "50%", "size_percent": 10}
+        ])
+        assert result.size == (400, 400)
+
+    def test_size_percent_overrides_size(self):
+        """size_percent should take precedence over size when both present."""
+        img = self._make_image(400, 400)
+        result = add_text_overlays(img, [
+            {"text": "Pct", "x": "50%", "y": "50%", "size": 12, "size_percent": 10}
+        ])
+        assert result.size == (400, 400)

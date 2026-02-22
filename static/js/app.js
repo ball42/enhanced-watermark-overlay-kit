@@ -182,6 +182,7 @@
       text_overlays: getTextOverlays(),
       background: getBackgroundConfig(),
       watermark: getWatermarkConfig(),
+      output_format: $('#outputFormat').value,
     };
 
     if ($('#wallpaperMode').checked) {
@@ -246,6 +247,9 @@
     $('#saturationValue').textContent = '100%';
     $('#resize').value = 100;
     $('#resizeValue').textContent = '100%';
+
+    // Reset format selector
+    $('#outputFormat').value = 'png';
 
     // Reset toggles
     $('#wallpaperMode').checked = false;
@@ -337,8 +341,25 @@
             </div>
           </div>
           <div class="setting-group">
+            <label>Align</label>
+            <div class="alignment-group">
+              <button type="button" class="align-btn" data-align="left" title="Left align">
+                <i class="fas fa-align-left"></i>
+              </button>
+              <button type="button" class="align-btn active" data-align="center" title="Center align">
+                <i class="fas fa-align-center"></i>
+              </button>
+              <button type="button" class="align-btn" data-align="right" title="Right align">
+                <i class="fas fa-align-right"></i>
+              </button>
+            </div>
+          </div>
+          <div class="setting-group">
             <label>Size</label>
-            <input type="number" class="overlay-size" value="${defaultSize}" min="8" max="200">
+            <div class="size-input-group">
+              <input type="number" class="overlay-size" value="${defaultSize}" min="8" max="200">
+              <button type="button" class="size-mode-btn" data-mode="px" title="Toggle px/% sizing">px</button>
+            </div>
           </div>
           <div class="setting-group">
             <label>Color</label>
@@ -375,6 +396,33 @@
       div.remove();
     });
 
+    // Alignment buttons — toggle active state
+    div.querySelectorAll('.align-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        div.querySelectorAll('.align-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+
+    // Size mode toggle — switch between px and %
+    const sizeModeBtn = div.querySelector('.size-mode-btn');
+    const sizeInput = div.querySelector('.overlay-size');
+    sizeModeBtn.addEventListener('click', () => {
+      if (sizeModeBtn.dataset.mode === 'px') {
+        sizeModeBtn.dataset.mode = '%';
+        sizeModeBtn.textContent = '%';
+        sizeInput.min = 1;
+        sizeInput.max = 50;
+        sizeInput.value = 5;
+      } else {
+        sizeModeBtn.dataset.mode = 'px';
+        sizeModeBtn.textContent = 'px';
+        sizeInput.min = 8;
+        sizeInput.max = 200;
+        sizeInput.value = getDefaultFontSize();
+      }
+    });
+
     // Effect type visibility
     const effectSelect = div.querySelector('.text-effect');
     const effectColorGroup = div.querySelector('.effect-color-group');
@@ -391,16 +439,27 @@
     $$('.text-overlay-item').forEach((item) => {
       const text = item.querySelector('.overlay-text').value;
       if (text.trim()) {
-        overlays.push({
+        const sizeMode = item.querySelector('.size-mode-btn').dataset.mode;
+        const sizeValue = parseInt(item.querySelector('.overlay-size').value, 10);
+
+        const overlay = {
           text,
           x: item.querySelector('.overlay-x').value,
           y: item.querySelector('.overlay-y').value,
-          size: parseInt(item.querySelector('.overlay-size').value, 10),
           color: item.querySelector('.overlay-color').value,
+          alignment: item.querySelector('.align-btn.active').dataset.align,
           text_effect: item.querySelector('.text-effect').value,
           effect_color: item.querySelector('.effect-color').value,
           effect_strength: parseInt(item.querySelector('.effect-strength').value, 10),
-        });
+        };
+
+        if (sizeMode === '%') {
+          overlay.size_percent = sizeValue;
+        } else {
+          overlay.size = sizeValue;
+        }
+
+        overlays.push(overlay);
       }
     });
     return overlays;

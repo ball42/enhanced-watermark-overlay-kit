@@ -234,13 +234,23 @@
 
                     <!-- Actions -->
                     <div class="action-bar">
-                        <button class="btn" id="processBtn" disabled>
-                            <span class="spinner"></span>
-                            <span class="btn-label"><i class="fas fa-magic"></i> Process Image</span>
-                        </button>
-                        <button class="btn btn-secondary" id="resetBtn">
-                            <i class="fas fa-undo"></i> Reset
-                        </button>
+                        <div class="action-row">
+                            <button class="btn" id="processBtn" disabled>
+                                <span class="spinner"></span>
+                                <span class="btn-label"><i class="fas fa-magic"></i> Process Image</span>
+                            </button>
+                            <div class="format-selector">
+                                <label for="outputFormat">Format:</label>
+                                <select id="outputFormat">
+                                    <option value="png">PNG</option>
+                                    <option value="jpeg">JPEG</option>
+                                    <option value="webp">WebP</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-secondary" id="resetBtn">
+                                <i class="fas fa-undo"></i> Reset
+                            </button>
+                        </div>
                     </div>
                 </div>
 

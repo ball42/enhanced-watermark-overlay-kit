@@ -119,6 +119,58 @@ class TestProcess:
         )
         assert resp.status_code == 404
 
+    def test_process_with_text_alignment(self, client):
+        filename = self._upload(client)
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({
+                "filename": filename,
+                "text_overlays": [
+                    {"text": "Right", "x": "80%", "y": "50%", "size": 24,
+                     "color": "#FF0000", "alignment": "right"}
+                ],
+            }),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+
+    def test_process_with_size_percent(self, client):
+        filename = self._upload(client)
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({
+                "filename": filename,
+                "text_overlays": [
+                    {"text": "Big", "x": "50%", "y": "50%", "size_percent": 10,
+                     "color": "#FFFFFF"}
+                ],
+            }),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+
+    def test_process_jpeg_output(self, client):
+        filename = self._upload(client)
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({"filename": filename, "output_format": "jpeg"}),
+            content_type="application/json",
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["processed_filename"].endswith(".jpg")
+
+    def test_process_webp_output(self, client):
+        filename = self._upload(client)
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({"filename": filename, "output_format": "webp"}),
+            content_type="application/json",
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["processed_filename"].endswith(".webp")
+
     def test_process_path_traversal_blocked(self, client):
         resp = client.post(
             "/api/process",
