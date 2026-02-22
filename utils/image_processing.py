@@ -3,8 +3,39 @@ Image processing utilities for EWOK
 Handles all image manipulation operations including resizing, overlays, backgrounds, and watermarks
 """
 
+import logging
+import math
 import os
+import re
+
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+
+logger = logging.getLogger(__name__)
+
+_HEX_PATTERN = re.compile(r'^#?([0-9a-fA-F]{6})$')
+
+
+def hex_to_rgb(hex_color):
+    """Convert hex color string to RGB tuple with validation.
+    Returns (0, 0, 0) for invalid input."""
+    if not isinstance(hex_color, str):
+        return (0, 0, 0)
+    match = _HEX_PATTERN.match(hex_color.strip())
+    if not match:
+        return (0, 0, 0)
+    h = match.group(1)
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+def load_font(size):
+    """Load a font with system fallbacks."""
+    try:
+        return ImageFont.truetype("Arial.ttf", size)
+    except Exception:
+        try:
+            return ImageFont.truetype("/System/Library/Fonts/Arial.ttf", size)
+        except Exception:
+            return ImageFont.load_default()
 
 
 def optimize_wallpaper_size(img):
@@ -111,15 +142,7 @@ def add_text_overlays(img, text_overlays):
         effect_color = overlay.get('effect_color', '#000000')
         effect_strength = overlay.get('effect_strength', 3)
         
-        try:
-            # Try to use a system font
-            font = ImageFont.truetype("Arial.ttf", size)
-        except:
-            try:
-                # Fallback fonts
-                font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", size)
-            except:
-                font = ImageFont.load_default()
+        font = load_font(size)
         
         # Calculate text dimensions for center alignment
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -191,7 +214,6 @@ def add_text_overlays(img, text_overlays):
                 
                 # Draw glow layer
                 for angle in range(0, 360, 30):  # 12 points around circle
-                    import math
                     glow_x = positioned_x + radius * math.cos(math.radians(angle))
                     glow_y = positioned_y + radius * math.sin(math.radians(angle))
                     draw.text((glow_x, glow_y), text, fill=glow_color_with_alpha, font=font)
@@ -223,7 +245,7 @@ def add_image_overlays(img, image_overlays, upload_folder):
                 # Apply opacity
                 if 'opacity' in overlay and overlay['opacity'] != 100:
                     alpha = overlay_img.split()[-1]
-                    alpha = alpha.point(lambda p: p * (overlay['opacity'] / 100.0))
+                    alpha = alpha.point(lambda p: int(p * (overlay['opacity'] / 100.0)))
                     overlay_img.putalpha(alpha)
                 
                 x = overlay.get('x', 0)
@@ -238,7 +260,7 @@ def add_image_overlays(img, image_overlays, upload_folder):
                 img.paste(overlay_img, (x, y), overlay_img)
                 
         except Exception as e:
-            print(f"Error adding overlay: {e}")
+            logger.warning("Error adding overlay: %s", e)
             continue
     
     return img
@@ -250,10 +272,7 @@ def add_background(img, background_config):
     
     if bg_type == 'color':
         color = background_config.get('color', '#FFFFFF')
-        # Convert hex to RGB
-        if color.startswith('#'):
-            color = color[1:]
-        rgb_color = tuple(int(color[i:i+2], 16) for i in (0, 2, 4))
+        rgb_color = hex_to_rgb(color)
         
         # Create background with same size as image
         background = Image.new('RGB', img.size, rgb_color)
@@ -268,17 +287,10 @@ def add_background(img, background_config):
             return background
             
     elif bg_type == 'gradient':
-        # Create a gradient background
         start_color = background_config.get('start_color', '#FFFFFF')
         end_color = background_config.get('end_color', '#000000')
-        direction = background_config.get('direction', 'vertical')  # vertical, horizontal, diagonal
-        
-        # Convert hex to RGB
-        def hex_to_rgb(hex_color):
-            if hex_color.startswith('#'):
-                hex_color = hex_color[1:]
-            return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        
+        direction = background_config.get('direction', 'vertical')
+
         start_rgb = hex_to_rgb(start_color)
         end_rgb = hex_to_rgb(end_color)
         
@@ -320,17 +332,10 @@ def add_background(img, background_config):
             return background
             
     elif bg_type == 'pattern':
-        # Create pattern background
         pattern_type = background_config.get('pattern', 'dots')
         color1 = background_config.get('color1', '#FFFFFF')
         color2 = background_config.get('color2', '#E0E0E0')
-        
-        # Convert hex to RGB
-        def hex_to_rgb(hex_color):
-            if hex_color.startswith('#'):
-                hex_color = hex_color[1:]
-            return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        
+
         rgb1 = hex_to_rgb(color1)
         rgb2 = hex_to_rgb(color2)
         
@@ -358,8 +363,6 @@ def add_background(img, background_config):
                     if (x // square_size + y // square_size) % 2:
                         draw.rectangle([x, y, x + square_size, y + square_size], fill=rgb2)
         elif pattern_type == 'starburst':
-            # Starburst pattern
-            import math
             center_spacing = 120  # Distance between starburst centers
             ray_count = 8  # Number of rays per starburst
             ray_length = 40
@@ -390,8 +393,6 @@ def add_background(img, background_config):
                         center_x + circle_size, center_y + circle_size
                     ], fill=rgb2)
         elif pattern_type == 'sunburst':
-            # Central sunburst pattern (like Japanese Rising Sun flag)
-            import math
             center_x = width // 2
             center_y = height // 2
             
@@ -473,13 +474,7 @@ def add_watermark(img, watermark_config):
         watermark_layer = Image.new('RGBA', img.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(watermark_layer)
         
-        try:
-            font = ImageFont.truetype("Arial.ttf", size)
-        except:
-            try:
-                font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", size)
-            except:
-                font = ImageFont.load_default()
+        font = load_font(size)
         
         # Get text dimensions
         bbox = draw.textbbox((0, 0), text, font=font)

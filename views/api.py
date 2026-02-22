@@ -1,15 +1,13 @@
 from flask import Blueprint, request, jsonify, send_file
 import os
 import uuid
-import sys
 from werkzeug.utils import secure_filename
 from PIL import Image, ImageEnhance
 
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from config import UPLOAD_FOLDER, TEMP_FOLDER, ALLOWED_EXTENSIONS, WALLPAPER_PRESETS
 from utils.image_processing import (
-    resize_for_wallpaper, optimize_wallpaper_size, 
-    add_text_overlays, add_image_overlays, 
+    resize_for_wallpaper, optimize_wallpaper_size,
+    add_text_overlays, add_image_overlays,
     add_background, add_watermark
 )
 
@@ -18,6 +16,15 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 def allowed_file(filename):
     """Check if file extension is allowed"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def safe_filepath(filename, base_folder):
+    """Prevent path traversal by constraining file to base_folder"""
+    safe_name = os.path.basename(filename)
+    full_path = os.path.realpath(os.path.join(base_folder, safe_name))
+    real_base = os.path.realpath(base_folder)
+    if not full_path.startswith(real_base + os.sep) and full_path != real_base:
+        return None
+    return full_path
 
 @api_bp.route('/upload', methods=['POST'])
 def upload_file():
@@ -55,8 +62,8 @@ def process_image():
     if not data or 'filename' not in data:
         return jsonify({'error': 'No filename provided'}), 400
     
-    input_path = os.path.join(UPLOAD_FOLDER, data['filename'])
-    if not os.path.exists(input_path):
+    input_path = safe_filepath(data['filename'], UPLOAD_FOLDER)
+    if not input_path or not os.path.exists(input_path):
         return jsonify({'error': 'File not found'}), 404
     
     try:
@@ -135,23 +142,23 @@ def process_image():
 @api_bp.route('/download/<filename>')
 def download_file(filename):
     """Download processed image file"""
-    filepath = os.path.join(TEMP_FOLDER, filename)
-    if os.path.exists(filepath):
-        return send_file(filepath, as_attachment=True, download_name=f"edited_{filename}")
-    return jsonify({'error': 'File not found'}), 404
+    filepath = safe_filepath(filename, TEMP_FOLDER)
+    if not filepath or not os.path.exists(filepath):
+        return jsonify({'error': 'File not found'}), 404
+    return send_file(filepath, as_attachment=True, download_name=f"edited_{filename}")
 
 @api_bp.route('/preview/<filename>')
 def preview_file(filename):
     """Preview processed image file"""
-    filepath = os.path.join(TEMP_FOLDER, filename)
-    if os.path.exists(filepath):
-        return send_file(filepath)
-    return jsonify({'error': 'File not found'}), 404
+    filepath = safe_filepath(filename, TEMP_FOLDER)
+    if not filepath or not os.path.exists(filepath):
+        return jsonify({'error': 'File not found'}), 404
+    return send_file(filepath)
 
 @api_bp.route('/original/<filename>')
 def preview_original(filename):
     """Preview original uploaded image file"""
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    if os.path.exists(filepath):
-        return send_file(filepath)
-    return jsonify({'error': 'File not found'}), 404
+    filepath = safe_filepath(filename, UPLOAD_FOLDER)
+    if not filepath or not os.path.exists(filepath):
+        return jsonify({'error': 'File not found'}), 404
+    return send_file(filepath)
