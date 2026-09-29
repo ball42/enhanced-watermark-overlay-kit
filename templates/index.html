@@ -57,6 +57,31 @@
                                 <input type="range" id="resize" min="10" max="300" value="100">
                                 <small>10%=very small, 100%=original, 300%=3x larger</small>
                             </div>
+                            <div class="control-group">
+                                <label for="brightness">Brightness: <span id="brightnessValue">100%</span></label>
+                                <input type="range" id="brightness" min="0" max="200" value="100">
+                                <small>0%=black, 100%=normal, 200%=bright</small>
+                            </div>
+                            <div class="control-group">
+                                <label for="contrast">Contrast: <span id="contrastValue">100%</span></label>
+                                <input type="range" id="contrast" min="0" max="200" value="100">
+                                <small>0%=flat, 100%=normal, 200%=high contrast</small>
+                            </div>
+                            <div class="control-group">
+                                <label for="blurSharpen">Blur / Sharpen: <span id="blurSharpenValue">50</span></label>
+                                <input type="range" id="blurSharpen" min="0" max="100" value="50">
+                                <small>0=max blur, 50=neutral, 100=max sharpen</small>
+                            </div>
+                            <div class="control-group">
+                                <label for="rotation">Rotation: <span id="rotationValue">0°</span></label>
+                                <input type="range" id="rotation" min="0" max="360" value="0">
+                                <div class="rotation-presets">
+                                    <button type="button" class="btn-preset" data-rotation="0">0°</button>
+                                    <button type="button" class="btn-preset" data-rotation="90">90°</button>
+                                    <button type="button" class="btn-preset" data-rotation="180">180°</button>
+                                    <button type="button" class="btn-preset" data-rotation="270">270°</button>
+                                </div>
+                            </div>
                         </div>
                     </section>
 
@@ -106,6 +131,20 @@
                             <div id="textOverlays"></div>
                             <button class="btn" data-action="add-text">
                                 <i class="fas fa-plus"></i> Add Text Overlay
+                            </button>
+                        </div>
+                    </section>
+
+                    <!-- Image Overlays -->
+                    <section class="section-container">
+                        <div class="section-header" data-section="imageOverlaySection" role="button" tabindex="0" aria-expanded="false">
+                            <h3><i class="fas fa-images"></i> Image Overlays</h3>
+                            <i class="fas fa-chevron-down collapse-icon collapsed" id="imageOverlaySection-icon"></i>
+                        </div>
+                        <div class="section-content collapsed" id="imageOverlaySection-content">
+                            <div id="imageOverlays"></div>
+                            <button class="btn" data-action="add-image-overlay">
+                                <i class="fas fa-plus"></i> Add Image Overlay
                             </button>
                         </div>
                     </section>

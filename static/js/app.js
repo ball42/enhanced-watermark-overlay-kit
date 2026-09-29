@@ -7,6 +7,7 @@
   let currentFilename = null;
   let processedFilename = null;
   let textOverlayCount = 0;
+  let imageOverlayCount = 0;
 
   // ── DOM refs ────────────────────────────────
   const $ = (sel) => document.querySelector(sel);
@@ -23,12 +24,18 @@
   const resetBtn = $('#resetBtn');
   const textOverlaysContainer = $('#textOverlays');
   const addTextBtn = $('[data-action="add-text"]');
+  const imageOverlaysContainer = $('#imageOverlays');
+  const addImageOverlayBtn = $('[data-action="add-image-overlay"]');
 
   // Range display bindings
   const rangeBindings = [
     { input: 'opacity', display: 'opacityValue', suffix: '%' },
     { input: 'saturation', display: 'saturationValue', suffix: '%' },
     { input: 'resize', display: 'resizeValue', suffix: '%' },
+    { input: 'brightness', display: 'brightnessValue', suffix: '%' },
+    { input: 'contrast', display: 'contrastValue', suffix: '%' },
+    { input: 'blurSharpen', display: 'blurSharpenValue', suffix: '' },
+    { input: 'rotation', display: 'rotationValue', suffix: '\u00b0' },
     { input: 'watermarkOpacity', display: 'watermarkOpacityValue', suffix: '%' },
   ];
 
@@ -108,6 +115,16 @@
     downloadBtn.addEventListener('click', downloadImage);
     resetBtn.addEventListener('click', resetAll);
     addTextBtn.addEventListener('click', addTextOverlay);
+    addImageOverlayBtn.addEventListener('click', addImageOverlay);
+
+    // Rotation preset buttons
+    $$('[data-rotation]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const val = btn.getAttribute('data-rotation');
+        $('#rotation').value = val;
+        $('#rotationValue').textContent = val + '\u00b0';
+      });
+    });
 
     // Toggle buttons
     $('[data-action="toggle-wallpaper"]').addEventListener('click', toggleWallpaperMode);
@@ -163,6 +180,18 @@
           span.textContent = e.target.value;
         }
       }
+      if (e.target.classList.contains('text-opacity')) {
+        const span = e.target.nextElementSibling;
+        if (span && span.classList.contains('text-opacity-value')) {
+          span.textContent = e.target.value + '%';
+        }
+      }
+      if (e.target.classList.contains('image-overlay-opacity')) {
+        const span = e.target.nextElementSibling;
+        if (span && span.classList.contains('image-overlay-opacity-value')) {
+          span.textContent = e.target.value + '%';
+        }
+      }
     });
   }
 
@@ -179,7 +208,12 @@
       opacity: parseInt($('#opacity').value, 10),
       saturation: parseInt($('#saturation').value, 10),
       resize: parseInt($('#resize').value, 10),
+      brightness: parseInt($('#brightness').value, 10),
+      contrast: parseInt($('#contrast').value, 10),
+      blur_sharpen: parseInt($('#blurSharpen').value, 10),
+      rotation: parseInt($('#rotation').value, 10),
       text_overlays: getTextOverlays(),
+      image_overlays: getImageOverlays(),
       background: getBackgroundConfig(),
       watermark: getWatermarkConfig(),
       output_format: $('#outputFormat').value,
@@ -247,6 +281,18 @@
     $('#saturationValue').textContent = '100%';
     $('#resize').value = 100;
     $('#resizeValue').textContent = '100%';
+    $('#brightness').value = 100;
+    $('#brightnessValue').textContent = '100%';
+    $('#contrast').value = 100;
+    $('#contrastValue').textContent = '100%';
+    $('#blurSharpen').value = 50;
+    $('#blurSharpenValue').textContent = '50';
+    $('#rotation').value = 0;
+    $('#rotationValue').textContent = '0\u00b0';
+
+    // Reset image overlays
+    imageOverlaysContainer.innerHTML = '';
+    imageOverlayCount = 0;
 
     // Reset format selector
     $('#outputFormat').value = 'png';
@@ -368,6 +414,28 @@
         </div>
         <div class="setting-row">
           <div class="setting-group">
+            <label>Font</label>
+            <select class="overlay-font">
+              <option value="">Default</option>
+              <option value="Arial" style="font-family:Arial">Arial</option>
+              <option value="Times New Roman" style="font-family:'Times New Roman'">Times New Roman</option>
+              <option value="Courier New" style="font-family:'Courier New'">Courier New</option>
+              <option value="Georgia" style="font-family:Georgia">Georgia</option>
+              <option value="Verdana" style="font-family:Verdana">Verdana</option>
+              <option value="Impact" style="font-family:Impact">Impact</option>
+              <option value="Comic Sans MS" style="font-family:'Comic Sans MS'">Comic Sans MS</option>
+            </select>
+          </div>
+          <div class="setting-group">
+            <label>Text Opacity</label>
+            <div class="strength-control">
+              <input type="range" class="text-opacity" min="0" max="100" value="100">
+              <span class="text-opacity-value">100%</span>
+            </div>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-group">
             <label>Effect</label>
             <select class="text-effect">
               <option value="none">None</option>
@@ -442,6 +510,9 @@
         const sizeMode = item.querySelector('.size-mode-btn').dataset.mode;
         const sizeValue = parseInt(item.querySelector('.overlay-size').value, 10);
 
+        const fontFamily = item.querySelector('.overlay-font').value;
+        const textOpacity = parseInt(item.querySelector('.text-opacity').value, 10);
+
         const overlay = {
           text,
           x: item.querySelector('.overlay-x').value,
@@ -451,7 +522,12 @@
           text_effect: item.querySelector('.text-effect').value,
           effect_color: item.querySelector('.effect-color').value,
           effect_strength: parseInt(item.querySelector('.effect-strength').value, 10),
+          text_opacity: textOpacity,
         };
+
+        if (fontFamily) {
+          overlay.font_family = fontFamily;
+        }
 
         if (sizeMode === '%') {
           overlay.size_percent = sizeValue;
@@ -461,6 +537,117 @@
 
         overlays.push(overlay);
       }
+    });
+    return overlays;
+  }
+
+  // ── Image Overlays ─────────────────────────
+
+  function addImageOverlay() {
+    imageOverlayCount++;
+    const div = document.createElement('div');
+    div.className = 'image-overlay-item';
+    div.innerHTML = `
+      <div class="image-overlay-header">
+        <span class="image-overlay-title">Image Overlay #${imageOverlayCount}</span>
+        <button class="btn btn-danger" data-action="remove-image-overlay" title="Remove">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+      <div class="overlay-settings">
+        <div class="image-upload-group">
+          <label class="btn btn-secondary image-upload-btn">
+            <i class="fas fa-upload"></i> Choose Image
+            <input type="file" class="image-overlay-file" accept="image/*" style="display:none;">
+          </label>
+          <span class="image-overlay-filename">No file chosen</span>
+          <input type="hidden" class="image-overlay-uploaded-name">
+        </div>
+        <div class="setting-row">
+          <div class="setting-group">
+            <label>X Position</label>
+            <input type="text" class="image-overlay-x" value="0" placeholder="px or %">
+          </div>
+          <div class="setting-group">
+            <label>Y Position</label>
+            <input type="text" class="image-overlay-y" value="0" placeholder="px or %">
+          </div>
+          <div class="setting-group">
+            <label>Width</label>
+            <input type="text" class="image-overlay-width" placeholder="auto" title="px or % (e.g. 200 or 25%)">
+          </div>
+          <div class="setting-group">
+            <label>Height</label>
+            <input type="text" class="image-overlay-height" placeholder="auto" title="px or % (e.g. 150 or 25%)">
+          </div>
+          <div class="setting-group">
+            <label>Opacity</label>
+            <div class="strength-control">
+              <input type="range" class="image-overlay-opacity" min="0" max="100" value="100">
+              <span class="image-overlay-opacity-value">100%</span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    imageOverlaysContainer.appendChild(div);
+
+    // Remove button
+    div.querySelector('[data-action="remove-image-overlay"]').addEventListener('click', () => {
+      div.remove();
+    });
+
+    // File upload handler
+    const fileInput = div.querySelector('.image-overlay-file');
+    const filenameSpan = div.querySelector('.image-overlay-filename');
+    const hiddenInput = div.querySelector('.image-overlay-uploaded-name');
+
+    fileInput.addEventListener('change', async (e) => {
+      if (e.target.files.length === 0) return;
+      const file = e.target.files[0];
+      filenameSpan.textContent = 'Uploading...';
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        const result = await response.json();
+        if (result.success) {
+          hiddenInput.value = result.filename;
+          filenameSpan.textContent = file.name;
+        } else {
+          filenameSpan.textContent = 'Upload failed';
+          showToast('Overlay upload failed: ' + result.error, 'error');
+        }
+      } catch (err) {
+        filenameSpan.textContent = 'Upload failed';
+        showToast('Overlay upload failed: ' + err.message, 'error');
+      }
+    });
+  }
+
+  function getImageOverlays() {
+    const overlays = [];
+    $$('.image-overlay-item').forEach((item) => {
+      const filename = item.querySelector('.image-overlay-uploaded-name').value;
+      if (!filename) return;
+
+      const overlay = {
+        filename,
+        x: item.querySelector('.image-overlay-x').value,
+        y: item.querySelector('.image-overlay-y').value,
+        opacity: parseInt(item.querySelector('.image-overlay-opacity').value, 10),
+      };
+
+      const w = item.querySelector('.image-overlay-width').value.trim();
+      const h = item.querySelector('.image-overlay-height').value.trim();
+      if (w) overlay.width = w.endsWith('%') ? w : parseInt(w, 10);
+      if (h) overlay.height = h.endsWith('%') ? h : parseInt(h, 10);
+
+      overlays.push(overlay);
     });
     return overlays;
   }

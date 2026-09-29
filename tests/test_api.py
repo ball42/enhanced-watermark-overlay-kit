@@ -179,6 +179,198 @@ class TestProcess:
         )
         assert resp.status_code == 404
 
+    # ── Area 1: Image adjustments ──────────────
+
+    def test_process_with_brightness(self, client):
+        filename = self._upload(client)
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({"filename": filename, "brightness": 150}),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+
+    def test_process_with_contrast(self, client):
+        filename = self._upload(client)
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({"filename": filename, "contrast": 50}),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+
+    def test_process_with_blur(self, client):
+        filename = self._upload(client)
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({"filename": filename, "blur_sharpen": 10}),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+
+    def test_process_with_sharpen(self, client):
+        filename = self._upload(client)
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({"filename": filename, "blur_sharpen": 90}),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+
+    def test_process_with_rotation(self, client):
+        filename = self._upload(client)
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({"filename": filename, "rotation": 90}),
+            content_type="application/json",
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+        # 90° rotation of 100x100 → still 100x100
+        assert data["dimensions"]["width"] == 100
+        assert data["dimensions"]["height"] == 100
+
+    def test_process_with_rotation_45(self, client):
+        filename = self._upload(client)
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({"filename": filename, "rotation": 45}),
+            content_type="application/json",
+        )
+        data = resp.get_json()
+        assert data["success"] is True
+        # 45° rotation with expand=True increases dimensions
+        assert data["dimensions"]["width"] > 100
+        assert data["dimensions"]["height"] > 100
+
+    # ── Area 2: Font + text opacity ────────────
+
+    def test_process_text_with_font_family(self, client):
+        filename = self._upload(client)
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({
+                "filename": filename,
+                "text_overlays": [
+                    {"text": "Serif", "x": "50%", "y": "50%", "size": 24,
+                     "color": "#FFFFFF", "font_family": "Times New Roman"}
+                ],
+            }),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+
+    def test_process_text_with_opacity(self, client):
+        filename = self._upload(client)
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({
+                "filename": filename,
+                "text_overlays": [
+                    {"text": "Faded", "x": "50%", "y": "50%", "size": 24,
+                     "color": "#FF0000", "text_opacity": 50}
+                ],
+            }),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+
+    # ── Area 3: Image overlays ─────────────────
+
+    def test_process_with_image_overlay(self, client):
+        # Upload main image
+        filename = self._upload(client)
+        # Upload overlay image
+        overlay_img = make_test_image(50, 50, color=(0, 255, 0))
+        resp = client.post(
+            "/api/upload",
+            data={"file": (overlay_img, "overlay.png")},
+            content_type="multipart/form-data",
+        )
+        overlay_filename = resp.get_json()["filename"]
+
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({
+                "filename": filename,
+                "image_overlays": [
+                    {"filename": overlay_filename, "x": 10, "y": 10,
+                     "width": 30, "height": 30, "opacity": 80}
+                ],
+            }),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+
+    def test_process_with_image_overlay_no_size(self, client):
+        filename = self._upload(client)
+        overlay_img = make_test_image(50, 50, color=(0, 0, 255))
+        resp = client.post(
+            "/api/upload",
+            data={"file": (overlay_img, "overlay2.png")},
+            content_type="multipart/form-data",
+        )
+        overlay_filename = resp.get_json()["filename"]
+
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({
+                "filename": filename,
+                "image_overlays": [
+                    {"filename": overlay_filename, "x": 0, "y": 0, "opacity": 100}
+                ],
+            }),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+
+    def test_process_with_image_overlay_percent_size(self, client):
+        """Image overlay with percentage-based width/height."""
+        filename = self._upload(client)
+        overlay_img = make_test_image(50, 50, color=(0, 128, 0))
+        resp = client.post(
+            "/api/upload",
+            data={"file": (overlay_img, "overlay_pct.png")},
+            content_type="multipart/form-data",
+        )
+        overlay_filename = resp.get_json()["filename"]
+
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({
+                "filename": filename,
+                "image_overlays": [
+                    {"filename": overlay_filename, "x": "10%", "y": "10%",
+                     "width": "50%", "height": "50%", "opacity": 100}
+                ],
+            }),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+
+    def test_process_with_image_overlay_width_only(self, client):
+        """Image overlay with only width specified preserves aspect ratio."""
+        filename = self._upload(client)
+        overlay_img = make_test_image(80, 40, color=(128, 0, 128))
+        resp = client.post(
+            "/api/upload",
+            data={"file": (overlay_img, "overlay_w.png")},
+            content_type="multipart/form-data",
+        )
+        overlay_filename = resp.get_json()["filename"]
+
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({
+                "filename": filename,
+                "image_overlays": [
+                    {"filename": overlay_filename, "x": 0, "y": 0, "width": "25%"}
+                ],
+            }),
+            content_type="application/json",
+        )
+        assert resp.get_json()["success"] is True
+
 
 # ── Download ───────────────────────────────────
 

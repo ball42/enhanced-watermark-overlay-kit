@@ -3,7 +3,10 @@
 import pytest
 from PIL import Image
 
-from utils.image_processing import hex_to_rgb, load_font, resize_for_wallpaper, add_text_overlays
+from utils.image_processing import (
+    hex_to_rgb, load_font, resize_for_wallpaper, add_text_overlays,
+    add_image_overlays, FONT_MAP,
+)
 
 
 # ── hex_to_rgb ─────────────────────────────────
@@ -142,3 +145,103 @@ class TestAddTextOverlays:
             {"text": "Pct", "x": "50%", "y": "50%", "size": 12, "size_percent": 10}
         ])
         assert result.size == (400, 400)
+
+    def test_text_with_font_family(self):
+        """Text overlay with an explicit font family."""
+        img = self._make_image()
+        result = add_text_overlays(img, [
+            {"text": "Serif", "x": "50%", "y": "50%", "size": 20, "font_family": "Times New Roman"}
+        ])
+        assert result.size == (400, 400)
+
+    def test_text_with_opacity(self):
+        """Text overlay with reduced opacity draws on temporary layer."""
+        img = self._make_image()
+        result = add_text_overlays(img, [
+            {"text": "Faded", "x": "50%", "y": "50%", "size": 24, "color": "#FF0000",
+             "text_opacity": 50}
+        ])
+        assert result.size == (400, 400)
+        assert result.mode == "RGBA"
+
+    def test_text_with_zero_opacity(self):
+        """Text overlay with 0% opacity should not visibly alter the image."""
+        img = self._make_image()
+        result = add_text_overlays(img, [
+            {"text": "Invisible", "x": "50%", "y": "50%", "size": 24,
+             "text_opacity": 0}
+        ])
+        assert result.size == (400, 400)
+
+    def test_text_opacity_with_effect(self):
+        """Text overlay with opacity + shadow effect."""
+        img = self._make_image()
+        result = add_text_overlays(img, [
+            {"text": "Shadow", "x": "50%", "y": "50%", "size": 24,
+             "text_effect": "shadow", "effect_color": "#000000",
+             "effect_strength": 3, "text_opacity": 60}
+        ])
+        assert result.size == (400, 400)
+
+
+# ── load_font with family ────────────────────────
+
+
+class TestLoadFontFamily:
+    def test_load_font_with_family(self):
+        """Loading a known font family should return a font object."""
+        font = load_font(24, family="Arial")
+        assert font is not None
+
+    def test_load_font_with_unknown_family(self):
+        """Unknown family should fall back to default chain."""
+        font = load_font(24, family="NonexistentFont")
+        assert font is not None
+
+    def test_load_font_with_none_family(self):
+        """None family should use default fallback."""
+        font = load_font(24, family=None)
+        assert font is not None
+
+
+# ── add_image_overlays smart sizing ──────────────
+
+
+class TestImageOverlaySmartSizing:
+    def _make_image(self, w=400, h=200):
+        return Image.new("RGBA", (w, h), (128, 128, 128, 255))
+
+    def _save_overlay(self, tmp_path, w=80, h=40):
+        """Save a test overlay image to tmp_path and return (folder, filename)."""
+        img = Image.new("RGBA", (w, h), (255, 0, 0, 255))
+        filename = "overlay.png"
+        img.save(str(tmp_path / filename))
+        return str(tmp_path), filename
+
+    def test_percent_width_and_height(self, tmp_path):
+        """Percentage width/height relative to main image."""
+        main = self._make_image(400, 200)
+        folder, name = self._save_overlay(tmp_path, 80, 40)
+        result = add_image_overlays(main, [
+            {"filename": name, "x": 0, "y": 0, "width": "50%", "height": "25%"}
+        ], folder)
+        assert result.size == (400, 200)
+
+    def test_width_only_preserves_aspect_ratio(self, tmp_path):
+        """Specifying only width auto-calculates height from aspect ratio."""
+        main = self._make_image(400, 200)
+        folder, name = self._save_overlay(tmp_path, 80, 40)
+        # 25% of 400 = 100px width → height should be 100*(40/80) = 50
+        result = add_image_overlays(main, [
+            {"filename": name, "x": 0, "y": 0, "width": "25%"}
+        ], folder)
+        assert result.size == (400, 200)
+
+    def test_height_only_preserves_aspect_ratio(self, tmp_path):
+        """Specifying only height auto-calculates width from aspect ratio."""
+        main = self._make_image(400, 200)
+        folder, name = self._save_overlay(tmp_path, 80, 40)
+        result = add_image_overlays(main, [
+            {"filename": name, "x": 0, "y": 0, "height": "50%"}
+        ], folder)
+        assert result.size == (400, 200)

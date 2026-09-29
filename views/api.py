@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, send_file
 import os
 import uuid
 from werkzeug.utils import secure_filename
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageFilter
 
 from config import UPLOAD_FOLDER, TEMP_FOLDER, ALLOWED_EXTENSIONS, WALLPAPER_PRESETS
 from utils.image_processing import (
@@ -91,6 +91,30 @@ def process_image():
                 enhancer = ImageEnhance.Color(result_img)
                 result_img = enhancer.enhance(saturation)
             
+            # Apply brightness
+            if 'brightness' in data and data['brightness'] != 100:
+                enhancer = ImageEnhance.Brightness(result_img)
+                result_img = enhancer.enhance(data['brightness'] / 100.0)
+
+            # Apply contrast
+            if 'contrast' in data and data['contrast'] != 100:
+                enhancer = ImageEnhance.Contrast(result_img)
+                result_img = enhancer.enhance(data['contrast'] / 100.0)
+
+            # Apply blur/sharpen (0-100, 50=neutral)
+            if 'blur_sharpen' in data and data['blur_sharpen'] != 50:
+                bs = data['blur_sharpen']
+                if bs < 50:
+                    radius = (50 - bs) / 5.0
+                    result_img = result_img.filter(ImageFilter.GaussianBlur(radius=radius))
+                else:
+                    sharpener = ImageEnhance.Sharpness(result_img)
+                    result_img = sharpener.enhance(1.0 + (bs - 50) / 50.0 * 3.0)
+
+            # Apply rotation
+            if 'rotation' in data and data['rotation'] != 0:
+                result_img = result_img.rotate(data['rotation'], expand=True, fillcolor=(0, 0, 0, 0))
+
             # Apply custom resize
             if 'resize' in data and data['resize'] != 100:
                 resize_factor = data['resize'] / 100.0
