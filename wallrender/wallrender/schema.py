@@ -5,6 +5,7 @@ field is checked and bounded before anything is drawn."""
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any
 
@@ -18,10 +19,10 @@ MAX_TEXT_SIZE = 0.5  # font size as a fraction of canvas height
 FONTS = {"noto-sans"}
 ALIGNS = {"left", "center", "right"}
 
-ASSET_ID = re.compile(r"^[a-z0-9_-]{1,64}$")
-COLOR = re.compile(r"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$")
-PLACEHOLDER = re.compile(r"\{\{(.*?)\}\}")
-VARIABLE_PATH = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$")
+ASSET_ID = re.compile(r"[a-z0-9_-]{1,64}")  # always used with fullmatch
+COLOR = re.compile(r"#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?")
+PLACEHOLDER = re.compile(r"\{\{(.*?)\}\}", re.DOTALL)
+VARIABLE_PATH = re.compile(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*")
 
 
 class TemplateError(ValueError):
@@ -37,7 +38,16 @@ def variables_in(text: str) -> list[str]:
 
 
 def _number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+    """A real, finite number (bools and NaN/inf are not numbers here)."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _int(value: Any) -> bool:
+    return type(value) is int
+
+
+def _matches(pattern: re.Pattern, value: Any) -> bool:
+    return isinstance(value, str) and pattern.fullmatch(value) is not None
 
 
 def _check_box(where: str, box: Any, problems: list[str]) -> None:
@@ -50,13 +60,13 @@ def _check_box(where: str, box: Any, problems: list[str]) -> None:
 
 
 def _check_color(where: str, value: Any, problems: list[str]) -> None:
-    if value is not None and not (isinstance(value, str) and COLOR.match(value)):
+    if value is not None and not _matches(COLOR, value):
         problems.append(f"{where}: color must be #RRGGBB or #RRGGBBAA, got {value!r}")
 
 
 def _check_variables(where: str, text: str, problems: list[str]) -> None:
     for name in variables_in(text):
-        if not VARIABLE_PATH.match(name):
+        if not VARIABLE_PATH.fullmatch(name):
             problems.append(f"{where}: invalid variable {{{{{name}}}}} (use letters, digits, _ and dots)")
 
 
@@ -65,22 +75,23 @@ def validate(template: Any) -> list[str]:
     problems: list[str] = []
     if not isinstance(template, dict):
         return ["template must be a JSON object"]
-    if template.get("schema_version") != SCHEMA_VERSION:
+    if not (_int(template.get("schema_version")) and template["schema_version"] == SCHEMA_VERSION):
         problems.append(f"schema_version must be {SCHEMA_VERSION}")
 
     canvas = template.get("canvas")
     if canvas is not None:
-        w, h = (canvas or {}).get("width"), (canvas or {}).get("height")
-        if not (isinstance(w, int) and isinstance(h, int) and 0 < w <= MAX_SIDE and 0 < h <= MAX_SIDE
-                and w * h <= MAX_PIXELS):
+        w = canvas.get("width") if isinstance(canvas, dict) else None
+        h = canvas.get("height") if isinstance(canvas, dict) else None
+        if not (_int(w) and _int(h) and 0 < w <= MAX_SIDE and 0 < h <= MAX_SIDE and w * h <= MAX_PIXELS):
             problems.append(f"canvas must be whole pixels, at most {MAX_SIDE} per side and {MAX_PIXELS} in total")
 
     background = template.get("background")
     if not isinstance(background, dict) or not ({"color", "asset"} & background.keys()):
         problems.append("background needs a color or an asset")
     else:
-        _check_color("background", background.get("color"), problems)
-        if "asset" in background and not ASSET_ID.match(str(background["asset"])):
+        if "color" in background and not _matches(COLOR, background["color"]):
+            problems.append("background: color must be #RRGGBB or #RRGGBBAA")
+        if "asset" in background and not _matches(ASSET_ID, background["asset"]):
             problems.append(f"background: asset id must match {ASSET_ID.pattern}")
         if canvas is None and "asset" not in background:
             problems.append("canvas is required when the background is a color")
@@ -109,9 +120,9 @@ def validate(template: Any) -> list[str]:
             if not (_number(size) and 0 < size <= MAX_TEXT_SIZE):
                 problems.append(f"{where}: size must be a fraction of canvas height in (0, {MAX_TEXT_SIZE}]")
             _check_color(where, layer.get("color"), problems)
-            if layer.get("align", "center") not in ALIGNS:
+            if not (isinstance(layer.get("align", "center"), str) and layer.get("align", "center") in ALIGNS):
                 problems.append(f"{where}: align must be one of {sorted(ALIGNS)}")
-            if layer.get("font", "noto-sans") not in FONTS:
+            if not (isinstance(layer.get("font", "noto-sans"), str) and layer.get("font", "noto-sans") in FONTS):
                 problems.append(f"{where}: font must be one of {sorted(FONTS)}")
         elif kind == "qr":
             data = layer.get("data")
@@ -122,6 +133,6 @@ def validate(template: Any) -> list[str]:
             _check_color(where, layer.get("color"), problems)
             _check_color(where, layer.get("background"), problems)
         elif kind == "image":
-            if not ASSET_ID.match(str(layer.get("asset", ""))):
+            if not _matches(ASSET_ID, layer.get("asset")):
                 problems.append(f"{where}: asset id must match {ASSET_ID.pattern}")
     return problems

@@ -1,46 +1,89 @@
 """Draw a validated template. Pure: no network, no Flask, no Jamf.
 
 The same function runs in EWOK's preview and in JAWA Brander, so what is
-designed is what the device receives."""
+designed is what the device receives. Templates and values are untrusted
+(this runs on the JAWA server), so every step is bounded in CPU and memory,
+and any failure surfaces as TemplateError."""
 
 from __future__ import annotations
 
 import io
-from functools import lru_cache
+import math
 from importlib import resources
 from typing import Any, Callable, Union
 
 import qrcode
-from PIL import Image, ImageDraw, ImageFont
+import qrcode.exceptions
+from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
-from .schema import TemplateError, validate
+from .schema import MAX_PIXELS, MAX_SIDE, TemplateError, validate
 from .variables import substitute
 
 AssetData = Union[bytes, Image.Image]
 AssetResolver = Callable[[str], AssetData]
 
 MIN_FONT_PX = 6
+MAX_ASPECT = 50  # assets thinner than 1:50 would force enormous resizes
+ASSET_FORMATS = ["PNG", "JPEG"]  # never EPS/PS (Ghostscript) or other exotic decoders
 
 
-def _font_path() -> str:
-    return str(resources.files("wallrender") / "fonts" / "NotoSans.ttf")
+def _font_bytes() -> bytes:
+    return (resources.files("wallrender") / "fonts" / "NotoSans.ttf").read_bytes()
 
 
-@lru_cache(maxsize=64)
-def font(px: int) -> ImageFont.FreeTypeFont:
-    # BASIC layout keeps output identical across hosts (no Raqm dependency);
-    # the variable font is pinned to its Regular instance.
-    f = ImageFont.truetype(_font_path(), px, layout_engine=ImageFont.Layout.BASIC)
-    try:
-        f.set_variation_by_name("Regular")
-    except (OSError, ValueError):
-        pass
-    return f
+_FONT_BYTES = _font_bytes()  # read-only and shared; FreeTypeFont objects are per render
 
 
-def _open(data: AssetData) -> Image.Image:
-    img = data if isinstance(data, Image.Image) else Image.open(io.BytesIO(data))
+class _Session:
+    """Per-render caches: fonts (FreeTypeFont is not documented as thread-safe)
+    and decoded assets (so a logo used in several layers is decoded once)."""
+
+    def __init__(self, assets: AssetResolver):
+        self._resolve = assets
+        self._fonts: dict[int, ImageFont.FreeTypeFont] = {}
+        self._assets: dict[str, Image.Image] = {}
+
+    def font(self, px: int) -> ImageFont.FreeTypeFont:
+        if px not in self._fonts:
+            # BASIC layout keeps output identical across hosts (no Raqm);
+            # the variable font is pinned to its Regular instance.
+            f = ImageFont.truetype(io.BytesIO(_FONT_BYTES), px, layout_engine=ImageFont.Layout.BASIC)
+            try:
+                f.set_variation_by_name("Regular")
+            except (OSError, ValueError):
+                pass
+            self._fonts[px] = f
+        return self._fonts[px]
+
+    def asset(self, asset_id: str) -> Image.Image:
+        if asset_id not in self._assets:
+            try:
+                data = self._resolve(asset_id)
+            except KeyError as e:
+                raise TemplateError([f"asset {asset_id!r} not found"]) from e
+            self._assets[asset_id] = _open(asset_id, data)
+        return self._assets[asset_id]
+
+
+def _check_size(asset_id: str, width: int, height: int) -> None:
+    if width > MAX_SIDE or height > MAX_SIDE or width * height > MAX_PIXELS:
+        raise TemplateError([f"asset {asset_id!r} is too large ({width}x{height}; "
+                             f"at most {MAX_SIDE} per side and {MAX_PIXELS} pixels)"])
+    if max(width, height) > MAX_ASPECT * min(width, height):
+        raise TemplateError([f"asset {asset_id!r} has an extreme aspect ratio ({width}x{height})"])
+
+
+def _open(asset_id: str, data: AssetData) -> Image.Image:
+    if isinstance(data, Image.Image):
+        img = data
+    else:
+        try:
+            img = Image.open(io.BytesIO(data), formats=ASSET_FORMATS)
+        except (UnidentifiedImageError, OSError, TypeError) as e:
+            raise TemplateError([f"asset {asset_id!r} must be a PNG or JPEG image"]) from e
+    _check_size(asset_id, *img.size)  # before load(): nothing is decoded yet
     img.load()
+    img = ImageOps.exif_transpose(img)
     return img.convert("RGBA")
 
 
@@ -55,52 +98,55 @@ def _rgba(hex_color: str | None, default: tuple[int, int, int, int]) -> tuple[in
 
 def _box_px(box: dict[str, float], size: tuple[int, int]) -> tuple[int, int, int, int]:
     w, h = size
-    return (round(box["x"] * w), round(box["y"] * h), round(box["w"] * w), round(box["h"] * h))
+    return (round(box["x"] * w), round(box["y"] * h), max(1, round(box["w"] * w)), max(1, round(box["h"] * h)))
 
 
-def _cover(img: Image.Image, size: tuple[int, int]) -> Image.Image:
-    """Scale to cover the canvas and centre-crop, keeping the aspect ratio."""
-    scale = max(size[0] / img.width, size[1] / img.height)
-    resized = img.resize((max(1, round(img.width * scale)), max(1, round(img.height * scale))),
-                         Image.Resampling.LANCZOS)
-    left = (resized.width - size[0]) // 2
-    top = (resized.height - size[1]) // 2
-    return resized.crop((left, top, left + size[0], top + size[1]))
-
-
-def _canvas(template: dict[str, Any], assets: AssetResolver) -> Image.Image:
+def _canvas(template: dict[str, Any], session: _Session) -> Image.Image:
     background = template["background"]
     canvas = template.get("canvas")
     if "asset" in background:
-        bg = _open(assets(background["asset"]))
+        bg = session.asset(background["asset"])
         if canvas:
-            bg = _cover(bg, (canvas["width"], canvas["height"]))
-        return bg
+            # fit() crops in source space before resizing, so no intermediate
+            # is ever larger than the canvas.
+            bg = ImageOps.fit(bg, (canvas["width"], canvas["height"]), Image.Resampling.LANCZOS)
+        return bg.copy()
     return Image.new("RGBA", (canvas["width"], canvas["height"]), _rgba(background["color"], (0, 0, 0, 255)))
 
 
-def _draw_text(img: Image.Image, layer: dict[str, Any], values: dict[str, Any], missing: list[str]) -> None:
+def _fit_font(session: _Session, text: str, px: int, bw: int, bh: int):
+    """Largest size <= px whose text fits the box: one measurement plus a few
+    checks, never a pixel-by-pixel walk down from a huge size."""
+    probe = ImageDraw.Draw(Image.new("L", (1, 1)))
+    for _ in range(4):
+        f = session.font(px)
+        left, top, right, bottom = probe.textbbox((0, 0), text, font=f)
+        width, height = right - left, bottom - top
+        if (width <= bw and height <= bh) or px <= MIN_FONT_PX:
+            return f, (left, top, width, height)
+        scale = min(bw / max(width, 1), bh / max(height, 1))
+        px = max(MIN_FONT_PX, min(px - 1, math.floor(px * scale)))
+    f = session.font(px)
+    left, top, right, bottom = probe.textbbox((0, 0), text, font=f)
+    return f, (left, top, right - left, bottom - top)
+
+
+def _draw_text(img: Image.Image, session: _Session, layer: dict[str, Any],
+               values: dict[str, Any], missing: list[str]) -> None:
     text = substitute(layer["text"], values, missing)
     if not text.strip():
         return
     bx, by, bw, bh = _box_px(layer["box"], img.size)
     px = max(MIN_FONT_PX, round(layer["size"] * img.height))
-    draw = ImageDraw.Draw(img)
-    # Overflow policy v0: shrink until the text fits the box width.
-    while True:
-        f = font(px)
-        left, top, right, bottom = draw.textbbox((0, 0), text, font=f)
-        if right - left <= bw or px <= MIN_FONT_PX:
-            break
-        px -= 1
-    width, height = right - left, bottom - top
+    f, (left, top, width, height) = _fit_font(session, text, px, bw, bh)
     align = layer.get("align", "center")
-    x = bx if align == "left" else bx + bw - width if align == "right" else bx + (bw - width) / 2
-    y = by + (bh - height) / 2
-    layer_img = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    ImageDraw.Draw(layer_img).text((x - left, y - top), text, font=f,
+    x = 0 if align == "left" else bw - width if align == "right" else (bw - width) // 2
+    y = (bh - height) // 2
+    # Draw into a box-sized layer: bounded memory, and nothing spills outside the box.
+    box_layer = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+    ImageDraw.Draw(box_layer).text((x - left, y - top), text, font=f,
                                    fill=_rgba(layer.get("color"), (255, 255, 255, 255)))
-    img.alpha_composite(layer_img)
+    img.alpha_composite(box_layer, (bx, by))
 
 
 def _draw_qr(img: Image.Image, layer: dict[str, Any], values: dict[str, Any], missing: list[str]) -> None:
@@ -108,8 +154,11 @@ def _draw_qr(img: Image.Image, layer: dict[str, Any], values: dict[str, Any], mi
     if not data:
         return
     qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=1, border=2)
-    qr.add_data(data)
-    qr.make(fit=True)
+    qr.add_data(data.encode("utf-8", "replace"))
+    try:
+        qr.make(fit=True)
+    except (qrcode.exceptions.DataOverflowError, ValueError) as e:
+        raise TemplateError([f"qr data is too long to encode ({len(data)} characters)"]) from e
     dark = _rgba(layer.get("color"), (0, 0, 0, 255))
     light = _rgba(layer.get("background"), (255, 255, 255, 255))
     matrix = qr.get_matrix()  # includes the quiet-zone border, which scanners need
@@ -124,32 +173,45 @@ def _draw_qr(img: Image.Image, layer: dict[str, Any], values: dict[str, Any], mi
     img.alpha_composite(code, (bx + (bw - side) // 2, by + (bh - side) // 2))
 
 
-def _draw_image(img: Image.Image, layer: dict[str, Any], assets: AssetResolver) -> None:
-    src = _open(assets(layer["asset"]))
+def _draw_image(img: Image.Image, session: _Session, layer: dict[str, Any]) -> None:
+    src = session.asset(layer["asset"])
     bx, by, bw, bh = _box_px(layer["box"], img.size)
-    scale = min(bw / src.width, bh / src.height)
-    fitted = src.resize((max(1, round(src.width * scale)), max(1, round(src.height * scale))),
-                        Image.Resampling.LANCZOS)
+    fitted = ImageOps.contain(src, (bw, bh), Image.Resampling.LANCZOS)
     img.alpha_composite(fitted, (bx + (bw - fitted.width) // 2, by + (bh - fitted.height) // 2))
+
+
+def _flatten(img: Image.Image) -> Image.Image:
+    """Transparent areas render black: a defined result for the delivered PNG."""
+    base = Image.new("RGBA", img.size, (0, 0, 0, 255))
+    base.alpha_composite(img)
+    return base.convert("RGB")
 
 
 def render_with_report(template: dict[str, Any], values: dict[str, Any],
                        assets: AssetResolver) -> tuple[Image.Image, list[str]]:
-    """Render and also return the variable paths that had no value."""
+    """Render and also return the variable paths that had no printable value.
+
+    Raises only TemplateError, whatever the template, values or assets contain."""
     problems = validate(template)
     if problems:
         raise TemplateError(problems)
-    img = _canvas(template, assets)
+    session = _Session(assets)
     missing: list[str] = []
-    for layer in template.get("layers", []):
-        kind = layer["type"]
-        if kind == "text":
-            _draw_text(img, layer, values, missing)
-        elif kind == "qr":
-            _draw_qr(img, layer, values, missing)
-        else:
-            _draw_image(img, layer, assets)
-    return img.convert("RGB"), missing
+    try:
+        img = _canvas(template, session)
+        for layer in template.get("layers", []):
+            kind = layer["type"]
+            if kind == "text":
+                _draw_text(img, session, layer, values, missing)
+            elif kind == "qr":
+                _draw_qr(img, layer, values, missing)
+            else:
+                _draw_image(img, session, layer)
+        return _flatten(img), missing
+    except TemplateError:
+        raise
+    except (ValueError, TypeError, OverflowError, UnicodeError, OSError, MemoryError) as e:
+        raise TemplateError([f"render failed: {type(e).__name__}: {e}"]) from e
 
 
 def render(template: dict[str, Any], values: dict[str, Any], assets: AssetResolver) -> Image.Image:
@@ -157,15 +219,13 @@ def render(template: dict[str, Any], values: dict[str, Any], assets: AssetResolv
     return render_with_report(template, values, assets)[0]
 
 
-def _glyph_pixels(ch: str) -> bytes:
-    img = Image.new("L", (96, 96), 0)
-    ImageDraw.Draw(img).text((16, 16), ch, font=font(48), fill=255)
-    return img.tobytes()
+def _missing_glyphs(session: _Session, text: str, notdef: bytes) -> list[str]:
+    def pixels(ch: str) -> bytes:
+        img = Image.new("L", (96, 96), 0)
+        ImageDraw.Draw(img).text((16, 16), ch, font=session.font(48), fill=255)
+        return img.tobytes()
 
-
-def _missing_glyphs(text: str) -> list[str]:
-    notdef = _glyph_pixels("\U0010FFFD")  # a code point no font covers: the fallback box
-    return sorted({ch for ch in text if not ch.isspace() and _glyph_pixels(ch) == notdef})
+    return sorted({ch for ch in set(text) if not ch.isspace() and pixels(ch) == notdef})
 
 
 def lint(template: dict[str, Any], values: dict[str, Any], assets: AssetResolver) -> list[str]:
@@ -174,11 +234,18 @@ def lint(template: dict[str, Any], values: dict[str, Any], assets: AssetResolver
     if problems:
         return problems
     warnings: list[str] = []
-    _, missing = render_with_report(template, values, assets)
+    try:
+        _, missing = render_with_report(template, values, assets)
+    except TemplateError as e:
+        return e.problems
     for path in sorted(set(missing)):
         warnings.append(f"no value for {{{{{path}}}}}; it renders empty")
+    session = _Session(assets)
+    notdef_img = Image.new("L", (96, 96), 0)
+    ImageDraw.Draw(notdef_img).text((16, 16), "\U0010FFFD", font=session.font(48), fill=255)
+    notdef = notdef_img.tobytes()  # the fallback box: a code point no font covers
     for i, layer in enumerate(template.get("layers", [])):
         if layer["type"] == "text":
-            for ch in _missing_glyphs(substitute(layer["text"], values)):
+            for ch in _missing_glyphs(session, substitute(layer["text"], values), notdef):
                 warnings.append(f"layer {i}: the font has no glyph for {ch!r} ({ch}); it will show as a box")
     return warnings

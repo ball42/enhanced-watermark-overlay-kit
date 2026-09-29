@@ -13,7 +13,8 @@ warnings = lint(template, values, asset_resolver) # missing values, missing glyp
 ```
 
 - `values` is a dict of device data, for example built from the verified Jamf record. Nested dicts are addressed with dots: `{{location.building}}`.
-- `asset_resolver(asset_id)` returns PNG/JPEG bytes or a PIL image. Templates never contain file paths, only asset ids.
+- `asset_resolver(asset_id)` returns PNG or JPEG bytes, or a PIL image; raise `KeyError` for an unknown id. Templates never contain file paths, only asset ids.
+- Every failure, whether from the template, the values or the assets, raises `TemplateError`, never another exception.
 
 ## Template format (schema v1)
 
@@ -43,9 +44,26 @@ warnings = lint(template, values, asset_resolver) # missing values, missing glyp
 | Colours | `#RRGGBB` or `#RRGGBBAA`. |
 | Layers | At most 50, drawn in list order. |
 
-**Variables** are `{{path}}` only: letters, digits, `_` and dots, with no filters and no code. A missing or empty value renders as nothing, never as the literal `{{...}}`, and `lint` reports it.
+**Variables** are `{{path}}` only: letters, digits, `_` and dots, with no filters and no code.
 
-**Output** is deterministic: the same template, values and assets always give the same pixels. Text uses Pillow's BASIC layout engine and the Regular instance of the bundled font.
+- **What prints:** only scalars (strings and numbers). A missing, empty or non-scalar value (a dict or list) renders as nothing, never as the literal `{{...}}` or a whole data subtree, and `lint` reports it.
+- **Length caps:** each value is capped at 200 characters, and the final text at 500.
+
+**Output** is an RGB image. Transparent areas render black.
+
+- **Deterministic:** for a given Pillow version, the same template, values and assets always give the same pixels. Text uses Pillow's BASIC layout engine, the Regular instance of the bundled font, and whole-pixel positions.
+- **Pinning:** pin Pillow exactly where byte-identical output across hosts matters.
+
+## Limits (templates are untrusted input)
+
+| Limit | Value |
+|---|---|
+| Canvas | at most 8192 px per side and 40 MP |
+| Layers | at most 50 |
+| Assets | PNG or JPEG only (never EPS/PS, which would invoke Ghostscript), checked for size before decoding, with an aspect ratio of at most 1:50. JPEG EXIF orientation is applied. Each asset is decoded once per render. |
+| Text | shrinks to fit its box using a bounded number of measurements, and is drawn clipped to the box |
+| QR | data that exceeds QR capacity raises `TemplateError` |
+| Threads | fonts are created per render, so concurrent renders are safe |
 
 ## Font
 
