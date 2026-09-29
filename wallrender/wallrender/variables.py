@@ -33,7 +33,10 @@ def scalar_text(value: Any) -> str:
     return ""
 
 
-def substitute(text: str, values: dict[str, Any], missing: list[str] | None = None) -> str:
+def substitute(text: str, values: dict[str, Any], missing: list[str] | None = None,
+               limit: int | None = MAX_TEXT) -> str:
+    """Replace {{path}} placeholders. The result is truncated to `limit`
+    characters; pass limit=None to get the full result (the caller checks it)."""
     def replace(match):
         path = match.group(1).strip()
         printed = scalar_text(lookup(values, path))
@@ -41,4 +44,5 @@ def substitute(text: str, values: dict[str, Any], missing: list[str] | None = No
             missing.append(path)
         return printed
 
-    return PLACEHOLDER.sub(replace, text)[:MAX_TEXT]
+    result = PLACEHOLDER.sub(replace, text)
+    return result if limit is None else result[:limit]

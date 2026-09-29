@@ -8,7 +8,9 @@ and any failure surfaces as TemplateError."""
 from __future__ import annotations
 
 import io
+import logging
 import math
+import warnings
 from importlib import resources
 from typing import Any, Callable, Union
 
@@ -16,8 +18,10 @@ import qrcode
 import qrcode.exceptions
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
-from .schema import MAX_PIXELS, MAX_SIDE, TemplateError, validate
+from .schema import MAX_PIXELS, MAX_QR, MAX_SIDE, TemplateError, validate
 from .variables import substitute
+
+logger = logging.getLogger("wallrender")
 
 AssetData = Union[bytes, Image.Image]
 AssetResolver = Callable[[str], AssetData]
@@ -74,15 +78,24 @@ def _check_size(asset_id: str, width: int, height: int) -> None:
 
 
 def _open(asset_id: str, data: AssetData) -> Image.Image:
-    if isinstance(data, Image.Image):
-        img = data
-    else:
+    # _check_size is the real bound; Pillow's global bomb check is only a
+    # backstop, and its warning or error must not escape as a raw exception.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", Image.DecompressionBombWarning)
+        if isinstance(data, Image.Image):
+            img = data
+        else:
+            try:
+                img = Image.open(io.BytesIO(data), formats=ASSET_FORMATS)
+            except Image.DecompressionBombError as e:
+                raise TemplateError([f"asset {asset_id!r} is too large"]) from e
+            except (UnidentifiedImageError, OSError, TypeError) as e:
+                raise TemplateError([f"asset {asset_id!r} must be a PNG or JPEG image"]) from e
+        _check_size(asset_id, *img.size)  # before load(): nothing is decoded yet
         try:
-            img = Image.open(io.BytesIO(data), formats=ASSET_FORMATS)
-        except (UnidentifiedImageError, OSError, TypeError) as e:
-            raise TemplateError([f"asset {asset_id!r} must be a PNG or JPEG image"]) from e
-    _check_size(asset_id, *img.size)  # before load(): nothing is decoded yet
-    img.load()
+            img.load()
+        except Image.DecompressionBombError as e:
+            raise TemplateError([f"asset {asset_id!r} is too large"]) from e
     img = ImageOps.exif_transpose(img)
     return img.convert("RGBA")
 
@@ -150,9 +163,12 @@ def _draw_text(img: Image.Image, session: _Session, layer: dict[str, Any],
 
 
 def _draw_qr(img: Image.Image, layer: dict[str, Any], values: dict[str, Any], missing: list[str]) -> None:
-    data = substitute(layer["data"], values, missing)
+    data = substitute(layer["data"], values, missing, limit=None)
     if not data:
         return
+    if len(data) > MAX_QR:
+        # Never truncate: a shortened QR code would silently point somewhere else.
+        raise TemplateError([f"qr data is {len(data)} characters after substitution; the limit is {MAX_QR}"])
     qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=1, border=2)
     qr.add_data(data.encode("utf-8", "replace"))
     try:
@@ -176,7 +192,9 @@ def _draw_qr(img: Image.Image, layer: dict[str, Any], values: dict[str, Any], mi
 def _draw_image(img: Image.Image, session: _Session, layer: dict[str, Any]) -> None:
     src = session.asset(layer["asset"])
     bx, by, bw, bh = _box_px(layer["box"], img.size)
-    fitted = ImageOps.contain(src, (bw, bh), Image.Resampling.LANCZOS)
+    scale = min(bw / src.width, bh / src.height)
+    size = (max(1, round(src.width * scale)), max(1, round(src.height * scale)))
+    fitted = src.resize(size, Image.Resampling.LANCZOS)
     img.alpha_composite(fitted, (bx + (bw - fitted.width) // 2, by + (bh - fitted.height) // 2))
 
 
@@ -211,6 +229,8 @@ def render_with_report(template: dict[str, Any], values: dict[str, Any],
     except TemplateError:
         raise
     except (ValueError, TypeError, OverflowError, UnicodeError, OSError, MemoryError) as e:
+        # Logged with its traceback so a genuine bug is not disguised as bad input.
+        logger.exception("wallrender: render failed")
         raise TemplateError([f"render failed: {type(e).__name__}: {e}"]) from e
 
 

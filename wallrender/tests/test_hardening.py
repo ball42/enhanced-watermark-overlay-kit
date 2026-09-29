@@ -172,3 +172,50 @@ def test_jpeg_exif_orientation_is_applied():
     data = png(100, 50, (0, 0, 0), mode="RGB", fmt="JPEG", exif=exif.tobytes())
     img = render({"schema_version": 1, "background": {"asset": "bg"}, "layers": []}, {}, lambda a: data)
     assert img.size == (50, 100)
+
+
+# --- Re-review ------------------------------------------------------------------
+
+def test_decompression_bomb_sized_png_is_a_template_error():
+    """N1: above Pillow's own bomb limit it raised DecompressionBombError raw."""
+    bomb = png(20000, 10000, 0, mode="1")  # 200 MP, tiny on disk
+    with pytest.raises(TemplateError, match="too large"):
+        render(tpl(background={"asset": "bg"}, canvas=None), {}, lambda a: bomb)
+
+
+def test_bomb_warning_as_error_is_still_a_template_error():
+    import warnings
+
+    big = png(8000, 5000, 0, mode="1")  # 40 MP: allowed by us, warns in Pillow
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        render(tpl(background={"asset": "bg"}, canvas=None), {}, lambda a: big)
+
+
+def test_full_length_qr_data_is_encoded_unchanged():
+    """N2: 512-char QR data passed validate but was truncated to 500 characters,
+    silently encoding the wrong content. Compare every rendered module with the
+    QR code of the full payload."""
+    import qrcode
+
+    data = "".join(chr(65 + (i * 7) % 26) for i in range(512))  # varied: truncation changes the code
+    layer = {"type": "qr", "data": data, "box": {"x": 0, "y": 0, "w": 1, "h": 1}}
+    canvas = {"width": 1400, "height": 1400}
+    img = render(tpl(layer, background={"color": "#FFFFFF"}, canvas=canvas), {}, no_assets).convert("L")
+    expected = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=1, border=2)
+    expected.add_data(data.encode("utf-8"))
+    expected.make(fit=True)
+    matrix = expected.get_matrix()
+    n = len(matrix)
+    side = 1400 // n * n
+    offset = (1400 - side) // 2
+    cell = side // n
+    rendered = [[img.getpixel((offset + c * cell + cell // 2, offset + r * cell + cell // 2)) < 128
+                 for c in range(n)] for r in range(n)]
+    assert rendered == matrix
+
+
+def test_tiny_box_image_layer_does_not_fail():
+    """N3: ImageOps.contain raised for a sub-pixel target."""
+    layer = {"type": "image", "asset": "a", "box": {"x": 0, "y": 0, "w": 0.0001, "h": 0.0001}}
+    render(tpl(layer), {}, lambda a: png(500, 10))

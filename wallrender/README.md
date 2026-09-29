@@ -38,7 +38,7 @@ warnings = lint(template, values, asset_resolver) # missing values, missing glyp
 | `canvas` | Whole pixels, at most 8192 per side and 40 MP in total. It may be omitted when the background is an asset, in which case the asset's size is used. |
 | `background` | Either `{"color": "#RRGGBB"}` or `{"asset": "<id>"}`. An asset is scaled to cover the canvas and centre-cropped. |
 | `box` | `x`, `y`, `w`, `h` as fractions of the canvas (0–1), entirely inside the canvas. Fractions let one layout scale across screen sizes. |
-| `text` | At most 500 characters, with `{{variables}}`. `size` is a fraction of canvas height (for example 0.028). `align` is `left`, `center` or `right`, and the text is centred vertically in its box. Text that is too wide shrinks to fit. Font: `noto-sans` (bundled). |
+| `text` | At most 500 characters, with `{{variables}}`. `size` is a fraction of canvas height (for example 0.028). `align` is `left`, `center` or `right`, and the text is centred vertically in its box. Text that does not fit shrinks to fit the box (width and height) and is clipped to it. Font: `noto-sans` (bundled). |
 | `qr` | `data` of at most 512 characters, with `{{variables}}`. Drawn square, centred in its box, with a quiet zone so it scans. `color` and `background` are optional. |
 | `image` | `asset` id matching `^[a-z0-9_-]{1,64}$`, contained (never stretched) and centred in its box. |
 | Colours | `#RRGGBB` or `#RRGGBBAA`. |
@@ -62,7 +62,7 @@ warnings = lint(template, values, asset_resolver) # missing values, missing glyp
 | Layers | at most 50 |
 | Assets | PNG or JPEG only (never EPS/PS, which would invoke Ghostscript), checked for size before decoding, with an aspect ratio of at most 1:50. JPEG EXIF orientation is applied. Each asset is decoded once per render. |
 | Text | shrinks to fit its box using a bounded number of measurements, and is drawn clipped to the box |
-| QR | data that exceeds QR capacity raises `TemplateError` |
+| QR | data longer than 512 characters after substitution raises `TemplateError`: never silently truncated, which would encode a different code |
 | Threads | fonts are created per render, so concurrent renders are safe |
 
 ## Font
