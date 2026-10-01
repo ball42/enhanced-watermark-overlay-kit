@@ -18,6 +18,7 @@ MAX_QR = 512
 MAX_TEXT_SIZE = 0.5  # font size as a fraction of canvas height
 FONTS = {"noto-sans"}
 ALIGNS = {"left", "center", "right"}
+OVERFLOWS = {"shrink", "ellipsis"}  # what a text layer does when its text is too long
 
 ASSET_ID = re.compile(r"[a-z0-9_-]{1,64}")  # always used with fullmatch
 COLOR = re.compile(r"#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?")
@@ -68,6 +69,11 @@ def _check_variables(where: str, text: str, problems: list[str]) -> None:
     for name in variables_in(text):
         if not VARIABLE_PATH.fullmatch(name):
             problems.append(f"{where}: invalid variable {{{{{name}}}}} (use letters, digits, _ and dots)")
+
+
+def _check_flag(where: str, layer: dict, key: str, problems: list[str]) -> None:
+    if key in layer and not isinstance(layer[key], bool):
+        problems.append(f"{where}: {key} must be true or false")
 
 
 def validate(template: Any) -> list[str]:
@@ -124,6 +130,15 @@ def validate(template: Any) -> list[str]:
                 problems.append(f"{where}: align must be one of {sorted(ALIGNS)}")
             if not (isinstance(layer.get("font", "noto-sans"), str) and layer.get("font", "noto-sans") in FONTS):
                 problems.append(f"{where}: font must be one of {sorted(FONTS)}")
+            overflow = layer.get("overflow", "shrink")
+            if not (isinstance(overflow, str) and overflow in OVERFLOWS):
+                problems.append(f"{where}: overflow must be one of {sorted(OVERFLOWS)}")
+            if "min_size" in layer:
+                floor = layer["min_size"]
+                top = size if _number(size) else MAX_TEXT_SIZE
+                if not (_number(floor) and 0 < floor <= top):
+                    problems.append(f"{where}: min_size must be a fraction of canvas height in (0, size]")
+            _check_flag(where, layer, "hide_if_empty", problems)
         elif kind == "qr":
             data = layer.get("data")
             if not isinstance(data, str) or not data or len(data) > MAX_QR:
@@ -132,6 +147,7 @@ def validate(template: Any) -> list[str]:
                 _check_variables(where, data, problems)
             _check_color(where, layer.get("color"), problems)
             _check_color(where, layer.get("background"), problems)
+            _check_flag(where, layer, "hide_if_empty", problems)
         elif kind == "image":
             if not _matches(ASSET_ID, layer.get("asset")):
                 problems.append(f"{where}: asset id must match {ASSET_ID.pattern}")

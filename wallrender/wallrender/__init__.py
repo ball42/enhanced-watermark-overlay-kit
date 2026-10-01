@@ -7,4 +7,4 @@ from .render import lint, render, render_with_report
 from .schema import SCHEMA_VERSION, TemplateError, validate
 
 __all__ = ["SCHEMA_VERSION", "TemplateError", "lint", "render", "render_with_report", "validate"]
-__version__ = "0.2.0"
+__version__ = "0.3.0"
