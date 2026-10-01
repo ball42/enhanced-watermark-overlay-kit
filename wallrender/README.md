@@ -16,6 +16,21 @@ warnings = lint(template, values, asset_resolver) # missing values, missing glyp
 - `asset_resolver(asset_id)` returns PNG or JPEG bytes, or a PIL image; raise `KeyError` for an unknown id. Templates never contain file paths, only asset ids.
 - Every failure, whether from the template, the values or the assets, raises `TemplateError`, never another exception.
 
+## Preview from the command line
+
+```bash
+wallrender preview template.json sample-device.json -o preview.png
+```
+
+It renders the template with the sample values, writes the PNG, and prints warnings for:
+
+- variables with no value;
+- characters the font cannot draw;
+- text that shrank below half its set size, or is cut off even at the minimum size;
+- text whose contrast against what is behind it is below WCAG's 4.5:1, or 3:1 for large text.
+
+Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from `--assets DIR`. `--strict` exits 3 when there are warnings, for use in CI. Exit 1 means nothing was written, because the template, the values or an asset was unusable. `python -m wallrender` works too.
+
 ## Template format (schema v1)
 
 ```json

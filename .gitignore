@@ -165,3 +165,6 @@ temp/
 static/uploads/
 *.backup*
 .playwright-mcp/
+
+# wallrender is locked through the EWOK project, not on its own
+wallrender/uv.lock
