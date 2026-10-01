@@ -199,8 +199,15 @@
                 <aside class="preview-panel tpl-preview" aria-labelledby="previewHeading">
                     <h3 id="previewHeading"><i class="fas fa-eye" aria-hidden="true"></i> Preview</h3>
                     <p id="previewStatus" class="tpl-status" aria-live="polite">Waiting for the first render…</p>
+                    <p class="tpl-hint" id="boxHelp">Drag a box to move it, or its corner to resize it. With a box focused, arrow keys move it and Alt with arrow keys resizes it; hold Shift for bigger steps. Boxes snap to the centre lines.</p>
                     <div class="tpl-preview-frame">
-                        <img id="previewImage" alt="Rendered wallpaper preview" hidden>
+                        <div class="tpl-stage" id="stage">
+                            <img id="previewImage" alt="Rendered wallpaper preview" hidden>
+                            <div class="tpl-overlay" id="overlay" role="group" aria-label="Layer boxes" aria-describedby="boxHelp">
+                                <div class="tpl-guide tpl-guide-v" hidden><span>centre</span></div>
+                                <div class="tpl-guide tpl-guide-h" hidden><span>centre</span></div>
+                            </div>
+                        </div>
                     </div>
                     <h4 class="tpl-subheading">Warnings</h4>
                     <ul id="warningList" class="tpl-warnings" aria-live="polite"></ul>

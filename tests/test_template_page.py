@@ -22,3 +22,12 @@ def test_photo_and_template_pages_link_to_each_other(client):
 def test_editor_script_and_styles_are_served(client):
     assert client.get("/static/js/template.js").status_code == 200
     assert client.get("/static/css/template.css").status_code == 200
+
+
+def test_preview_has_a_box_overlay_with_keyboard_help(client):
+    """T3: boxes are drawn over the preview; the keyboard alternative to
+    dragging is described next to it and linked from the overlay."""
+    body = client.get("/template").get_data(as_text=True)
+    assert 'id="overlay"' in body and 'aria-describedby="boxHelp"' in body
+    assert "arrow keys move it" in body and "Alt with arrow keys resizes it" in body
+    assert "tpl-guide-v" in body and "tpl-guide-h" in body

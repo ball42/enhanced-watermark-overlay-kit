@@ -245,6 +245,7 @@
         iconButton('Delete', `Delete layer ${i + 1}`, false, () => remove(i)));
       ol.append(li);
     });
+    drawOverlay();
   }
 
   function iconButton(text, label, disabled, onClick) {
@@ -330,6 +331,7 @@
         const n = parseFloat(input.value);
         if (Number.isFinite(n)) {
           current().box[input.dataset.box] = n;
+          drawOverlay();
           schedulePreview();
         }
       });
@@ -366,6 +368,149 @@
         target.setSelectionRange(at + variable.length, at + variable.length);
       });
     });
+  }
+
+  // ── Boxes over the preview (drag, resize, keys) ────
+
+  const MIN_SIDE = 0.01;
+  const SNAP = 0.01; // snap when the centre is within 1% of the canvas
+  const round = (n) => Math.round(n * 10000) / 10000;
+
+  function clampBox(box) {
+    const w = Math.min(1, Math.max(MIN_SIDE, box.w));
+    const h = Math.min(1, Math.max(MIN_SIDE, box.h));
+    return {
+      x: round(Math.min(1 - w, Math.max(0, box.x))),
+      y: round(Math.min(1 - h, Math.max(0, box.y))),
+      w: round(w),
+      h: round(h),
+    };
+  }
+
+  function snapBox(box) {
+    const snapped = { ...box };
+    const v = Math.abs(box.x + box.w / 2 - 0.5) < SNAP;
+    const h = Math.abs(box.y + box.h / 2 - 0.5) < SNAP;
+    if (v) snapped.x = round(0.5 - box.w / 2);
+    if (h) snapped.y = round(0.5 - box.h / 2);
+    $('.tpl-guide-v').hidden = !v;
+    $('.tpl-guide-h').hidden = !h;
+    return snapped;
+  }
+
+  function hideGuides() {
+    $('.tpl-guide-v').hidden = true;
+    $('.tpl-guide-h').hidden = true;
+  }
+
+  function placeFrame(frame, layer, i) {
+    const b = layer.box;
+    Object.assign(frame.style, {
+      left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%`,
+    });
+    frame.classList.toggle('selected', i === state.selected);
+    frame.querySelector('.tpl-boxlabel').textContent = String(i + 1);
+    frame.setAttribute('aria-label', `Layer ${i + 1} box (${layer.type}): x ${b.x}, y ${b.y}, `
+      + `width ${b.w}, height ${b.h}${i === state.selected ? ', editing' : ''}`);
+  }
+
+  function drawOverlay() {
+    const overlay = $('#overlay');
+    const layers = state.template.layers;
+    let frames = $$('#overlay .tpl-boxframe');
+    // Rebuild only when the count changes, so a focused or dragged box keeps
+    // its element (and focus or pointer capture) while it is updated.
+    if (frames.length !== layers.length) {
+      frames.forEach((f) => f.remove());
+      frames = layers.map((_, i) => makeFrame(i));
+      frames.forEach((f) => overlay.append(f));
+    }
+    frames.forEach((frame, i) => placeFrame(frame, layers[i], i));
+  }
+
+  function makeFrame(i) {
+    const frame = document.createElement('div');
+    frame.className = 'tpl-boxframe';
+    frame.tabIndex = 0;
+    frame.dataset.index = String(i);
+    const label = document.createElement('span');
+    label.className = 'tpl-boxlabel';
+    const handle = document.createElement('div');
+    handle.className = 'tpl-resize';
+    handle.setAttribute('aria-hidden', 'true');
+    frame.append(label, handle);
+    frame.addEventListener('pointerdown', startDrag);
+    frame.addEventListener('keydown', nudge);
+    frame.addEventListener('focus', () => {
+      const index = Number(frame.dataset.index);
+      if (index !== state.selected) select(index);
+    });
+    return frame;
+  }
+
+  function commitBox(i, box) {
+    state.template.layers[i].box = box;
+    if (i === state.selected) {
+      $$('[data-box]').forEach((input) => {
+        input.value = box[input.dataset.box];
+      });
+    }
+    drawOverlay();
+    schedulePreview();
+  }
+
+  function startDrag(event) {
+    if (event.button !== 0) return;
+    const frame = event.currentTarget;
+    const i = Number(frame.dataset.index);
+    if (i !== state.selected) select(i);
+    const stage = $('#stage').getBoundingClientRect();
+    const start = { ...state.template.layers[i].box };
+    const resizing = event.target.classList.contains('tpl-resize');
+    const sx = event.clientX;
+    const sy = event.clientY;
+    frame.setPointerCapture(event.pointerId);
+    event.preventDefault(); // no text selection while dragging
+    frame.focus({ preventScroll: true });
+
+    function move(e) {
+      const dx = (e.clientX - sx) / stage.width;
+      const dy = (e.clientY - sy) / stage.height;
+      let box = resizing
+        ? clampBox({ ...start, w: start.w + dx, h: start.h + dy })
+        : clampBox({ ...start, x: start.x + dx, y: start.y + dy });
+      if (!resizing) box = clampBox(snapBox(box));
+      commitBox(i, box);
+    }
+
+    function end(e) {
+      frame.releasePointerCapture(e.pointerId);
+      frame.removeEventListener('pointermove', move);
+      frame.removeEventListener('pointerup', end);
+      frame.removeEventListener('pointercancel', end);
+      hideGuides();
+    }
+
+    frame.addEventListener('pointermove', move);
+    frame.addEventListener('pointerup', end);
+    frame.addEventListener('pointercancel', end);
+  }
+
+  const KEYS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+
+  function nudge(event) {
+    const dir = KEYS[event.key];
+    if (!dir) return;
+    event.preventDefault();
+    const i = Number(event.currentTarget.dataset.index);
+    const step = event.shiftKey ? 0.05 : 0.005;
+    const b = state.template.layers[i].box;
+    const box = event.altKey
+      ? clampBox({ ...b, w: b.w + dir[0] * step, h: b.h + dir[1] * step })
+      : clampBox(snapBox(clampBox({ ...b, x: b.x + dir[0] * step, y: b.y + dir[1] * step })));
+    commitBox(i, box);
+    clearTimeout(nudge.guideTimer);
+    nudge.guideTimer = setTimeout(hideGuides, 800);
   }
 
   // ── Sample values and export ───────────────────────
