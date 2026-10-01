@@ -7,7 +7,6 @@ import logging
 import os
 
 from flask import Flask
-from flask_cors import CORS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,7 +16,6 @@ logging.basicConfig(
 def create_app(config_name=None):
     """Create and configure Flask app"""
     app = Flask(__name__)
-    CORS(app)
 
     # Load configuration
     import config

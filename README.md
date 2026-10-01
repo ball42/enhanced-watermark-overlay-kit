@@ -36,24 +36,25 @@ A web application for image editing with watermark and overlay capabilities.
 
 ## Installation
 
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
+
 ```bash
 git clone <repository-url>
 cd enhanced-watermark-overlay-kit
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-python app.py
+uv sync
+uv run ewok
 ```
 
-Open `http://localhost:5000` in your browser.
+Open `http://127.0.0.1:5055` in your browser. EWOK listens on localhost only and has no login, so don't expose it to a network. `--port` (or `EWOK_PORT`) changes the port, and `EWOK_DEBUG=1` turns on Flask's debug mode.
 
 ## Testing
 
 ```bash
-pytest tests/ -v
+uv run pytest
+(cd wallrender && uv run --with pytest pytest)
 ```
 
-35 tests covering upload, processing, download, preview, path traversal protection, hex color validation, font loading, and wallpaper resize modes.
+The app tests cover upload, processing, download, preview, path traversal protection, colour validation, font loading, wallpaper resize modes and the local-only server settings. `wallrender/` has its own suite.
 
 ## Architecture
 

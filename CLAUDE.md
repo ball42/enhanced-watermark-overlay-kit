@@ -9,15 +9,16 @@ Enhanced Watermark Overlay Kit (EWOK) — a Flask web application for image edit
 ## Development Commands
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install (Python 3.12+, uv); wallrender/ is installed editable alongside
+uv sync
 
-# Run the development server
-python app.py
-# App available at http://localhost:5000
+# Run: serves on http://127.0.0.1:5055 only (EWOK has no auth)
+uv run ewok
+# EWOK_DEBUG=1 turns on Flask debug; --port or EWOK_PORT changes the port
 
 # Run tests
-pytest tests/ -v
+uv run pytest
+(cd wallrender && uv run --with pytest pytest)
 ```
 
 ## Architecture

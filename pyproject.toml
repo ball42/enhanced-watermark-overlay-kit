@@ -1,0 +1,36 @@
+[project]
+name = "ewok"
+version = "0.2.0"
+description = "Enhanced Watermark Overlay Kit: local image editor and Brander wallpaper template designer"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+    "Flask>=3.1,<4",
+    "Pillow>=11,<13",
+    "wallrender",
+]
+
+[project.scripts]
+ewok = "app:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-flask>=1.3"]
+
+[tool.uv.sources]
+wallrender = { path = "wallrender", editable = true }
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["app", "app_factory", "config"]
+packages = ["utils", "views"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.uv]
+# Path-based editable installs: the repo's wallrender/ project folder would
+# otherwise shadow the wallrender package as a namespace package.
+config-settings = { editable_mode = "compat" }
