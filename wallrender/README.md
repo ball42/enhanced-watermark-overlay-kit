@@ -29,7 +29,7 @@ It renders the template with the sample values, writes the PNG, and prints warni
 - text that shrank below half its set size, or is cut off even at the minimum size;
 - text whose contrast against what is behind it is below WCAG's 4.5:1, or 3:1 for large text.
 
-Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from `--assets DIR`. `--strict` exits 3 when there are warnings, for use in CI. Exit 1 means nothing was written, because the template, the values or an asset was unusable. `python -m wallrender` works too.
+Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from `--assets DIR`. `--stress` also writes `OUT-long.png` and `OUT-empty.png`, with every variable the template uses set to a long, wide value and then to nothing. `--strict` exits 3 when there are warnings in any of them, for use in CI. Exit 1 means nothing was written, because the template, the values or an asset was unusable. `python -m wallrender` works too.
 
 ## Template format (schema v1)
 
@@ -53,11 +53,20 @@ Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from 
 | `canvas` | Whole pixels, at most 8192 per side and 40 MP in total. It may be omitted when the background is an asset, in which case the asset's size is used. |
 | `background` | Either `{"color": "#RRGGBB"}` or `{"asset": "<id>"}`. An asset is scaled to cover the canvas and centre-cropped. |
 | `box` | `x`, `y`, `w`, `h` as fractions of the canvas (0–1), entirely inside the canvas. Fractions let one layout scale across screen sizes. |
-| `text` | At most 500 characters, with `{{variables}}`. `size` is a fraction of canvas height (for example 0.028). `align` is `left`, `center` or `right`, and the text is centred vertically in its box. Text that does not fit shrinks to fit the box (width and height) and is clipped to it. Font: `noto-sans` (bundled). |
-| `qr` | `data` of at most 512 characters, with `{{variables}}`. Drawn square, centred in its box, with a quiet zone so it scans. `color` and `background` are optional. |
+| `text` | At most 500 characters, with `{{variables}}`. `size` is a fraction of canvas height (for example 0.028). `align` is `left`, `center` or `right`, and the text is centred vertically in its box. Text that does not fit is handled by the layer's overflow policy (below). Font: `noto-sans` (bundled). |
+| `qr` | `data` of at most 512 characters, with `{{variables}}`. Drawn square, centred in its box, with a quiet zone so it scans. `color` and `background` are optional. `hide_if_empty` works as for text. |
 | `image` | `asset` id matching `^[a-z0-9_-]{1,64}$`, contained (never stretched) and centred in its box. |
 | Colours | `#RRGGBB` or `#RRGGBBAA`. |
 | Layers | At most 50, drawn in list order. |
+
+**Long and empty values.** Each text layer chooses what happens:
+
+| Field | Effect |
+|---|---|
+| `overflow: "shrink"` | The default. The text shrinks until it fits the box. Below `min_size` it is cut off at the box edge. |
+| `overflow: "ellipsis"` | The text shrinks down to `min_size`, then is shortened with "…" so it fits the width. Without `min_size` it keeps its set size and is only shortened. |
+| `min_size` | The smallest font size allowed, as a fraction of canvas height, at most `size`. |
+| `hide_if_empty: true` | Skip the layer when any of its variables has no value, so `"Asset {{asset_tag}}"` disappears instead of printing a bare "Asset". QR layers accept it too. |
 
 **Variables** are `{{path}}` only: letters, digits, `_` and dots, with no filters and no code.
 

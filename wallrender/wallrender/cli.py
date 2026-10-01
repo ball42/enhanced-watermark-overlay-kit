@@ -14,7 +14,9 @@ import os
 import sys
 
 from .render import lint, render
-from .schema import ASSET_ID, TemplateError
+from .schema import ASSET_ID, TemplateError, variables_in
+
+STRESS_VALUE = "W" * 48  # wide glyphs: the worst case for one line
 
 ASSET_EXTENSIONS = ("png", "jpg", "jpeg")
 
@@ -40,6 +42,46 @@ def _load_json(path: str):
         return json.load(handle)
 
 
+def _paths(template: dict) -> list[str]:
+    found: list[str] = []
+    for layer in template.get("layers", []):
+        for key in ("text", "data"):
+            if isinstance(layer.get(key), str):
+                found.extend(variables_in(layer[key]))
+    return list(dict.fromkeys(found))
+
+
+def stress_values(template: dict) -> dict:
+    """Every variable the template uses, set to a long, wide value."""
+    values: dict = {}
+    for path in _paths(template):
+        node = values
+        *parents, leaf = path.split(".")
+        for part in parents:
+            node = node.setdefault(part, {})
+            if not isinstance(node, dict):
+                break
+        else:
+            node[leaf] = STRESS_VALUE
+    return values
+
+
+def _variant(template, values, assets, output: str, label: str) -> int:
+    """Render one stress variant; returns how many problems it showed."""
+    try:
+        image = render(template, values, assets)
+    except TemplateError as err:
+        for problem in err.problems:
+            print(f"[{label}] error: {problem}", file=sys.stderr)
+        return len(err.problems)
+    image.save(output)
+    warnings = lint(template, values, assets)
+    for warning in warnings:
+        print(f"[{label}] warning: {warning}", file=sys.stderr)
+    print(f"wrote {output} ({label} values, {len(warnings)} warnings)")
+    return len(warnings)
+
+
 def preview(args: argparse.Namespace) -> int:
     loaded = []
     for path in (args.template, args.values):
@@ -61,7 +103,12 @@ def preview(args: argparse.Namespace) -> int:
     for warning in warnings:
         print(f"warning: {warning}", file=sys.stderr)
     print(f"wrote {args.output} ({image.width}x{image.height}, {len(warnings)} warnings)")
-    return 3 if args.strict and warnings else 0
+    problems = len(warnings)
+    if args.stress:
+        stem, ext = os.path.splitext(args.output)
+        problems += _variant(template, stress_values(template), assets, f"{stem}-long{ext}", "long")
+        problems += _variant(template, {}, assets, f"{stem}-empty{ext}", "empty")
+    return 3 if args.strict and problems else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -73,6 +120,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("values", help="sample device values JSON")
     p.add_argument("-o", "--output", required=True, help="PNG to write")
     p.add_argument("--assets", help="folder of <id>.png/.jpg assets (default: the template's folder)")
+    p.add_argument("--stress", action="store_true",
+                   help="also render OUT-long.png and OUT-empty.png with every variable long, then empty")
     p.add_argument("--strict", action="store_true", help="exit 3 if there are warnings")
     args = parser.parse_args(argv)
     return preview(args)
