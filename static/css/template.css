@@ -1,0 +1,249 @@
+/* ── Template designer ─────────────────────── */
+
+#templateEditor :focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.tpl-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+  gap: var(--space-xl);
+  align-items: start;
+}
+
+.tpl-heading {
+  font-size: 1rem;
+  margin-bottom: var(--space-md);
+}
+
+.tpl-subheading {
+  font-size: 0.95rem;
+  margin: var(--space-md) 0 var(--space-sm);
+}
+
+.tpl-controls .section-container {
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.tpl-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: flex-end;
+}
+
+.tpl-row .control-group {
+  flex: 1 1 120px;
+}
+
+.tpl-box label {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 60px;
+  font-size: 0.85rem;
+}
+
+.tpl-fieldset {
+  border: 0;
+  padding: 0;
+}
+
+.tpl-fieldset legend {
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+}
+
+.tpl-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-right: var(--space-md);
+}
+
+.tpl-hint,
+.tpl-status {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-bottom: var(--space-sm);
+}
+
+.tpl-error {
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+.tpl-error::before {
+  content: "Error: ";
+}
+
+.tpl-layer-list,
+.tpl-asset-list,
+.tpl-warnings {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-md);
+}
+
+.tpl-layer-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.tpl-layer-list .layer-select {
+  flex: 1;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: var(--space-xs);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: inherit;
+}
+
+/* Selected layer: border, background and a visible "Editing" word. */
+.tpl-layer-list li.selected {
+  border: 2px solid var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.tpl-layer-list li.selected .layer-select::after {
+  content: " — editing";
+  font-weight: 600;
+}
+
+.tpl-icon-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.tpl-asset-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.tpl-asset-list img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: repeating-conic-gradient(#e2e8f0 0% 25%, white 0% 50%) 50% / 10px 10px;
+}
+
+.tpl-asset-list .asset-name {
+  flex: 1;
+  font-family: ui-monospace, monospace;
+}
+
+.tpl-file-btn input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.tpl-file-btn:focus-within {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.tpl-preview {
+  position: sticky;
+  top: var(--space-md);
+}
+
+.tpl-preview-frame {
+  display: flex;
+  justify-content: center;
+  background: repeating-conic-gradient(#e2e8f0 0% 25%, white 0% 50%) 50% / 16px 16px;
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.tpl-preview-frame img {
+  max-width: 100%;
+  max-height: 70vh;
+  box-shadow: var(--shadow-lg);
+}
+
+.tpl-preview.is-stale .tpl-preview-frame img {
+  opacity: 0.6;
+}
+
+.tpl-warnings li {
+  padding: var(--space-xs) var(--space-sm);
+  border-left: 4px solid #b45309;
+  background: #fffbeb;
+  margin-bottom: var(--space-xs);
+  font-size: 0.9rem;
+}
+
+.tpl-warnings li::before {
+  content: "\26A0  Warning: ";
+  font-weight: 600;
+}
+
+.tpl-warnings li.ok {
+  border-left-color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.tpl-warnings li.ok::before {
+  content: "\2713  ";
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .tpl-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tpl-preview {
+    position: static;
+  }
+}
+
+/* `hidden` must win over the flex and block rules above. */
+#templateEditor [hidden] {
+  display: none !important;
+}
+
+.control-group .tpl-inline,
+.tpl-fieldset .tpl-inline {
+  display: inline-flex;
+  font-weight: 500;
+}
+
+.tpl-inline input[type="radio"],
+.tpl-inline input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+input[type="color"] {
+  min-height: 38px;
+  padding: 2px;
+}

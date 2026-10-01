@@ -40,6 +40,14 @@ WALLPAPER_PRESETS = {
     'Optimized': 'auto'  # Special case for optimized sizing
 }
 
+# Template mode: values Brander can print (its allowlist), and canvas presets.
+BRANDER_VARIABLES = ['device_name', 'serial_number', 'asset_tag', 'jss_id', 'location.building']
+TEMPLATE_CANVASES = {
+    'iPhone (portrait)': (1290, 2796),
+    'iPad (square, both orientations)': (2732, 2732),
+    'iPad Pro 12.9" (portrait)': (2048, 2732),
+}
+
 # Flask app settings
 # Local tool: debug (and its interactive debugger) only when asked for.
 DEBUG = os.environ.get('EWOK_DEBUG', '').lower() in ('1', 'true', 'yes')

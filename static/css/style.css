@@ -848,3 +848,35 @@ body {
     padding: var(--space-lg) var(--space-md);
   }
 }
+
+/* ── Mode navigation (Photo / Template) ─────── */
+
+.mode-nav {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.mode-nav a {
+  color: white;
+  text-decoration: none;
+  padding: var(--space-xs) var(--space-md);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius-full);
+  font-weight: 600;
+}
+
+/* Current mode: filled and underlined, so it does not rely on colour alone. */
+.mode-nav a[aria-current="page"] {
+  background: white;
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.mode-nav a:focus-visible {
+  outline: 3px solid white;
+  outline-offset: 2px;
+}
+
