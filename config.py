@@ -2,7 +2,11 @@
 Configuration settings for EWOK
 """
 
+import logging
 import os
+import secrets
+
+logger = logging.getLogger(__name__)
 
 # File upload settings
 UPLOAD_FOLDER = 'static/uploads'
@@ -34,4 +38,7 @@ WALLPAPER_PRESETS = {
 
 # Flask app settings
 DEBUG = True
-SECRET_KEY = os.environ.get('SECRET_KEY', 'ewok-development-key-change-if-in-production')
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_hex(32)
+    logger.warning("SECRET_KEY not set — using random key. Sessions will not persist across restarts.")
