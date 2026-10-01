@@ -168,3 +168,6 @@ static/uploads/
 
 # wallrender is locked through the EWOK project, not on its own
 wallrender/uv.lock
+
+# Template mode asset library
+template_assets/

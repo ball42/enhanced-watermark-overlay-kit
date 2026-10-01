@@ -13,6 +13,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # File upload settings (absolute, so they do not depend on the cwd)
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
 TEMP_FOLDER = os.path.join(BASE_DIR, 'temp')
+# Template mode's asset library (backgrounds, logos): kept, not cleaned up
+TEMPLATE_ASSETS_FOLDER = os.path.join(BASE_DIR, 'template_assets')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
 

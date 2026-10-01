@@ -23,8 +23,10 @@ def app(tmp_path):
     import config
     orig_upload = config.UPLOAD_FOLDER
     orig_temp = config.TEMP_FOLDER
+    orig_assets = config.TEMPLATE_ASSETS_FOLDER
     config.UPLOAD_FOLDER = upload_dir
     config.TEMP_FOLDER = temp_dir
+    config.TEMPLATE_ASSETS_FOLDER = str(tmp_path / "template_assets")
 
     application = create_app()
     application.config["TESTING"] = True
@@ -35,6 +37,7 @@ def app(tmp_path):
     # Restore original config
     config.UPLOAD_FOLDER = orig_upload
     config.TEMP_FOLDER = orig_temp
+    config.TEMPLATE_ASSETS_FOLDER = orig_assets
 
 
 @pytest.fixture()

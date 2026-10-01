@@ -31,9 +31,11 @@ def create_app(config_name=None):
     # Register blueprints
     from views.main import main_bp
     from views.api import api_bp
+    from views.template_api import template_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(template_bp)
 
     # Periodic cleanup of old temp files
     from utils.cleanup import cleanup_old_files
