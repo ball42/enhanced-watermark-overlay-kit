@@ -116,7 +116,8 @@ def test_lint_reports_missing_variables_and_glyphs():
 
 
 def test_lint_does_not_flag_ordinary_text():
-    t = tpl(text_layer("Chris’s iPad — Room 204 (Nürnberg)"))
+    # Sized to fit its box, so only glyph coverage is being checked.
+    t = tpl(text_layer("Chris’s iPad — Room 204 (Nürnberg)", size=0.025))
     assert lint(t, {}, no_assets) == []
 
 

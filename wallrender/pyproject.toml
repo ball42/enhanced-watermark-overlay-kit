@@ -1,10 +1,13 @@
 [project]
 name = "wallrender"
-version = "0.1.0"
+version = "0.2.0"
 description = "Render wallpaper templates with device variables (shared by EWOK and JAWA Brander)"
 requires-python = ">=3.9"
 license = { text = "MIT; bundled Noto Sans font under SIL OFL 1.1 (wallrender/fonts/OFL.txt)" }
 dependencies = ["Pillow>=10.1,<13", "qrcode>=7.4,<9"]
+
+[project.scripts]
+wallrender = "wallrender.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8"]
