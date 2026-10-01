@@ -1,15 +1,13 @@
 from flask import Blueprint, request, jsonify, send_file
 import os
 import uuid
-import sys
 from werkzeug.utils import secure_filename
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageFilter
 
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from config import UPLOAD_FOLDER, TEMP_FOLDER, ALLOWED_EXTENSIONS, WALLPAPER_PRESETS
 from utils.image_processing import (
-    resize_for_wallpaper, optimize_wallpaper_size, 
-    add_text_overlays, add_image_overlays, 
+    resize_for_wallpaper, optimize_wallpaper_size,
+    add_text_overlays, add_image_overlays,
     add_background, add_watermark
 )
 
@@ -18,6 +16,15 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 def allowed_file(filename):
     """Check if file extension is allowed"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def safe_filepath(filename, base_folder):
+    """Prevent path traversal by constraining file to base_folder"""
+    safe_name = os.path.basename(filename)
+    full_path = os.path.realpath(os.path.join(base_folder, safe_name))
+    real_base = os.path.realpath(base_folder)
+    if not full_path.startswith(real_base + os.sep) and full_path != real_base:
+        return None
+    return full_path
 
 @api_bp.route('/upload', methods=['POST'])
 def upload_file():
@@ -55,8 +62,8 @@ def process_image():
     if not data or 'filename' not in data:
         return jsonify({'error': 'No filename provided'}), 400
     
-    input_path = os.path.join(UPLOAD_FOLDER, data['filename'])
-    if not os.path.exists(input_path):
+    input_path = safe_filepath(data['filename'], UPLOAD_FOLDER)
+    if not input_path or not os.path.exists(input_path):
         return jsonify({'error': 'File not found'}), 404
     
     try:
@@ -84,6 +91,30 @@ def process_image():
                 enhancer = ImageEnhance.Color(result_img)
                 result_img = enhancer.enhance(saturation)
             
+            # Apply brightness
+            if 'brightness' in data and data['brightness'] != 100:
+                enhancer = ImageEnhance.Brightness(result_img)
+                result_img = enhancer.enhance(data['brightness'] / 100.0)
+
+            # Apply contrast
+            if 'contrast' in data and data['contrast'] != 100:
+                enhancer = ImageEnhance.Contrast(result_img)
+                result_img = enhancer.enhance(data['contrast'] / 100.0)
+
+            # Apply blur/sharpen (0-100, 50=neutral)
+            if 'blur_sharpen' in data and data['blur_sharpen'] != 50:
+                bs = data['blur_sharpen']
+                if bs < 50:
+                    radius = (50 - bs) / 5.0
+                    result_img = result_img.filter(ImageFilter.GaussianBlur(radius=radius))
+                else:
+                    sharpener = ImageEnhance.Sharpness(result_img)
+                    result_img = sharpener.enhance(1.0 + (bs - 50) / 50.0 * 3.0)
+
+            # Apply rotation
+            if 'rotation' in data and data['rotation'] != 0:
+                result_img = result_img.rotate(data['rotation'], expand=True, fillcolor=(0, 0, 0, 0))
+
             # Apply custom resize
             if 'resize' in data and data['resize'] != 100:
                 resize_factor = data['resize'] / 100.0
@@ -118,10 +149,29 @@ def process_image():
             if 'watermark' in data:
                 result_img = add_watermark(result_img, data['watermark'])
             
-            # Save processed image
-            output_filename = f"processed_{uuid.uuid4()}.png"
+            # Determine output format
+            output_format = data.get('output_format', 'png').lower()
+            format_map = {
+                'png': ('PNG', '.png'),
+                'jpeg': ('JPEG', '.jpg'),
+                'webp': ('WEBP', '.webp'),
+            }
+            pil_format, ext = format_map.get(output_format, ('PNG', '.png'))
+
+            output_filename = f"processed_{uuid.uuid4()}{ext}"
             output_path = os.path.join(TEMP_FOLDER, output_filename)
-            result_img.save(output_path, 'PNG')
+
+            # JPEG doesn't support alpha — convert to RGB
+            if pil_format == 'JPEG':
+                if result_img.mode == 'RGBA':
+                    bg = Image.new('RGB', result_img.size, (255, 255, 255))
+                    bg.paste(result_img, mask=result_img.split()[3])
+                    result_img = bg
+                result_img.save(output_path, pil_format, quality=95)
+            elif pil_format == 'WEBP':
+                result_img.save(output_path, pil_format, quality=90)
+            else:
+                result_img.save(output_path, pil_format)
             
             return jsonify({
                 'success': True,
@@ -135,23 +185,23 @@ def process_image():
 @api_bp.route('/download/<filename>')
 def download_file(filename):
     """Download processed image file"""
-    filepath = os.path.join(TEMP_FOLDER, filename)
-    if os.path.exists(filepath):
-        return send_file(filepath, as_attachment=True, download_name=f"edited_{filename}")
-    return jsonify({'error': 'File not found'}), 404
+    filepath = safe_filepath(filename, TEMP_FOLDER)
+    if not filepath or not os.path.exists(filepath):
+        return jsonify({'error': 'File not found'}), 404
+    return send_file(filepath, as_attachment=True, download_name=f"edited_{filename}")
 
 @api_bp.route('/preview/<filename>')
 def preview_file(filename):
     """Preview processed image file"""
-    filepath = os.path.join(TEMP_FOLDER, filename)
-    if os.path.exists(filepath):
-        return send_file(filepath)
-    return jsonify({'error': 'File not found'}), 404
+    filepath = safe_filepath(filename, TEMP_FOLDER)
+    if not filepath or not os.path.exists(filepath):
+        return jsonify({'error': 'File not found'}), 404
+    return send_file(filepath)
 
 @api_bp.route('/original/<filename>')
 def preview_original(filename):
     """Preview original uploaded image file"""
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
-    if os.path.exists(filepath):
-        return send_file(filepath)
-    return jsonify({'error': 'File not found'}), 404
+    filepath = safe_filepath(filename, UPLOAD_FOLDER)
+    if not filepath or not os.path.exists(filepath):
+        return jsonify({'error': 'File not found'}), 404
+    return send_file(filepath)

@@ -2,11 +2,17 @@
 Configuration settings for EWOK
 """
 
+import logging
 import os
+import secrets
 
-# File upload settings
-UPLOAD_FOLDER = 'static/uploads'
-TEMP_FOLDER = 'temp'
+logger = logging.getLogger(__name__)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# File upload settings (absolute, so they do not depend on the cwd)
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
+TEMP_FOLDER = os.path.join(BASE_DIR, 'temp')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
 
@@ -33,5 +39,11 @@ WALLPAPER_PRESETS = {
 }
 
 # Flask app settings
-DEBUG = True
-SECRET_KEY = os.environ.get('SECRET_KEY', 'ewok-development-key-change-if-in-production')
+# Local tool: debug (and its interactive debugger) only when asked for.
+DEBUG = os.environ.get('EWOK_DEBUG', '').lower() in ('1', 'true', 'yes')
+HOST = '127.0.0.1'
+PORT = int(os.environ.get('EWOK_PORT', '5055'))  # 5000 is macOS AirPlay
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_hex(32)
+    logger.warning("SECRET_KEY not set — using random key. Sessions will not persist across restarts.")

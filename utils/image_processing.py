@@ -3,8 +3,57 @@ Image processing utilities for EWOK
 Handles all image manipulation operations including resizing, overlays, backgrounds, and watermarks
 """
 
+import logging
+import math
 import os
+import re
+
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+
+logger = logging.getLogger(__name__)
+
+_HEX_PATTERN = re.compile(r'^#?([0-9a-fA-F]{6})$')
+
+
+def hex_to_rgb(hex_color):
+    """Convert hex color string to RGB tuple with validation.
+    Returns (0, 0, 0) for invalid input."""
+    if not isinstance(hex_color, str):
+        return (0, 0, 0)
+    match = _HEX_PATTERN.match(hex_color.strip())
+    if not match:
+        return (0, 0, 0)
+    h = match.group(1)
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+
+
+FONT_MAP = {
+    'Arial': ['Arial.ttf', '/System/Library/Fonts/Arial.ttf'],
+    'Times New Roman': ['Times New Roman.ttf', '/System/Library/Fonts/Supplemental/Times New Roman.ttf'],
+    'Courier New': ['Courier New.ttf', '/System/Library/Fonts/Supplemental/Courier New.ttf'],
+    'Georgia': ['Georgia.ttf', '/System/Library/Fonts/Supplemental/Georgia.ttf'],
+    'Verdana': ['Verdana.ttf', '/System/Library/Fonts/Supplemental/Verdana.ttf'],
+    'Impact': ['Impact.ttf', '/System/Library/Fonts/Supplemental/Impact.ttf'],
+    'Comic Sans MS': ['Comic Sans MS.ttf', '/System/Library/Fonts/Supplemental/Comic Sans MS.ttf'],
+}
+
+
+def load_font(size, family=None):
+    """Load a font with system fallbacks. Optionally specify a font family."""
+    if family and family in FONT_MAP:
+        for path in FONT_MAP[family]:
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:
+                continue
+    # Default fallback chain
+    try:
+        return ImageFont.truetype("Arial.ttf", size)
+    except Exception:
+        try:
+            return ImageFont.truetype("/System/Library/Fonts/Arial.ttf", size)
+        except Exception:
+            return ImageFont.load_default()
 
 
 def optimize_wallpaper_size(img):
@@ -84,6 +133,31 @@ def resize_for_wallpaper(img, target_size, fit_mode='fit'):
         return result
 
 
+def _draw_text_with_effects(draw, pos_x, pos_y, text, font, color, effect, effect_color, effect_strength):
+    """Draw text with optional effects (shadow, outline, glow) onto a draw context."""
+    if effect == 'shadow':
+        shadow_offset = effect_strength
+        draw.text((pos_x + shadow_offset, pos_y + shadow_offset), text, fill=effect_color, font=font)
+    elif effect == 'outline':
+        stroke_width = effect_strength
+        for adj in range(-stroke_width, stroke_width + 1):
+            for adj2 in range(-stroke_width, stroke_width + 1):
+                if adj != 0 or adj2 != 0:
+                    draw.text((pos_x + adj, pos_y + adj2), text, fill=effect_color, font=font)
+    elif effect == 'glow':
+        glow_radius = effect_strength * 2
+        for radius in range(glow_radius, 0, -1):
+            alpha = int(255 * (1 - radius / glow_radius) * 0.3)
+            glow_color_with_alpha = effect_color + format(alpha, '02X')
+            for angle in range(0, 360, 30):
+                glow_x = pos_x + radius * math.cos(math.radians(angle))
+                glow_y = pos_y + radius * math.sin(math.radians(angle))
+                draw.text((glow_x, glow_y), text, fill=glow_color_with_alpha, font=font)
+
+    # Draw main text on top
+    draw.text((pos_x, pos_y), text, fill=color, font=font)
+
+
 def add_text_overlays(img, text_overlays):
     """Add text overlays to image with alignment support and percentage-based sizing"""
     draw = ImageDraw.Draw(img)
@@ -99,33 +173,25 @@ def add_text_overlays(img, text_overlays):
         # Handle percentage-based sizing (new) or absolute sizing (legacy)
         size_percent = overlay.get('size_percent')
         if size_percent:
-            # Calculate size as percentage of image width
             size = int(img.width * (size_percent / 100))
         else:
-            # Fallback to absolute size (legacy)
             size = overlay.get('size', 24)
 
-        alignment = overlay.get('alignment', 'center')  # left, center, right
+        alignment = overlay.get('alignment', 'center')
         color = overlay.get('color', '#FFFFFF')
         text_effect = overlay.get('text_effect', 'none')
         effect_color = overlay.get('effect_color', '#000000')
         effect_strength = overlay.get('effect_strength', 3)
-        
-        try:
-            # Try to use a system font
-            font = ImageFont.truetype("Arial.ttf", size)
-        except:
-            try:
-                # Fallback fonts
-                font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", size)
-            except:
-                font = ImageFont.load_default()
-        
-        # Calculate text dimensions for center alignment
+        font_family = overlay.get('font_family')
+        text_opacity = overlay.get('text_opacity', 100)
+
+        font = load_font(size, font_family)
+
+        # Calculate text dimensions for alignment
         bbox = draw.textbbox((0, 0), text, font=font)
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
-        
+
         # Convert percentage positions to pixels or handle plain numbers
         if isinstance(x, str):
             if x.endswith('%'):
@@ -134,10 +200,10 @@ def add_text_overlays(img, text_overlays):
                 try:
                     x = int(float(x))
                 except ValueError:
-                    x = img.width // 2  # fallback to center
+                    x = img.width // 2
         elif not isinstance(x, (int, float)):
-            x = img.width // 2  # fallback to center
-            
+            x = img.width // 2
+
         if isinstance(y, str):
             if y.endswith('%'):
                 y = int(float(y[:-1]) / 100 * img.height)
@@ -145,60 +211,39 @@ def add_text_overlays(img, text_overlays):
                 try:
                     y = int(float(y))
                 except ValueError:
-                    y = img.height // 2  # fallback to center
+                    y = img.height // 2
         elif not isinstance(y, (int, float)):
-            y = img.height // 2  # fallback to center
-        
+            y = img.height // 2
+
         # Apply alignment to x position
-        # The x,y coordinates from frontend represent the "anchor point" for the alignment
         if alignment == 'center':
-            # Center the text around the x coordinate
             positioned_x = x - (text_width // 2)
         elif alignment == 'right':
-            # Right-align the text at the x coordinate
             positioned_x = x - text_width
-        else:  # left (default)
-            # Left-align the text at the x coordinate
+        else:  # left
             positioned_x = x
 
-        # Y position stays the same for all alignments (top edge)
         positioned_y = y
 
-        # Ensure text doesn't go off the edges of the image
+        # Ensure text doesn't go off the edges
         positioned_x = max(0, min(positioned_x, img.width - text_width))
         positioned_y = max(0, min(positioned_y, img.height - text_height))
-        
-        # Apply text effects
-        if text_effect == 'shadow':
-            # Drop shadow effect
-            shadow_offset = effect_strength
-            draw.text((positioned_x + shadow_offset, positioned_y + shadow_offset), text, fill=effect_color, font=font)
-        elif text_effect == 'outline':
-            # Outline/stroke effect
-            stroke_width = effect_strength
-            # Draw text multiple times with slight offsets to create outline
-            for adj in range(-stroke_width, stroke_width + 1):
-                for adj2 in range(-stroke_width, stroke_width + 1):
-                    if adj != 0 or adj2 != 0:  # Don't draw at center position yet
-                        draw.text((positioned_x + adj, positioned_y + adj2), text, fill=effect_color, font=font)
-        elif text_effect == 'glow':
-            # Glow effect - multiple layers with decreasing opacity
-            glow_radius = effect_strength * 2
-            for radius in range(glow_radius, 0, -1):
-                # Calculate alpha based on distance from center
-                alpha = int(255 * (1 - radius / glow_radius) * 0.3)  # Max 30% opacity
-                glow_color_with_alpha = effect_color + format(alpha, '02X')
-                
-                # Draw glow layer
-                for angle in range(0, 360, 30):  # 12 points around circle
-                    import math
-                    glow_x = positioned_x + radius * math.cos(math.radians(angle))
-                    glow_y = positioned_y + radius * math.sin(math.radians(angle))
-                    draw.text((glow_x, glow_y), text, fill=glow_color_with_alpha, font=font)
-        
-        # Draw main text on top
-        draw.text((positioned_x, positioned_y), text, fill=color, font=font)
-    
+
+        if text_opacity < 100:
+            # Draw on a temporary layer and apply opacity
+            text_layer = Image.new('RGBA', img.size, (0, 0, 0, 0))
+            text_draw = ImageDraw.Draw(text_layer)
+            _draw_text_with_effects(text_draw, positioned_x, positioned_y, text, font,
+                                    color, text_effect, effect_color, effect_strength)
+            alpha = text_layer.split()[-1]
+            alpha = alpha.point(lambda p: int(p * (text_opacity / 100.0)))
+            text_layer.putalpha(alpha)
+            img = Image.alpha_composite(img, text_layer)
+            draw = ImageDraw.Draw(img)
+        else:
+            _draw_text_with_effects(draw, positioned_x, positioned_y, text, font,
+                                    color, text_effect, effect_color, effect_strength)
+
     return img
 
 
@@ -214,16 +259,42 @@ def add_image_overlays(img, image_overlays, upload_folder):
                 if overlay_img.mode != 'RGBA':
                     overlay_img = overlay_img.convert('RGBA')
                 
-                # Resize overlay if specified
+                # Resize overlay if specified (supports px integers or "%" strings)
                 if 'width' in overlay or 'height' in overlay:
-                    width = overlay.get('width', overlay_img.width)
-                    height = overlay.get('height', overlay_img.height)
-                    overlay_img = overlay_img.resize((width, height), Image.Resampling.LANCZOS)
+                    raw_w = overlay.get('width')
+                    raw_h = overlay.get('height')
+                    orig_w, orig_h = overlay_img.width, overlay_img.height
+
+                    # Parse width
+                    if isinstance(raw_w, str) and raw_w.endswith('%'):
+                        w = int(float(raw_w[:-1]) / 100 * img.width)
+                    elif raw_w is not None:
+                        w = int(raw_w)
+                    else:
+                        w = None
+
+                    # Parse height
+                    if isinstance(raw_h, str) and raw_h.endswith('%'):
+                        h = int(float(raw_h[:-1]) / 100 * img.height)
+                    elif raw_h is not None:
+                        h = int(raw_h)
+                    else:
+                        h = None
+
+                    # Aspect-ratio preservation when only one dimension given
+                    if w and not h:
+                        h = int(orig_h * (w / orig_w))
+                    elif h and not w:
+                        w = int(orig_w * (h / orig_h))
+                    elif not w and not h:
+                        w, h = orig_w, orig_h
+
+                    overlay_img = overlay_img.resize((w, h), Image.Resampling.LANCZOS)
                 
                 # Apply opacity
                 if 'opacity' in overlay and overlay['opacity'] != 100:
                     alpha = overlay_img.split()[-1]
-                    alpha = alpha.point(lambda p: p * (overlay['opacity'] / 100.0))
+                    alpha = alpha.point(lambda p: int(p * (overlay['opacity'] / 100.0)))
                     overlay_img.putalpha(alpha)
                 
                 x = overlay.get('x', 0)
@@ -238,7 +309,7 @@ def add_image_overlays(img, image_overlays, upload_folder):
                 img.paste(overlay_img, (x, y), overlay_img)
                 
         except Exception as e:
-            print(f"Error adding overlay: {e}")
+            logger.warning("Error adding overlay: %s", e)
             continue
     
     return img
@@ -250,10 +321,7 @@ def add_background(img, background_config):
     
     if bg_type == 'color':
         color = background_config.get('color', '#FFFFFF')
-        # Convert hex to RGB
-        if color.startswith('#'):
-            color = color[1:]
-        rgb_color = tuple(int(color[i:i+2], 16) for i in (0, 2, 4))
+        rgb_color = hex_to_rgb(color)
         
         # Create background with same size as image
         background = Image.new('RGB', img.size, rgb_color)
@@ -268,17 +336,10 @@ def add_background(img, background_config):
             return background
             
     elif bg_type == 'gradient':
-        # Create a gradient background
         start_color = background_config.get('start_color', '#FFFFFF')
         end_color = background_config.get('end_color', '#000000')
-        direction = background_config.get('direction', 'vertical')  # vertical, horizontal, diagonal
-        
-        # Convert hex to RGB
-        def hex_to_rgb(hex_color):
-            if hex_color.startswith('#'):
-                hex_color = hex_color[1:]
-            return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        
+        direction = background_config.get('direction', 'vertical')
+
         start_rgb = hex_to_rgb(start_color)
         end_rgb = hex_to_rgb(end_color)
         
@@ -320,17 +381,10 @@ def add_background(img, background_config):
             return background
             
     elif bg_type == 'pattern':
-        # Create pattern background
         pattern_type = background_config.get('pattern', 'dots')
         color1 = background_config.get('color1', '#FFFFFF')
         color2 = background_config.get('color2', '#E0E0E0')
-        
-        # Convert hex to RGB
-        def hex_to_rgb(hex_color):
-            if hex_color.startswith('#'):
-                hex_color = hex_color[1:]
-            return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        
+
         rgb1 = hex_to_rgb(color1)
         rgb2 = hex_to_rgb(color2)
         
@@ -358,8 +412,6 @@ def add_background(img, background_config):
                     if (x // square_size + y // square_size) % 2:
                         draw.rectangle([x, y, x + square_size, y + square_size], fill=rgb2)
         elif pattern_type == 'starburst':
-            # Starburst pattern
-            import math
             center_spacing = 120  # Distance between starburst centers
             ray_count = 8  # Number of rays per starburst
             ray_length = 40
@@ -390,8 +442,6 @@ def add_background(img, background_config):
                         center_x + circle_size, center_y + circle_size
                     ], fill=rgb2)
         elif pattern_type == 'sunburst':
-            # Central sunburst pattern (like Japanese Rising Sun flag)
-            import math
             center_x = width // 2
             center_y = height // 2
             
@@ -473,13 +523,7 @@ def add_watermark(img, watermark_config):
         watermark_layer = Image.new('RGBA', img.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(watermark_layer)
         
-        try:
-            font = ImageFont.truetype("Arial.ttf", size)
-        except:
-            try:
-                font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", size)
-            except:
-                font = ImageFont.load_default()
+        font = load_font(size)
         
         # Get text dimensions
         bbox = draw.textbbox((0, 0), text, font=font)
