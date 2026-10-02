@@ -14,6 +14,7 @@ MAX_SIDE = 8192
 MAX_PIXELS = 40_000_000
 MAX_LAYERS = 50
 MAX_TEXT = 500
+MAX_VALUE_CHARS = 200  # each substituted value
 MAX_QR = 512
 MAX_TEXT_SIZE = 0.5  # font size as a fraction of canvas height
 FONTS = {"noto-sans"}
@@ -76,6 +77,68 @@ def _check_flag(where: str, layer: dict, key: str, problems: list[str]) -> None:
         problems.append(f"{where}: {key} must be true or false")
 
 
+MAX_VARIANTS = 50
+MAX_VARIANT_VALUES = 20
+ROLE_KEY = re.compile(r"[a-z0-9_-]{1,64}")
+ROLE_VALUE_NAME = re.compile(r"[a-z][a-z0-9_]{0,31}")
+VARIANT_FIELDS = {"background", "values"}
+
+
+def _check_variant(where: str, variant: Any, canvas: Any, problems: list[str]) -> None:
+    if not isinstance(variant, dict):
+        problems.append(f"{where}: must be an object")
+        return
+    unknown = set(variant) - VARIANT_FIELDS
+    if unknown:
+        problems.append(f"{where}: unknown fields {sorted(unknown)}")
+    if "background" in variant:
+        bg = variant["background"]
+        if not isinstance(bg, dict) or not ({"color", "asset"} & bg.keys()):
+            problems.append(f"{where}: background needs a color or an asset")
+        else:
+            if "color" in bg and not _matches(COLOR, bg["color"]):
+                problems.append(f"{where}: background color must be #RRGGBB or #RRGGBBAA")
+            if "asset" in bg and not _matches(ASSET_ID, bg["asset"]):
+                problems.append(f"{where}: background asset id must match {ASSET_ID.pattern}")
+            if canvas is None and "asset" not in bg:
+                problems.append(f"{where}: a color background needs the template's canvas")
+    values = variant.get("values", {})
+    if not isinstance(values, dict) or len(values) > MAX_VARIANT_VALUES:
+        problems.append(f"{where}: values must be an object of at most {MAX_VARIANT_VALUES}")
+        return
+    for name, value in values.items():
+        if name == "name":
+            problems.append(f"{where}: 'name' is reserved for the role itself")
+        elif not _matches(ROLE_VALUE_NAME, name):
+            problems.append(f"{where}: value name {name!r} must match {ROLE_VALUE_NAME.pattern}")
+        if not isinstance(value, str) or len(value) > MAX_VALUE_CHARS:
+            problems.append(f"{where}: values must be strings of at most {MAX_VALUE_CHARS} characters")
+
+
+def _check_roles(roles: Any, canvas: Any, problems: list[str]) -> None:
+    """Role variants: background and wording chosen by the device's role."""
+    if not isinstance(roles, dict):
+        problems.append("roles must be an object")
+        return
+    unknown = set(roles) - {"attribute", "variants", "empty", "default"}
+    if unknown:
+        problems.append(f"roles: unknown fields {sorted(unknown)}")
+    if "attribute" in roles and not (isinstance(roles["attribute"], str) and 0 < len(roles["attribute"]) <= 100):
+        problems.append("roles: attribute must be the extension attribute's name (at most 100 characters)")
+    variants = roles.get("variants", {})
+    if not isinstance(variants, dict) or len(variants) > MAX_VARIANTS:
+        problems.append(f"roles: variants must be an object of at most {MAX_VARIANTS}")
+        variants = {}
+    for key, variant in variants.items():
+        if not _matches(ROLE_KEY, key):
+            problems.append(f"roles: variant key {key!r} must be the role in lowercase without spaces "
+                            f"({ROLE_KEY.pattern})")
+        _check_variant(f"roles variant {key!r}", variant, canvas, problems)
+    for name in ("empty", "default"):
+        if name in roles:
+            _check_variant(f"roles {name}", roles[name], canvas, problems)
+
+
 def validate(template: Any) -> list[str]:
     """Return a list of problems; empty means the template can be rendered."""
     problems: list[str] = []
@@ -101,6 +164,9 @@ def validate(template: Any) -> list[str]:
             problems.append(f"background: asset id must match {ASSET_ID.pattern}")
         if canvas is None and "asset" not in background:
             problems.append("canvas is required when the background is a color")
+
+    if "roles" in template:
+        _check_roles(template["roles"], canvas, problems)
 
     layers = template.get("layers", [])
     if not isinstance(layers, list) or len(layers) > MAX_LAYERS:

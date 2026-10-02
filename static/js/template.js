@@ -33,6 +33,8 @@
     values: SAMPLE,
     stress: false,
     guide: { device: '', orientation: 'portrait', screen: 'lock' },
+    previewRole: null, // null: use the sample device's own values
+    roleLabels: {}, // variant key -> the role as typed, for display
     lastImage: null,
   };
 
@@ -51,6 +53,11 @@
     // Drop editor-only blanks: an image layer with no asset yet is skipped.
     const t = JSON.parse(JSON.stringify(state.template));
     t.layers = t.layers.filter((l) => l.type !== 'image' || l.asset);
+    if (t.roles) {
+      ['empty', 'default'].forEach((k) => {
+        if (t.roles[k] && !Object.keys(t.roles[k]).length) delete t.roles[k];
+      });
+    }
     return t;
   }
 
@@ -63,7 +70,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          template: exportable(), values: state.values, stress: state.stress,
+          template: exportable(), values: previewValues(), stress: state.stress,
           devices: pickedDevices(), screen: state.guide.screen,
         }),
         signal: previewController.signal,
@@ -233,6 +240,7 @@
       select.value = current;
     });
     drawProperties();
+    if (state.template.roles) drawVariants();
   }
 
   function bindAssets() {
@@ -647,6 +655,193 @@
     $('#guideOrientation').disabled = true;
   }
 
+  // ── Role variants ──────────────────────────────────
+
+  // Same rule as wallrender.roles.normalize_role and Brander's role images.
+  const roleKey = (text) => String(text || '').replace(/\s+/g, '').toLowerCase();
+
+  function previewValues() {
+    if (!state.template.roles || state.previewRole === null) return state.values;
+    return { ...state.values, role: state.previewRole };
+  }
+
+  function parseValues(text) {
+    const out = {};
+    text.split('\n').forEach((line) => {
+      const at = line.indexOf('=');
+      if (at > 0) out[line.slice(0, at).trim()] = line.slice(at + 1).trim();
+    });
+    return out;
+  }
+
+  const formatValues = (values) => Object.entries(values || {}).map(([k, v]) => `${k} = ${v}`).join('\n');
+
+  function variantCard(title, variant, onChange, extras) {
+    const li = document.createElement('li');
+    const h = document.createElement('h4');
+    h.textContent = title;
+    li.append(h);
+    if (extras) extras(li);
+
+    const bgLabel = document.createElement('label');
+    bgLabel.textContent = 'Background';
+    const bg = document.createElement('select');
+    [['', 'Template background'], ['color', 'Colour'], ['asset', 'Image asset']].forEach(([v, t]) => bg.append(new Option(t, v)));
+    const color = document.createElement('input');
+    color.type = 'color';
+    color.setAttribute('aria-label', `${title} background colour`);
+    const asset = document.createElement('select');
+    asset.className = 'asset-select';
+    asset.setAttribute('aria-label', `${title} background image`);
+    asset.append(new Option('Choose an asset…', ''));
+    state.assets.forEach((a) => asset.append(new Option(a.id, a.id)));
+    const b = variant.background || {};
+    bg.value = b.asset !== undefined ? 'asset' : b.color ? 'color' : '';
+    color.value = (b.color || '#0b2545').slice(0, 7);
+    asset.value = b.asset || '';
+    const showBg = () => {
+      color.hidden = bg.value !== 'color';
+      asset.hidden = bg.value !== 'asset';
+    };
+    showBg();
+    const applyBg = () => {
+      showBg();
+      if (bg.value === 'color') variant.background = { color: color.value.toUpperCase() };
+      else if (bg.value === 'asset' && asset.value) variant.background = { asset: asset.value };
+      else delete variant.background;
+      onChange();
+    };
+    [bg, color, asset].forEach((el) => el.addEventListener('change', applyBg));
+    color.addEventListener('input', applyBg);
+    bgLabel.append(bg);
+    li.append(bgLabel, color, asset);
+
+    const valuesLabel = document.createElement('label');
+    valuesLabel.textContent = 'Text values, one per line: name = text';
+    const values = document.createElement('textarea');
+    values.rows = 2;
+    values.value = formatValues(variant.values);
+    values.addEventListener('input', () => {
+      variant.values = parseValues(values.value);
+      if (!Object.keys(variant.values).length) delete variant.values;
+      onChange();
+    });
+    valuesLabel.append(values);
+    li.append(valuesLabel);
+    return li;
+  }
+
+  function rolesChanged() {
+    drawRoleOptions();
+    schedulePreview();
+  }
+
+  function drawVariants() {
+    const roles = state.template.roles;
+    $('#rolesOn').checked = Boolean(roles);
+    $('#rolesBody').hidden = !roles;
+    const list = $('#variantList');
+    list.replaceChildren();
+    if (!roles) {
+      drawRoleOptions();
+      return;
+    }
+    $('#roleAttribute').value = roles.attribute || '';
+    roles.variants = roles.variants || {};
+    Object.keys(roles.variants).forEach((key) => {
+      list.append(variantCard(`Role: ${state.roleLabels[key] || key}`, roles.variants[key], rolesChanged, (li) => {
+        const label = document.createElement('label');
+        label.textContent = 'Role, as written in Jamf';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = state.roleLabels[key] || key;
+        const shown = document.createElement('span');
+        shown.className = 'tpl-variant-key';
+        shown.textContent = `matches "${key}"`;
+        input.addEventListener('change', () => {
+          const next = roleKey(input.value);
+          if (!next || (next !== key && roles.variants[next])) {
+            input.value = state.roleLabels[key] || key;
+            setStatus(next ? `There is already a variant for "${next}".` : 'A role needs a name.');
+            return;
+          }
+          const variant = roles.variants[key];
+          delete roles.variants[key];
+          roles.variants[next] = variant;
+          delete state.roleLabels[key];
+          state.roleLabels[next] = input.value.trim();
+          drawVariants();
+          rolesChanged();
+        });
+        const remove = iconButton('Delete', `Delete the variant for ${key}`, false, () => {
+          delete roles.variants[key];
+          drawVariants();
+          rolesChanged();
+        });
+        label.append(input);
+        li.append(label, shown, remove);
+      }));
+    });
+    roles.empty = roles.empty || {};
+    roles.default = roles.default || {};
+    list.append(variantCard('No role set', roles.empty, rolesChanged));
+    list.append(variantCard('Any other role', roles.default, rolesChanged));
+    drawRoleOptions();
+  }
+
+  function roleValueNames() {
+    const roles = state.template.roles;
+    if (!roles) return [];
+    const names = new Set(['name']);
+    [...Object.values(roles.variants || {}), roles.empty || {}, roles.default || {}].forEach((v) => {
+      Object.keys(v.values || {}).forEach((k) => names.add(k));
+    });
+    return [...names].map((n) => `role.${n}`);
+  }
+
+  function drawRoleOptions() {
+    // Preview-as picker.
+    const pick = $('#previewRole');
+    const keep = state.previewRole === null ? '__sample__' : state.previewRole;
+    pick.replaceChildren(new Option("The sample device's values", '__sample__'), new Option('No role set', ''));
+    const roles = state.template.roles;
+    Object.keys((roles && roles.variants) || {}).forEach((key) => pick.append(new Option(state.roleLabels[key] || key, state.roleLabels[key] || key)));
+    pick.append(new Option('Any other role', 'Another role'));
+    pick.value = Array.from(pick.options).some((o) => o.value === keep) ? keep : '__sample__';
+    state.previewRole = pick.value === '__sample__' ? null : pick.value;
+    // Variable insert lists gain role.* names.
+    $$('.variable-select').forEach((select) => {
+      Array.from(select.options).filter((o) => o.value.startsWith('role.')).forEach((o) => o.remove());
+      roleValueNames().forEach((n) => select.append(new Option(`{{${n}}}`, n)));
+    });
+  }
+
+  function bindRoles() {
+    $('#rolesOn').addEventListener('change', (e) => {
+      if (e.target.checked) state.template.roles = { variants: {}, empty: {}, default: {} };
+      else delete state.template.roles;
+      drawVariants();
+      schedulePreview();
+    });
+    $('#roleAttribute').addEventListener('input', (e) => {
+      if (e.target.value.trim()) state.template.roles.attribute = e.target.value.trim();
+      else delete state.template.roles.attribute;
+    });
+    $('#addVariant').addEventListener('click', () => {
+      const roles = state.template.roles;
+      let n = 1;
+      while (roles.variants[`role${n}`]) n += 1;
+      roles.variants[`role${n}`] = { values: { title: `Role ${n}` } };
+      state.roleLabels[`role${n}`] = `Role ${n}`;
+      drawVariants();
+      rolesChanged();
+    });
+    $('#previewRole').addEventListener('change', (e) => {
+      state.previewRole = e.target.value === '__sample__' ? null : e.target.value;
+      schedulePreview();
+    });
+  }
+
   // ── Sample values and export ───────────────────────
 
   function bindValues() {
@@ -715,6 +910,8 @@
     $('#bgAssetRow').hidden = !isAsset;
     if (isAsset) $('#bgAsset').value = t.background.asset;
     else $('#bgColor').value = (t.background.color || '#000000').slice(0, 7).toLowerCase();
+    state.roleLabels = {};
+    drawVariants();
     drawLayers();
     drawProperties();
     schedulePreview();
@@ -770,6 +967,8 @@
     bindValues();
     bindExport();
     bindDevices();
+    bindRoles();
+    drawVariants();
     drawLayers();
     drawProperties();
     loadAssets();

@@ -182,6 +182,24 @@
                         </div>
                     </section>
 
+                    <section class="section-container" aria-labelledby="rolesHeading">
+                        <h3 id="rolesHeading" class="tpl-heading"><i class="fas fa-user-tag" aria-hidden="true"></i> Roles</h3>
+                        <p class="tpl-hint">Change the background and wording by the device's role, read from a Jamf extension attribute. A role's text prints through variables such as <code>{{ '{{' }}role.title{{ '}}' }}</code>; <code>{{ '{{' }}role.name{{ '}}' }}</code> is the role itself.</p>
+                        <label class="tpl-inline"><input type="checkbox" id="rolesOn"> Use role variants</label>
+                        <div id="rolesBody" hidden>
+                            <div class="control-group">
+                                <label for="roleAttribute">Extension attribute name</label>
+                                <input type="text" id="roleAttribute" placeholder="Jamf Setup Role" maxlength="100">
+                            </div>
+                            <ol id="variantList" class="tpl-variant-list"></ol>
+                            <button type="button" class="btn btn-secondary" id="addVariant"><i class="fas fa-plus" aria-hidden="true"></i> Add role</button>
+                            <div class="control-group">
+                                <label for="previewRole">Preview as</label>
+                                <select id="previewRole"></select>
+                            </div>
+                        </div>
+                    </section>
+
                     <section class="section-container" aria-labelledby="valuesHeading">
                         <h3 id="valuesHeading" class="tpl-heading"><i class="fas fa-tablet-alt" aria-hidden="true"></i> Sample device</h3>
                         <div class="control-group">

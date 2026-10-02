@@ -307,3 +307,24 @@ def test_bad_screen_kind_is_400(client):
     resp = client.post("/api/template/preview", json={
         "template": TEMPLATE, "values": {}, "devices": ["ipad-12.9"], "screen": "wat"})
     assert resp.status_code == 400
+
+
+def test_export_includes_role_variant_backgrounds(client):
+    upload(client, "logo.png")
+    upload(client, "nursing.png")
+    template = logo_template(roles={"variants": {"nursing": {"background": {"asset": "nursing"}}}})
+    with zipfile.ZipFile(io.BytesIO(export(client, template).data)) as z:
+        assert "nursing.png" in z.namelist()
+
+
+def test_preview_as_a_role(client):
+    template = json.loads(json.dumps(TEMPLATE))
+    template["layers"][0]["text"] = "{{role.title}}"
+    template["roles"] = {"variants": {"nursing": {"values": {"title": "Nursing"}}},
+                         "default": {"values": {"title": "General"}}}
+    nursing = client.post("/api/template/preview", json={"template": template, "values": {"role": "Nursing"}})
+    other = client.post("/api/template/preview", json={"template": template, "values": {"role": "Other"}})
+    assert nursing.status_code == other.status_code == 200
+    assert nursing.get_json()["renders"][0]["image"] != other.get_json()["renders"][0]["image"]
+    assert any("default" in w for w in other.get_json()["renders"][0]["warnings"])
+

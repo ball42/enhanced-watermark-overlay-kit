@@ -168,6 +168,9 @@ def asset_ids(template):
     if background.get("asset"):
         ids.append(background["asset"])
     ids += [layer["asset"] for layer in template.get("layers", []) if layer.get("type") == "image"]
+    roles = template.get("roles") or {}
+    variants = list((roles.get("variants") or {}).values()) + [roles.get(k) or {} for k in ("empty", "default")]
+    ids += [v["background"]["asset"] for v in variants if (v.get("background") or {}).get("asset")]
     return list(dict.fromkeys(ids))
 
 
