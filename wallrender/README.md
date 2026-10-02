@@ -78,6 +78,10 @@ Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from 
 - **Deterministic:** for a given Pillow version, the same template, values and assets always give the same pixels. Text uses Pillow's BASIC layout engine, the Regular instance of the bundled font, and whole-pixel positions.
 - **Pinning:** pin Pillow exactly where byte-identical output across hosts matters.
 
+## Personal fields
+
+A template may print who the device belongs to, as `{{user.real_name}}`, `{{user.username}}` and `{{user.email}}`, only if it sets `"person_fields": true`. `validate` rejects `user.*` in text otherwise, and **always** rejects it in QR codes, because anyone can scan them. JAWA Brander adds a second lock: it fills `user.*` only when the admin also allows personal fields for that Brander. Otherwise the fields render empty. See JAWA ADR-0013.
+
 ## Role variants
 
 One template can change its background and wording by the device's role:

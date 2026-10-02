@@ -49,14 +49,17 @@ TEMPLATE_CANVASES = {
 }
 
 # Sample devices for the template preview: the shape Brander's
-# build_values() produces from a verified Jamf record.
+# build_values() produces from a verified Jamf record (user.* only when
+# both the template and the admin allow personal fields).
 SAMPLE_DEVICES = [
     {'name': 'iPhone', 'values': {
-        'device_name': "Chris's iPhone", 'serial_number': 'F9FXK2Q1N72Q',
-        'asset_tag': 'HR-0042', 'jss_id': 42, 'location': {'building': 'North Campus'}}},
+        'device_name': 'Front Desk iPhone', 'serial_number': 'F9FXK2Q1N72Q',
+        'asset_tag': 'HR-0042', 'jss_id': 42, 'location': {'building': 'North Campus'},
+        'user': {'username': 'jdoe', 'real_name': 'Jordan Doe', 'email': 'jordan.doe@example.org'}}},
     {'name': 'iPad', 'values': {
         'device_name': 'Ward 3 iPad', 'serial_number': 'DMPX1234ABCD',
-        'asset_tag': 'NUR-0317', 'jss_id': 317, 'location': {'building': 'Main Hospital'}}},
+        'asset_tag': 'NUR-0317', 'jss_id': 317, 'location': {'building': 'Main Hospital'},
+        'user': {'username': 'nurse.station3', 'real_name': 'Ward 3 Nurses', 'email': 'ward3@example.org'}}},
     {'name': 'No asset tag, no building', 'values': {
         'device_name': 'ControlPad', 'serial_number': 'T9T0377WR6',
         'asset_tag': '', 'jss_id': 12, 'location': {'building': ''}}},

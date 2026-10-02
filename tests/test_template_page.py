@@ -45,7 +45,9 @@ def test_sample_device_presets_are_offered(client):
     presets = json.loads(data.group(1))
     assert {p["values"].get("asset_tag", "") for p in presets} >= {""}
     for preset in presets:
-        assert set(preset["values"]) <= {"device_name", "serial_number", "asset_tag", "jss_id", "location"}
+        # Brander's allowlist; "user" only reaches templates that opt in (ADR-0013).
+        assert set(preset["values"]) <= {"device_name", "serial_number", "asset_tag", "jss_id",
+                                         "location", "user"}
 
 
 def test_stress_toggle_is_on_the_page(client):
@@ -76,3 +78,19 @@ def test_roles_editor_is_on_the_page(client):
     body = client.get("/template").get_data(as_text=True)
     for element in ('id="rolesOn"', 'id="roleAttribute"', 'id="variantList"', 'id="addVariant"', 'id="previewRole"'):
         assert element in body
+
+
+def test_personal_fields_opt_in_is_on_the_page(client):
+    body = client.get("/template").get_data(as_text=True)
+    assert 'id="personFields"' in body
+    assert "never in a QR code" in body
+
+
+def test_preview_refuses_user_fields_without_the_opt_in(client):
+    template = {"schema_version": 1, "canvas": {"width": 100, "height": 200},
+                "background": {"color": "#000000"},
+                "layers": [{"type": "text", "text": "{{user.real_name}}", "size": 0.05,
+                            "box": {"x": 0.1, "y": 0.4, "w": 0.8, "h": 0.1}}]}
+    assert client.post("/api/template/preview", json={"template": template, "values": {}}).status_code == 400
+    template["person_fields"] = True
+    assert client.post("/api/template/preview", json={"template": template, "values": {}}).status_code == 200

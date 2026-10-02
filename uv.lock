@@ -305,7 +305,7 @@ wheels = [
 
 [[package]]
 name = "wallrender"
-version = "0.5.0"
+version = "0.6.0"
 source = { editable = "wallrender" }
 dependencies = [
     { name = "pillow" },

@@ -66,6 +66,14 @@ def _check_color(where: str, value: Any, problems: list[str]) -> None:
         problems.append(f"{where}: color must be #RRGGBB or #RRGGBBAA, got {value!r}")
 
 
+PERSON_FIELDS_ROOT = "user"
+
+
+def _uses_person_fields(text: str) -> bool:
+    return any(name == PERSON_FIELDS_ROOT or name.startswith(PERSON_FIELDS_ROOT + ".")
+               for name in variables_in(text))
+
+
 def _check_variables(where: str, text: str, problems: list[str]) -> None:
     for name in variables_in(text):
         if not VARIABLE_PATH.fullmatch(name):
@@ -168,6 +176,12 @@ def validate(template: Any) -> list[str]:
     if "roles" in template:
         _check_roles(template["roles"], canvas, problems)
 
+    # Person fields (user.*) are opt-in per template and never in a QR code
+    # (JAWA ADR-0013: what a lock screen may show).
+    person_fields = template.get("person_fields", False)
+    if not isinstance(person_fields, bool):
+        problems.append("person_fields must be true or false")
+
     layers = template.get("layers", [])
     if not isinstance(layers, list) or len(layers) > MAX_LAYERS:
         problems.append(f"layers must be a list of at most {MAX_LAYERS}")
@@ -188,6 +202,9 @@ def validate(template: Any) -> list[str]:
                 problems.append(f"{where}: text must be a string of at most {MAX_TEXT} characters")
             else:
                 _check_variables(where, text, problems)
+                if _uses_person_fields(text) and person_fields is not True:
+                    problems.append(f"{where}: uses user.* fields, so the template must set "
+                                    "person_fields to true")
             size = layer.get("size")
             if not (_number(size) and 0 < size <= MAX_TEXT_SIZE):
                 problems.append(f"{where}: size must be a fraction of canvas height in (0, {MAX_TEXT_SIZE}]")
@@ -211,6 +228,8 @@ def validate(template: Any) -> list[str]:
                 problems.append(f"{where}: qr data must be a non-empty string of at most {MAX_QR} characters")
             else:
                 _check_variables(where, data, problems)
+                if _uses_person_fields(data):
+                    problems.append(f"{where}: QR codes may not carry user.* fields; anyone can scan them")
             _check_color(where, layer.get("color"), problems)
             _check_color(where, layer.get("background"), problems)
             _check_flag(where, layer, "hide_if_empty", problems)
