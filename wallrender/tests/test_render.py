@@ -30,7 +30,7 @@ def no_assets(asset_id):
 
 
 def test_text_is_drawn_inside_its_box():
-    img = render(tpl(text_layer("Chris's iPad", box=(0.1, 0.5, 0.8, 0.1))), {}, no_assets)
+    img = render(tpl(text_layer("Jordan's iPad", box=(0.1, 0.5, 0.8, 0.1))), {}, no_assets)
     assert img.size == (400, 800)
     left, top, right, bottom = ink_bbox(img)
     assert 40 <= left and right <= 360 and 400 <= top and bottom <= 480
@@ -117,7 +117,7 @@ def test_lint_reports_missing_variables_and_glyphs():
 
 def test_lint_does_not_flag_ordinary_text():
     # Sized to fit its box, so only glyph coverage is being checked.
-    t = tpl(text_layer("Chris’s iPad — Room 204 (Nürnberg)", size=0.025))
+    t = tpl(text_layer("Jordan’s iPad — Room 204 (Nürnberg)", size=0.025))
     assert lint(t, {}, no_assets) == []
 
 

@@ -809,10 +809,23 @@
     pick.append(new Option('Any other role', 'Another role'));
     pick.value = Array.from(pick.options).some((o) => o.value === keep) ? keep : '__sample__';
     state.previewRole = pick.value === '__sample__' ? null : pick.value;
-    // Variable insert lists gain role.* names.
+    // Variable insert lists gain role.* names, and user.* when the
+    // template opts in to personal fields (never for QR data).
+    const userNames = state.template.person_fields ? ['user.real_name', 'user.username', 'user.email'] : [];
     $$('.variable-select').forEach((select) => {
-      Array.from(select.options).filter((o) => o.value.startsWith('role.')).forEach((o) => o.remove());
-      roleValueNames().forEach((n) => select.append(new Option(`{{${n}}}`, n)));
+      Array.from(select.options).filter((o) => o.value.startsWith('role.') || o.value.startsWith('user.'))
+        .forEach((o) => o.remove());
+      const extra = select.id === 'variableData' ? roleValueNames() : [...roleValueNames(), ...userNames];
+      extra.forEach((n) => select.append(new Option(`{{${n}}}`, n)));
+    });
+  }
+
+  function bindPersonFields() {
+    $('#personFields').addEventListener('change', (e) => {
+      if (e.target.checked) state.template.person_fields = true;
+      else delete state.template.person_fields;
+      drawRoleOptions();
+      schedulePreview();
     });
   }
 
@@ -911,6 +924,7 @@
     if (isAsset) $('#bgAsset').value = t.background.asset;
     else $('#bgColor').value = (t.background.color || '#000000').slice(0, 7).toLowerCase();
     state.roleLabels = {};
+    $('#personFields').checked = t.person_fields === true;
     drawVariants();
     drawLayers();
     drawProperties();
@@ -968,6 +982,7 @@
     bindExport();
     bindDevices();
     bindRoles();
+    bindPersonFields();
     drawVariants();
     drawLayers();
     drawProperties();
