@@ -197,7 +197,13 @@
                         <div id="rolesBody" hidden>
                             <div class="control-group">
                                 <label for="roleAttribute">Extension attribute name</label>
-                                <input type="text" id="roleAttribute" placeholder="Jamf Setup Role" maxlength="100">
+                                <input type="text" id="roleAttribute" placeholder="Jamf Setup Role" maxlength="100" list="eaNames">
+                                <datalist id="eaNames"></datalist>
+                                <label class="btn btn-secondary btn-sm tpl-file-btn mt-2">
+                                    <i class="fas fa-file-import" aria-hidden="true"></i> Load attribute names from JAWA
+                                    <input type="file" id="eaNamesFile" accept=".json,application/json">
+                                </label>
+                                <small id="eaNamesStatus" class="tpl-hint" aria-live="polite">In JAWA: Extras, Brander preview, then download the attribute names.</small>
                             </div>
                             <ol id="variantList" class="tpl-variant-list"></ol>
                             <button type="button" class="btn btn-secondary" id="addVariant"><i class="fas fa-plus" aria-hidden="true"></i> Add role</button>
