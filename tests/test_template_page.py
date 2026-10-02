@@ -22,3 +22,33 @@ def test_photo_and_template_pages_link_to_each_other(client):
 def test_editor_script_and_styles_are_served(client):
     assert client.get("/static/js/template.js").status_code == 200
     assert client.get("/static/css/template.css").status_code == 200
+
+
+def test_preview_has_a_box_overlay_with_keyboard_help(client):
+    """T3: boxes are drawn over the preview; the keyboard alternative to
+    dragging is described next to it and linked from the overlay."""
+    body = client.get("/template").get_data(as_text=True)
+    assert 'id="overlay"' in body and 'aria-describedby="boxHelp"' in body
+    assert "arrow keys move it" in body and "Alt with arrow keys resizes it" in body
+    assert "tpl-guide-v" in body and "tpl-guide-h" in body
+
+
+def test_sample_device_presets_are_offered(client):
+    """T4: preset sample devices, including one with no asset tag."""
+    import json
+    import re
+
+    body = client.get("/template").get_data(as_text=True)
+    for label in ("iPhone", "iPad", "No asset tag", "Custom"):
+        assert label in body
+    data = re.search(r'<script type="application/json" id="sampleDevices">(.*?)</script>', body, re.S)
+    presets = json.loads(data.group(1))
+    assert {p["values"].get("asset_tag", "") for p in presets} >= {""}
+    for preset in presets:
+        assert set(preset["values"]) <= {"device_name", "serial_number", "asset_tag", "jss_id", "location"}
+
+
+def test_stress_toggle_is_on_the_page(client):
+    body = client.get("/template").get_data(as_text=True)
+    assert 'id="stressToggle"' in body
+    assert 'id="stressRenders"' in body

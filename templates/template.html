@@ -185,6 +185,16 @@
                     <section class="section-container" aria-labelledby="valuesHeading">
                         <h3 id="valuesHeading" class="tpl-heading"><i class="fas fa-tablet-alt" aria-hidden="true"></i> Sample device</h3>
                         <div class="control-group">
+                            <label for="samplePreset">Device</label>
+                            <select id="samplePreset">
+                                {% for device in sample_devices %}
+                                <option value="{{ loop.index0 }}">{{ device.name }}</option>
+                                {% endfor %}
+                                <option value="custom">Custom (edit the values below)</option>
+                            </select>
+                        </div>
+                        <script type="application/json" id="sampleDevices">{{ sample_devices | tojson }}</script>
+                        <div class="control-group">
                             <label for="sampleValues">Values (JSON)</label>
                             <textarea id="sampleValues" rows="7" spellcheck="false"></textarea>
                             <small id="sampleError" class="tpl-error" hidden></small>
@@ -199,11 +209,22 @@
                 <aside class="preview-panel tpl-preview" aria-labelledby="previewHeading">
                     <h3 id="previewHeading"><i class="fas fa-eye" aria-hidden="true"></i> Preview</h3>
                     <p id="previewStatus" class="tpl-status" aria-live="polite">Waiting for the first render…</p>
+                    <p class="tpl-hint" id="boxHelp">Drag a box to move it, or its corner to resize it. With a box focused, arrow keys move it and Alt with arrow keys resizes it; hold Shift for bigger steps. Boxes snap to the centre lines.</p>
                     <div class="tpl-preview-frame">
-                        <img id="previewImage" alt="Rendered wallpaper preview" hidden>
+                        <div class="tpl-stage" id="stage">
+                            <img id="previewImage" alt="Rendered wallpaper preview" hidden>
+                            <div class="tpl-overlay" id="overlay" role="group" aria-label="Layer boxes" aria-describedby="boxHelp">
+                                <div class="tpl-guide tpl-guide-v" hidden><span>centre</span></div>
+                                <div class="tpl-guide tpl-guide-h" hidden><span>centre</span></div>
+                            </div>
+                        </div>
                     </div>
                     <h4 class="tpl-subheading">Warnings</h4>
                     <ul id="warningList" class="tpl-warnings" aria-live="polite"></ul>
+                    <label class="tpl-inline tpl-stress-toggle">
+                        <input type="checkbox" id="stressToggle"> Also show every value long, and every value empty
+                    </label>
+                    <div id="stressRenders" class="tpl-stress" hidden></div>
                 </aside>
             </div>
         </main>
