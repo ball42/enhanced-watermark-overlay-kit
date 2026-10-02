@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EWOK — Template designer</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/ewok.png">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/template.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>
+                <img src="/static/ewok.png" alt="EWOK" class="logo">
+                Template designer
+            </h1>
+            <p>Design a Brander wallpaper with device variables</p>
+            <nav class="mode-nav" aria-label="Mode">
+                <a href="/">Photo</a>
+                <a href="/template" aria-current="page">Template</a>
+            </nav>
+        </header>
+
+        <main class="main-content" id="templateEditor">
+            <div class="tpl-grid">
+                <div class="tpl-controls">
+
+                    <section class="section-container" aria-labelledby="canvasHeading">
+                        <h3 id="canvasHeading" class="tpl-heading"><i class="fas fa-mobile-alt" aria-hidden="true"></i> Canvas</h3>
+                        <div class="control-group">
+                            <label for="tplName">Template name</label>
+                            <input type="text" id="tplName" value="Untitled template">
+                        </div>
+                        <div class="control-group">
+                            <label for="canvasPreset">Size</label>
+                            <select id="canvasPreset">
+                                {% for name, size in canvases.items() %}
+                                <option value="{{ size[0] }}x{{ size[1] }}">{{ name }} — {{ size[0] }}×{{ size[1] }}</option>
+                                {% endfor %}
+                                <option value="custom">Custom…</option>
+                            </select>
+                        </div>
+                        <div class="tpl-row" id="customSize" hidden>
+                            <div class="control-group">
+                                <label for="canvasWidth">Width (px)</label>
+                                <input type="number" id="canvasWidth" min="1" max="8192" step="1">
+                            </div>
+                            <div class="control-group">
+                                <label for="canvasHeight">Height (px)</label>
+                                <input type="number" id="canvasHeight" min="1" max="8192" step="1">
+                            </div>
+                        </div>
+                        <fieldset class="control-group tpl-fieldset">
+                            <legend>Background</legend>
+                            <label class="tpl-inline"><input type="radio" name="bgKind" value="color" checked> Colour</label>
+                            <label class="tpl-inline"><input type="radio" name="bgKind" value="asset"> Image</label>
+                            <div id="bgColorRow">
+                                <label for="bgColor" class="visually-hidden">Background colour</label>
+                                <input type="color" id="bgColor" value="#0b2545">
+                            </div>
+                            <div id="bgAssetRow" hidden>
+                                <label for="bgAsset" class="visually-hidden">Background image</label>
+                                <select id="bgAsset" class="asset-select"></select>
+                                <small>Fills the canvas and is cropped from the centre.</small>
+                            </div>
+                        </fieldset>
+                    </section>
+
+                    <section class="section-container" aria-labelledby="assetsHeading">
+                        <h3 id="assetsHeading" class="tpl-heading"><i class="fas fa-images" aria-hidden="true"></i> Assets</h3>
+                        <p class="tpl-hint">PNG or JPEG backgrounds and logos. Brander loads them by id from its assets folder.</p>
+                        <ul id="assetList" class="tpl-asset-list"></ul>
+                        <label class="btn btn-secondary tpl-file-btn">
+                            <i class="fas fa-upload" aria-hidden="true"></i> Upload asset
+                            <input type="file" id="assetFile" accept="image/png,image/jpeg">
+                        </label>
+                    </section>
+
+                    <section class="section-container" aria-labelledby="layersHeading">
+                        <h3 id="layersHeading" class="tpl-heading"><i class="fas fa-layer-group" aria-hidden="true"></i> Layers</h3>
+                        <p class="tpl-hint">Drawn top to bottom: later layers sit on top.</p>
+                        <ol id="layerList" class="tpl-layer-list"></ol>
+                        <div class="tpl-row">
+                            <button type="button" class="btn btn-secondary" data-add="text"><i class="fas fa-font" aria-hidden="true"></i> Add text</button>
+                            <button type="button" class="btn btn-secondary" data-add="qr"><i class="fas fa-qrcode" aria-hidden="true"></i> Add QR</button>
+                            <button type="button" class="btn btn-secondary" data-add="image"><i class="fas fa-image" aria-hidden="true"></i> Add image</button>
+                        </div>
+                    </section>
+
+                    <section class="section-container" aria-labelledby="propsHeading" id="propsSection" hidden>
+                        <h3 id="propsHeading" class="tpl-heading"><i class="fas fa-sliders-h" aria-hidden="true"></i> <span id="propsTitle">Layer</span></h3>
+
+                        <fieldset class="control-group tpl-fieldset">
+                            <legend>Box (fractions of the canvas, 0 to 1)</legend>
+                            <div class="tpl-row tpl-box">
+                                <label>X <input type="number" data-box="x" min="0" max="1" step="0.01"></label>
+                                <label>Y <input type="number" data-box="y" min="0" max="1" step="0.01"></label>
+                                <label>W <input type="number" data-box="w" min="0.01" max="1" step="0.01"></label>
+                                <label>H <input type="number" data-box="h" min="0.01" max="1" step="0.01"></label>
+                            </div>
+                        </fieldset>
+
+                        <div data-kind="text">
+                            <div class="control-group">
+                                <label for="propText">Text</label>
+                                <textarea id="propText" data-prop="text" rows="2" maxlength="500"></textarea>
+                            </div>
+                            <div class="control-group tpl-row">
+                                <label for="variableText" class="visually-hidden">Variable to insert into the text</label>
+                                <select id="variableText" class="variable-select">
+                                    {% for name in variables %}<option value="{{ name }}">{{ '{{' }}{{ name }}{{ '}}' }}</option>{% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-secondary" data-insert="propText">Insert variable</button>
+                            </div>
+                            <div class="tpl-row">
+                                <div class="control-group">
+                                    <label for="propSize">Size (of canvas height)</label>
+                                    <input type="number" id="propSize" data-prop="size" data-type="number" min="0.001" max="0.5" step="0.001">
+                                </div>
+                                <div class="control-group">
+                                    <label for="propColor">Colour</label>
+                                    <input type="color" id="propColor" data-prop="color">
+                                </div>
+                                <div class="control-group">
+                                    <label for="propAlign">Align</label>
+                                    <select id="propAlign" data-prop="align">
+                                        <option value="left">Left</option>
+                                        <option value="center">Centre</option>
+                                        <option value="right">Right</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="tpl-row">
+                                <div class="control-group">
+                                    <label for="propOverflow">When text is too long</label>
+                                    <select id="propOverflow" data-prop="overflow">
+                                        <option value="shrink">Shrink to fit</option>
+                                        <option value="ellipsis">Shorten with …</option>
+                                    </select>
+                                </div>
+                                <div class="control-group">
+                                    <label for="propMinSize">Smallest size (optional)</label>
+                                    <input type="number" id="propMinSize" data-prop="min_size" data-type="number" data-optional min="0.001" max="0.5" step="0.001">
+                                </div>
+                            </div>
+                            <label class="tpl-inline"><input type="checkbox" data-prop="hide_if_empty"> Hide this layer when a variable in it is empty</label>
+                        </div>
+
+                        <div data-kind="qr">
+                            <div class="control-group">
+                                <label for="propData">QR data</label>
+                                <input type="text" id="propData" data-prop="data" maxlength="512">
+                            </div>
+                            <div class="control-group tpl-row">
+                                <label for="variableData" class="visually-hidden">Variable to insert into the QR data</label>
+                                <select id="variableData" class="variable-select">
+                                    {% for name in variables %}<option value="{{ name }}">{{ '{{' }}{{ name }}{{ '}}' }}</option>{% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-secondary" data-insert="propData">Insert variable</button>
+                            </div>
+                            <div class="tpl-row">
+                                <div class="control-group">
+                                    <label for="propQrColor">Code colour</label>
+                                    <input type="color" id="propQrColor" data-prop="color">
+                                </div>
+                                <div class="control-group">
+                                    <label for="propQrBg">Code background</label>
+                                    <input type="color" id="propQrBg" data-prop="background">
+                                </div>
+                            </div>
+                            <label class="tpl-inline"><input type="checkbox" data-prop="hide_if_empty"> Hide the code when a variable in it is empty</label>
+                        </div>
+
+                        <div data-kind="image">
+                            <div class="control-group">
+                                <label for="propAsset">Image asset</label>
+                                <select id="propAsset" data-prop="asset" class="asset-select"></select>
+                                <small>Contained in its box, never stretched.</small>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="section-container" aria-labelledby="valuesHeading">
+                        <h3 id="valuesHeading" class="tpl-heading"><i class="fas fa-tablet-alt" aria-hidden="true"></i> Sample device</h3>
+                        <div class="control-group">
+                            <label for="sampleValues">Values (JSON)</label>
+                            <textarea id="sampleValues" rows="7" spellcheck="false"></textarea>
+                            <small id="sampleError" class="tpl-error" hidden></small>
+                        </div>
+                    </section>
+
+                    <div class="action-bar">
+                        <button type="button" class="btn" id="downloadJson"><i class="fas fa-download" aria-hidden="true"></i> Download template JSON</button>
+                    </div>
+                </div>
+
+                <aside class="preview-panel tpl-preview" aria-labelledby="previewHeading">
+                    <h3 id="previewHeading"><i class="fas fa-eye" aria-hidden="true"></i> Preview</h3>
+                    <p id="previewStatus" class="tpl-status" aria-live="polite">Waiting for the first render…</p>
+                    <div class="tpl-preview-frame">
+                        <img id="previewImage" alt="Rendered wallpaper preview" hidden>
+                    </div>
+                    <h4 class="tpl-subheading">Warnings</h4>
+                    <ul id="warningList" class="tpl-warnings" aria-live="polite"></ul>
+                </aside>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/template.js"></script>
+</body>
+</html>

@@ -32,6 +32,7 @@ config.py               # Settings, wallpaper presets, SECRET_KEY
 views/
   api.py                # REST API: upload, process, download, preview (with path traversal protection)
   main.py               # Serves index page
+  template_api.py       # Template mode: /api/template/preview (wallrender) and the asset library
 utils/
   image_processing.py   # PIL: resize, text overlays, image overlays, backgrounds, watermarks
   cleanup.py            # Periodic cleanup of temp/upload files (before_request hook)

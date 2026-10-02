@@ -13,6 +13,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # File upload settings (absolute, so they do not depend on the cwd)
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
 TEMP_FOLDER = os.path.join(BASE_DIR, 'temp')
+# Template mode's asset library (backgrounds, logos): kept, not cleaned up
+TEMPLATE_ASSETS_FOLDER = os.path.join(BASE_DIR, 'template_assets')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
 
@@ -36,6 +38,14 @@ WALLPAPER_PRESETS = {
     'Custom 4:3': (1024, 768),
     'Custom Square': (1080, 1080),
     'Optimized': 'auto'  # Special case for optimized sizing
+}
+
+# Template mode: values Brander can print (its allowlist), and canvas presets.
+BRANDER_VARIABLES = ['device_name', 'serial_number', 'asset_tag', 'jss_id', 'location.building']
+TEMPLATE_CANVASES = {
+    'iPhone (portrait)': (1290, 2796),
+    'iPad (square, both orientations)': (2732, 2732),
+    'iPad Pro 12.9" (portrait)': (2048, 2732),
 }
 
 # Flask app settings
