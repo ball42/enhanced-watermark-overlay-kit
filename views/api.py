@@ -13,6 +13,9 @@ from utils.image_processing import (
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
+MAX_PHOTO_PIXELS = 40_000_000  # same budget as wallrender's canvas
+RESIZE_RANGE = (10, 400)  # percent, as the slider offers
+
 def allowed_file(filename):
     """Check if file extension is allowed"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -42,9 +45,16 @@ def upload_file():
         filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
         file.save(filepath)
         
-        # Get image dimensions
-        with Image.open(filepath) as img:
-            width, height = img.size
+        # Get image dimensions, and refuse what is not an image or too big
+        try:
+            with Image.open(filepath) as img:
+                width, height = img.size
+        except (OSError, Image.DecompressionBombError):
+            os.remove(filepath)
+            return jsonify({'error': 'That file is not a readable image.'}), 400
+        if width * height > MAX_PHOTO_PIXELS:
+            os.remove(filepath)
+            return jsonify({'error': 'That image is too large (40 megapixels at most).'}), 400
         
         return jsonify({
             'success': True,
@@ -119,7 +129,13 @@ def process_image():
 
             # Apply custom resize
             if 'resize' in data and data['resize'] != 100:
-                resize_factor = data['resize'] / 100.0
+                resize = data['resize']
+                if isinstance(resize, bool) or not isinstance(resize, (int, float)):
+                    return jsonify({'error': 'Resize must be a number.'}), 400
+                resize = min(max(resize, RESIZE_RANGE[0]), RESIZE_RANGE[1])
+                resize_factor = resize / 100.0
+                if result_img.width * result_img.height * resize_factor ** 2 > MAX_PHOTO_PIXELS:
+                    return jsonify({'error': 'That resize would exceed 40 megapixels.'}), 400
                 new_width = int(result_img.width * resize_factor)
                 new_height = int(result_img.height * resize_factor)
                 result_img = result_img.resize((new_width, new_height), Image.Resampling.LANCZOS)

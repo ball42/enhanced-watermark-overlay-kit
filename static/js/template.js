@@ -988,8 +988,9 @@
       await loadAssets();
       loadTemplate(body.template);
       const added = body.assets.length ? ` Added assets: ${body.assets.join(', ')}.` : '';
+      const replaced = body.replaced && body.replaced.length ? ` Replaced library assets: ${body.replaced.join(', ')}.` : '';
       const skipped = body.skipped && body.skipped.length ? ` Skipped: ${body.skipped.join('; ')}.` : '';
-      ioStatus(`Opened ${file.name}.${added}${skipped}`);
+      ioStatus(`Opened ${file.name}.${added}${replaced}${skipped}`);
     });
     $('#downloadPackage').addEventListener('click', async () => {
       const t = exportable();

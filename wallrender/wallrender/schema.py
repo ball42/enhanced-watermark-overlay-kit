@@ -179,7 +179,7 @@ def validate(template: Any) -> list[str]:
 
     # Person fields (user.*) are opt-in per template and never in a QR code
     # (JAWA ADR-0013: what a lock screen may show).
-    if "screen" in template and template["screen"] not in SCREENS:
+    if "screen" in template and not (isinstance(template["screen"], str) and template["screen"] in SCREENS):
         problems.append(f"screen must be one of {sorted(SCREENS)}")
 
     person_fields = template.get("person_fields", False)

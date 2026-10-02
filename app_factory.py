@@ -40,6 +40,22 @@ def create_app(config_name=None):
     # Periodic cleanup of old temp files
     from utils.cleanup import cleanup_old_files
 
+    # EWOK has no login, so it only answers to its own address: a foreign
+    # Host header (DNS rebinding) or a cross-site write is refused.
+    from flask import abort, request
+
+    LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+
+    @app.before_request
+    def local_only():
+        host = request.host.rsplit(":", 1)[0] if not request.host.startswith("[") else request.host.split("]")[0] + "]"
+        if host not in LOCAL_HOSTS:
+            abort(403)
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            site = request.headers.get("Sec-Fetch-Site")
+            if site not in (None, "same-origin", "none"):
+                abort(403)
+
     @app.before_request
     def run_cleanup():
         cleanup_old_files(config.TEMP_FOLDER, config.UPLOAD_FOLDER)

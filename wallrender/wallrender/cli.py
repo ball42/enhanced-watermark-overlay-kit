@@ -13,7 +13,7 @@ import json
 import os
 import sys
 
-from .render import lint, render
+from .render import render_with_lint
 from .schema import ASSET_ID, TemplateError, variables_in
 
 STRESS_VALUE = "W" * 48  # wide glyphs: the worst case for one line
@@ -70,16 +70,24 @@ def stress_values(template: dict) -> dict:
     return values
 
 
+MAX_STRESS_ROLES = 10
+
+
+def role_keys(template: dict) -> list:
+    """Role variant keys to stress-render, at most MAX_STRESS_ROLES."""
+    variants = (template.get("roles") or {}).get("variants") or {}
+    return list(variants)[:MAX_STRESS_ROLES]
+
+
 def _variant(template, values, assets, output: str, label: str) -> int:
     """Render one stress variant; returns how many problems it showed."""
     try:
-        image = render(template, values, assets)
+        image, warnings = render_with_lint(template, values, assets)
     except TemplateError as err:
         for problem in err.problems:
             print(f"[{label}] error: {problem}", file=sys.stderr)
         return len(err.problems)
     image.save(output)
-    warnings = lint(template, values, assets)
     for warning in warnings:
         print(f"[{label}] warning: {warning}", file=sys.stderr)
     print(f"wrote {output} ({label} values, {len(warnings)} warnings)")
@@ -97,13 +105,12 @@ def preview(args: argparse.Namespace) -> int:
     template, values = loaded
     assets = folder_assets(args.assets or os.path.dirname(os.path.abspath(args.template)))
     try:
-        image = render(template, values, assets)
+        image, warnings = render_with_lint(template, values, assets)
     except TemplateError as err:
         for problem in err.problems:
             print(f"error: {problem}", file=sys.stderr)
         return 1
     image.save(args.output)
-    warnings = lint(template, values, assets)
     for warning in warnings:
         print(f"warning: {warning}", file=sys.stderr)
     print(f"wrote {args.output} ({image.width}x{image.height}, {len(warnings)} warnings)")
@@ -112,6 +119,9 @@ def preview(args: argparse.Namespace) -> int:
         stem, ext = os.path.splitext(args.output)
         problems += _variant(template, stress_values(template), assets, f"{stem}-long{ext}", "long")
         problems += _variant(template, {}, assets, f"{stem}-empty{ext}", "empty")
+        for key in role_keys(template):
+            problems += _variant(template, dict(values, role=key), assets,
+                                 f"{stem}-role-{key}{ext}", f"role {key}")
     return 3 if args.strict and problems else 0
 
 

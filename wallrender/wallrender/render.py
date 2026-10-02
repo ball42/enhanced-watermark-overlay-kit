@@ -178,6 +178,37 @@ def _ellipsize(text: str, font, bw: int) -> str:
     return text[:lo].rstrip() + ELLIPSIS
 
 
+MAX_ELLIPSIS_LINES = 50
+
+
+def _ellipsize_block(text: str, font, bw: int, bh: int, align: str) -> str:
+    """Fit a (possibly multi-line) text in the box: shorten each line that is
+    too wide, then drop lines from the end until the block is short enough,
+    marking the last kept line with an ellipsis. Bounded: at most
+    MAX_ELLIPSIS_LINES lines, each shortened by binary search."""
+    probe = ImageDraw.Draw(Image.new("L", (1, 1)))
+    lines = text.split("\n")[:MAX_ELLIPSIS_LINES]
+
+    def width(line: str) -> int:
+        left, _, right, _ = probe.textbbox((0, 0), line, font=font)
+        return right - left
+
+    lines = [line if width(line) <= bw else _ellipsize(line, font, bw) for line in lines]
+
+    def height(block: list[str]) -> int:
+        _, top, _, bottom = probe.textbbox((0, 0), "\n".join(block), font=font, align=align)
+        return bottom - top
+
+    if height(lines) > bh:
+        while len(lines) > 1 and height(lines) > bh:
+            lines.pop()
+        last = lines[-1]
+        if not last.endswith(ELLIPSIS):
+            last = last.rstrip() + ELLIPSIS
+            lines[-1] = last if width(last) <= bw else _ellipsize(last[:-1], font, bw)
+    return "\n".join(lines)
+
+
 def _floor_px(layer: dict[str, Any], px: int, height: int) -> int:
     if "min_size" in layer:
         return max(MIN_FONT_PX, min(px, round(layer["min_size"] * height)))
@@ -212,14 +243,17 @@ def _draw_text(img: Image.Image, session: _Session, layer: dict[str, Any],
     f, (left, top, width, height) = _fit_font(session, text, px, bw, bh,
                                               _floor_px(layer, px, img.height), align)
     shortened = False
-    if layer.get("overflow") == "ellipsis" and width > bw:
-        text, shortened = _ellipsize(text, f, bw), True
+    if layer.get("overflow") == "ellipsis" and (width > bw or height > bh):
+        text, shortened = _ellipsize_block(text, f, bw, bh, align), True
         left, top, right, bottom = ImageDraw.Draw(Image.new("L", (1, 1))).textbbox(
             (0, 0), text, font=f, align=align)
         width, height = right - left, bottom - top
     color = _rgba(layer.get("color"), (255, 255, 255, 255))
     if fits is not None:
-        behind = ImageStat.Stat(img.crop((bx, by, bx + bw, by + bh)).convert("RGB")).mean
+        # A 16x16 box-filtered sample: the mean colour behind the text at a
+        # fraction of the cost of converting the whole box.
+        sample = img.crop((bx, by, bx + bw, by + bh)).resize((16, 16), Image.Resampling.BOX)
+        behind = ImageStat.Stat(sample.convert("RGB")).mean
         fits.append(_TextFit(index, px, round(f.size), width > bw or height > bh,
                              tuple(round(c) for c in behind), color, shortened))
     x = 0 if align == "left" else bw - width if align == "right" else (bw - width) // 2
@@ -306,7 +340,7 @@ def _render(template: dict[str, Any], values: dict[str, Any], assets: AssetResol
         return _flatten(img), missing, fits or [], hidden or []
     except TemplateError:
         raise
-    except (ValueError, TypeError, OverflowError, UnicodeError, OSError, MemoryError) as e:
+    except (ValueError, TypeError, OverflowError, UnicodeError, OSError, MemoryError, RecursionError) as e:
         # Logged with its traceback so a genuine bug is not disguised as bad input.
         logger.exception("wallrender: render failed")
         raise TemplateError([f"render failed: {type(e).__name__}: {e}"]) from e
@@ -368,17 +402,29 @@ def _fit_warnings(fits: list[_TextFit], height: int) -> list[str]:
     return warnings
 
 
+def render_with_lint(template: dict[str, Any], values: dict[str, Any],
+                     assets: AssetResolver) -> tuple[Image.Image, list[str]]:
+    """The rendered image and lint's warnings from one render, for callers
+    that want both (raises TemplateError like render)."""
+    img, missing, fits, hidden = _render(template, values, assets, fits=[], hidden=[])
+    return img, _lint_warnings(template, values, assets, img, missing, fits, hidden)
+
+
 def lint(template: dict[str, Any], values: dict[str, Any], assets: AssetResolver) -> list[str]:
     """Warnings a designer should see: invalid template, missing values, missing
     glyphs, text that shrank or is cut off, and low text contrast (WCAG)."""
     problems = validate(template)
     if problems:
         return problems
-    warnings: list[str] = []
     try:
         img, missing, fits, hidden = _render(template, values, assets, fits=[], hidden=[])
     except TemplateError as e:
         return e.problems
+    return _lint_warnings(template, values, assets, img, missing, fits, hidden)
+
+
+def _lint_warnings(template, values, assets, img, missing, fits, hidden) -> list[str]:
+    warnings: list[str] = []
     if "roles" in template:
         variant, _ = choose(template, values)
         raw = values.get("role")
@@ -397,8 +443,9 @@ def lint(template: dict[str, Any], values: dict[str, Any], assets: AssetResolver
     notdef_img = Image.new("L", (96, 96), 0)
     ImageDraw.Draw(notdef_img).text((16, 16), "\U0010FFFD", font=session.font(48), fill=255)
     notdef = notdef_img.tobytes()  # the fallback box: a code point no font covers
+    _, resolved = resolve(template, values)  # role.* text comes from the variant
     for i, layer in enumerate(template.get("layers", [])):
         if layer["type"] == "text":
-            for ch in _missing_glyphs(session, substitute(layer["text"], values), notdef):
+            for ch in _missing_glyphs(session, substitute(layer["text"], resolved), notdef):
                 warnings.append(f"layer {i}: the font has no glyph for {ch!r} ({ch}); it will show as a box")
     return warnings

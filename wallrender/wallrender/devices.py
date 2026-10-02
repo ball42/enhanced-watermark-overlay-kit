@@ -15,6 +15,7 @@ from importlib import resources
 from typing import Any
 
 Region = tuple[float, float, float, float]
+MAX_DEVICE_IDS = 20
 
 
 @lru_cache(maxsize=1)
@@ -70,7 +71,8 @@ def fit_warnings(template: dict[str, Any], canvas: tuple[int, int], device_ids: 
     eps = 1e-6
     warnings = []
     profiles = {p["id"]: p for p in device_profiles()}
-    for device_id in device_ids:
+    # Each distinct id once, and at most MAX_DEVICE_IDS of them.
+    for device_id in list(dict.fromkeys(device_ids))[:MAX_DEVICE_IDS]:
         profile = profiles.get(device_id)
         if not profile:
             continue
