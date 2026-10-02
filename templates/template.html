@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EWOK — Template designer</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/ewok.png">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="icon" type="image/png" sizes="512x512" href="/static/ewok.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -70,6 +72,16 @@
                                 <small>Fills the canvas and is cropped from the center.</small>
                             </div>
                         </fieldset>
+                        <div class="control-group">
+                            <label for="templateScreen">Designed for</label>
+                            <select id="templateScreen">
+                                <option value="">Whatever the Brander is set to</option>
+                                <option value="lock">Lock screen</option>
+                                <option value="home">Home screen</option>
+                                <option value="both">Both screens</option>
+                            </select>
+                            <small>Brander sets the wallpaper on this screen. Safe areas follow it.</small>
+                        </div>
                         <div class="control-group">
                             <label class="tpl-inline"><input type="checkbox" id="personFields"> This template may show the device user's name, username and email</label>
                             <small>Off by default. JAWA prints them only if the admin also allows personal fields when enabling Brander, and never in a QR code.</small>

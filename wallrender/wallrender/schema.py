@@ -19,6 +19,7 @@ MAX_QR = 512
 MAX_TEXT_SIZE = 0.5  # font size as a fraction of canvas height
 FONTS = {"noto-sans"}
 ALIGNS = {"left", "center", "right"}
+SCREENS = {"lock", "home", "both"}  # which screen a template is designed for
 OVERFLOWS = {"shrink", "ellipsis"}  # what a text layer does when its text is too long
 
 ASSET_ID = re.compile(r"[a-z0-9_-]{1,64}")  # always used with fullmatch
@@ -178,6 +179,9 @@ def validate(template: Any) -> list[str]:
 
     # Person fields (user.*) are opt-in per template and never in a QR code
     # (JAWA ADR-0013: what a lock screen may show).
+    if "screen" in template and template["screen"] not in SCREENS:
+        problems.append(f"screen must be one of {sorted(SCREENS)}")
+
     person_fields = template.get("person_fields", False)
     if not isinstance(person_fields, bool):
         problems.append("person_fields must be true or false")
