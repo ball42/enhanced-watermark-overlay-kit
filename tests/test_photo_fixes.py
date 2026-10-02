@@ -65,8 +65,8 @@ def test_gradient_is_fast_and_runs_start_to_end(direction):
 
 
 def test_rotation_is_smooth(client):
-    """Bicubic rotation leaves intermediate edge colours; nearest-neighbour
-    only ever has the two original colours."""
+    """Bicubic rotation leaves intermediate edge colors; nearest-neighbor
+    only ever has the two original colors."""
     img = Image.new("RGBA", (120, 120), (0, 0, 0, 255))
     for x in range(40, 80):
         for y in range(40, 80):

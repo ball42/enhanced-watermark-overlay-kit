@@ -51,12 +51,12 @@ Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from 
 | Field | Rules |
 |---|---|
 | `canvas` | Whole pixels, at most 8192 per side and 40 MP in total. It may be omitted when the background is an asset, in which case the asset's size is used. |
-| `background` | Either `{"color": "#RRGGBB"}` or `{"asset": "<id>"}`. An asset is scaled to cover the canvas and centre-cropped. |
+| `background` | Either `{"color": "#RRGGBB"}` or `{"asset": "<id>"}`. An asset is scaled to cover the canvas and center-cropped. |
 | `box` | `x`, `y`, `w`, `h` as fractions of the canvas (0–1), entirely inside the canvas. Fractions let one layout scale across screen sizes. |
-| `text` | At most 500 characters, with `{{variables}}`. `size` is a fraction of canvas height (for example 0.028). `align` is `left`, `center` or `right`, and the text is centred vertically in its box. Text that does not fit is handled by the layer's overflow policy (below). Font: `noto-sans` (bundled). |
-| `qr` | `data` of at most 512 characters, with `{{variables}}`. Drawn square, centred in its box, with a quiet zone so it scans. `color` and `background` are optional. `hide_if_empty` works as for text. |
-| `image` | `asset` id matching `^[a-z0-9_-]{1,64}$`, contained (never stretched) and centred in its box. |
-| Colours | `#RRGGBB` or `#RRGGBBAA`. |
+| `text` | At most 500 characters, with `{{variables}}`. `size` is a fraction of canvas height (for example 0.028). `align` is `left`, `center` or `right`, and applies to every line of multi-line text; the text block is centered vertically in its box. Text that does not fit is handled by the layer's overflow policy (below). Font: `noto-sans` (bundled). |
+| `qr` | `data` of at most 512 characters, with `{{variables}}`. Drawn square, centered in its box, with a quiet zone so it scans. `color` and `background` are optional. `hide_if_empty` works as for text. |
+| `image` | `asset` id matching `^[a-z0-9_-]{1,64}$`, contained (never stretched) and centered in its box. |
+| Colors | `#RRGGBB` or `#RRGGBBAA`. |
 | Layers | At most 50, drawn in list order. |
 
 **Long and empty values.** Each text layer chooses what happens:
@@ -106,13 +106,13 @@ One template can change its background and wording by the device's role:
 
 ## Devices: crops and covered areas
 
-iOS scales a wallpaper to fill the screen and centres it, so a template whose shape differs from the screen loses its edges. On a 2048×2732 iPad, a 1290×2796 iPhone template keeps only the middle 62% of its height. `wallrender.devices` models this:
+iOS scales a wallpaper to fill the screen and centers it, so a template whose shape differs from the screen loses its edges. On a 2048×2732 iPad, a 1290×2796 iPhone template keeps only the middle 62% of its height. `wallrender.devices` models this:
 
 - `device_profiles()`: iPhone 6.7-inch, 6.1-inch and SE, and iPad Pro 12.9-inch, 11-inch and 10.9-inch, from `device_profiles.json`. Each has a screen size, whether it rotates, and the approximate areas the clock and controls (lock screen) or the status bar and dock (home screen) cover.
 - `visible_region(canvas, screen)`: the part of the canvas a screen shows.
 - `fit_warnings(template, canvas, device_ids, "lock" | "home")`: layers that a device crops off, or that sit under its clock, controls or dock, in each orientation.
 
-A square canvas with everything in its centre 75% survives both iPad orientations. The covered areas are approximate, so check a new device or iOS release on hardware.
+A square canvas with everything in its center 75% survives both iPad orientations. The covered areas are approximate, so check a new device or iOS release on hardware.
 
 ## Limits (templates are untrusted input)
 

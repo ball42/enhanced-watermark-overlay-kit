@@ -911,7 +911,7 @@ body {
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* Current mode: filled and underlined, so it does not rely on colour alone. */
+/* Current mode: filled and underlined, so it does not rely on color alone. */
 .mode-nav a[aria-current="page"] {
   background: var(--color-surface);
   color: var(--color-navbar);

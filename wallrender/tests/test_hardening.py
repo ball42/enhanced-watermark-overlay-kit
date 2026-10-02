@@ -27,9 +27,9 @@ def text(s, box=(0.1, 0.5, 0.8, 0.1), size=0.05, **kw):
     return {"type": "text", "text": s, "box": {"x": x, "y": y, "w": w, "h": h}, "size": size, "color": "#FFFFFF", **kw}
 
 
-def png(w, h, colour=(200, 0, 0, 255), mode="RGBA", fmt="PNG", **save):
+def png(w, h, color=(200, 0, 0, 255), mode="RGBA", fmt="PNG", **save):
     buf = io.BytesIO()
-    Image.new(mode, (w, h), colour).save(buf, fmt, **save)
+    Image.new(mode, (w, h), color).save(buf, fmt, **save)
     return buf.getvalue()
 
 

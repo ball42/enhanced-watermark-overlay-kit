@@ -415,7 +415,7 @@
   // ── Boxes over the preview (drag, resize, keys) ────
 
   const MIN_SIDE = 0.01;
-  const SNAP = 0.01; // snap when the centre is within 1% of the canvas
+  const SNAP = 0.01; // snap when the center is within 1% of the canvas
   const round = (n) => Math.round(n * 10000) / 10000;
 
   function clampBox(box) {
@@ -570,7 +570,7 @@
     return orientation === 'landscape' ? [h, w] : [w, h];
   }
 
-  // Mirrors wallrender.devices.visible_region: cover-scale, then centre.
+  // Mirrors wallrender.devices.visible_region: cover-scale, then center.
   function visibleRegion(cw, ch, sw, sh) {
     const scale = Math.max(sw / cw, sh / ch);
     const vw = Math.min(1, sw / scale / cw);
@@ -686,10 +686,10 @@
     const bgLabel = document.createElement('label');
     bgLabel.textContent = 'Background';
     const bg = document.createElement('select');
-    [['', 'Template background'], ['color', 'Colour'], ['asset', 'Image asset']].forEach(([v, t]) => bg.append(new Option(t, v)));
+    [['', 'Template background'], ['color', 'Color'], ['asset', 'Image asset']].forEach(([v, t]) => bg.append(new Option(t, v)));
     const color = document.createElement('input');
     color.type = 'color';
-    color.setAttribute('aria-label', `${title} background colour`);
+    color.setAttribute('aria-label', `${title} background color`);
     const asset = document.createElement('select');
     asset.className = 'asset-select';
     asset.setAttribute('aria-label', `${title} background image`);

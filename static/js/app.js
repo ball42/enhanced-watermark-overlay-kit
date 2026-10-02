@@ -336,7 +336,7 @@
   // ── Toggle Modes ────────────────────────────
 
   // The toggles are labels around a hidden checkbox: make each a real,
-  // focusable switch that says On or Off in words, not just in colour.
+  // focusable switch that says On or Off in words, not just in color.
   function bindSwitch(el, onToggle) {
     el.setAttribute('role', 'switch');
     el.setAttribute('tabindex', '0');
