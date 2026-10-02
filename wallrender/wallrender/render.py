@@ -18,6 +18,7 @@ import qrcode
 import qrcode.exceptions
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageStat, UnidentifiedImageError
 
+from .roles import choose, resolve
 from .schema import MAX_PIXELS, MAX_QR, MAX_SIDE, MAX_TEXT, TemplateError, validate
 from .variables import substitute
 
@@ -285,6 +286,7 @@ def _render(template: dict[str, Any], values: dict[str, Any], assets: AssetResol
     problems = validate(template)
     if problems:
         raise TemplateError(problems)
+    template, values = resolve(template, values)
     session = _Session(assets)
     missing: list[str] = []
     try:
@@ -373,6 +375,13 @@ def lint(template: dict[str, Any], values: dict[str, Any], assets: AssetResolver
         img, missing, fits, hidden = _render(template, values, assets, fits=[], hidden=[])
     except TemplateError as e:
         return e.problems
+    if "roles" in template:
+        variant, _ = choose(template, values)
+        raw = values.get("role")
+        if variant == "default":
+            warnings.append(f"role {str(raw)!r} has no variant of its own; it uses the default")
+        elif variant == "empty":
+            warnings.append("no role value; the empty variant is used")
     hidden_paths = {path for _, paths in hidden for path in paths}
     for index, paths in hidden:
         names = ", ".join(f"{{{{{p}}}}}" for p in dict.fromkeys(paths))

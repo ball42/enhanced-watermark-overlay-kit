@@ -7,9 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .schema import MAX_TEXT, PLACEHOLDER
-
-MAX_VALUE_CHARS = 200
+from .schema import MAX_TEXT, MAX_VALUE_CHARS, PLACEHOLDER
 
 
 def lookup(values: dict[str, Any], path: str) -> Any:

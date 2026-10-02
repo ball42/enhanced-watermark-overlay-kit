@@ -70,3 +70,9 @@ def test_device_profiles_and_guides_are_on_the_page(client):
     assert {"iphone-6.7", "ipad-12.9"} <= ids
     for element in ('id="guideDevice"', 'id="guideOrientation"', 'id="guideScreen"', 'id="deviceGrid"'):
         assert element in body
+
+
+def test_roles_editor_is_on_the_page(client):
+    body = client.get("/template").get_data(as_text=True)
+    for element in ('id="rolesOn"', 'id="roleAttribute"', 'id="variantList"', 'id="addVariant"', 'id="previewRole"'):
+        assert element in body

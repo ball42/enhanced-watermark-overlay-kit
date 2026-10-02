@@ -446,3 +446,55 @@ input[type="color"] {
   border-radius: 10px;
   overflow: hidden;
 }
+
+/* ── Role variants ──────────────────────────── */
+
+.tpl-variant-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-md);
+}
+
+.tpl-variant-list > li {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+
+.tpl-variant-list h4 {
+  font-size: 0.95rem;
+  margin-bottom: var(--space-xs);
+}
+
+.tpl-variant-key {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.tpl-variant-list textarea {
+  font-family: ui-monospace, monospace;
+}
+
+.tpl-variant-list label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-top: var(--space-sm);
+}
+
+.tpl-variant-list label > input,
+.tpl-variant-list label > select,
+.tpl-variant-list label > textarea,
+.tpl-variant-list > li > input[type="color"],
+.tpl-variant-list > li > select {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-xs);
+  font-weight: 400;
+}
+
+.tpl-variant-list .tpl-icon-btn {
+  margin-top: var(--space-sm);
+}

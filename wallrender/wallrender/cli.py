@@ -54,7 +54,11 @@ def _paths(template: dict) -> list[str]:
 def stress_values(template: dict) -> dict:
     """Every variable the template uses, set to a long, wide value."""
     values: dict = {}
+    if "roles" in template:
+        values["role"] = STRESS_VALUE  # an unknown, very long role: the default variant
     for path in _paths(template):
+        if "roles" in template and (path == "role" or path.startswith("role.")):
+            continue  # role.* comes from the variant, not from the device
         node = values
         *parents, leaf = path.split(".")
         for part in parents:

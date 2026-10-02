@@ -78,6 +78,28 @@ Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from 
 - **Deterministic:** for a given Pillow version, the same template, values and assets always give the same pixels. Text uses Pillow's BASIC layout engine, the Regular instance of the bundled font, and whole-pixel positions.
 - **Pinning:** pin Pillow exactly where byte-identical output across hosts matters.
 
+## Role variants
+
+One template can change its background and wording by the device's role:
+
+```json
+"roles": {
+  "attribute": "Jamf Setup Role",
+  "variants": {
+    "nursing": {"background": {"asset": "nursing"}, "values": {"title": "Nursing"}},
+    "videoconferencing": {"values": {"title": "Video calls"}}
+  },
+  "empty": {"values": {"title": "Please open the Setup app"}},
+  "default": {"values": {"title": "General use"}}
+}
+```
+
+- **Where the role comes from.** Pass it as `values["role"]`, a string. JAWA Brander reads it from the extension attribute named in `attribute`.
+- **Matching.** The role is lowercased with spaces removed (`"Video Conferencing"` becomes `videoconferencing`), the way Brander already matches role images, so variant keys use that form.
+- **Which variant applies.** The matching variant applies. With no role, `empty` applies; with any other role, `default`.
+- **What a variant can change.** Its `background` replaces the template's. Its `values` print as `{{role.<name>}}`, and `{{role.name}}` is the role as given. Layers don't change, so `hide_if_empty` and overflow still apply.
+- **Limits.** At most 50 variants, each with at most 20 values of up to 200 characters. `lint` notes when a role falls back to the default or the empty variant.
+
 ## Devices: crops and covered areas
 
 iOS scales a wallpaper to fill the screen and centres it, so a template whose shape differs from the screen loses its edges. On a 2048×2732 iPad, a 1290×2796 iPhone template keeps only the middle 62% of its height. `wallrender.devices` models this:
