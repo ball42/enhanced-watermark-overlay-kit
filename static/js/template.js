@@ -950,6 +950,21 @@
       const skipped = body.skipped && body.skipped.length ? ` Skipped: ${body.skipped.join('; ')}.` : '';
       ioStatus(`Opened ${file.name}.${added}${skipped}`);
     });
+    $('#downloadPackage').addEventListener('click', async () => {
+      const t = exportable();
+      const resp = await fetch('/api/template/package', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template: t }),
+      });
+      if (!resp.ok) {
+        const body = await resp.json();
+        ioStatus(`Not exported: ${(body.problems || [body.error]).join('; ')}`);
+        return;
+      }
+      saveBlob(await resp.blob(), `${slug(t.name)}.brander.json`);
+      ioStatus(`Downloaded ${slug(t.name)}.brander.json: upload it to JAWA's template store.`);
+    });
     $('#downloadBundle').addEventListener('click', async () => {
       const t = exportable();
       const resp = await fetch('/api/template/export', {

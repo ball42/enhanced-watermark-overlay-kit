@@ -328,3 +328,34 @@ def test_preview_as_a_role(client):
     assert nursing.get_json()["renders"][0]["image"] != other.get_json()["renders"][0]["image"]
     assert any("default" in w for w in other.get_json()["renders"][0]["warnings"])
 
+
+
+# --- M3-3: the .brander.json package for JAWA's template store -------------------
+
+
+def test_package_export_is_a_single_json_with_base64_assets(client):
+    upload(client, "logo.png")
+    resp = client.post("/api/template/package", json={"template": logo_template()})
+    assert resp.status_code == 200
+    assert "ward-ipads.brander.json" in resp.headers["Content-Disposition"]
+    package = json.loads(resp.data)
+    assert package["kind"] == "brander-template" and package["format"] == 1
+    assert package["name"] == "Ward iPads"
+    assert package["template"] == logo_template()
+    assert set(package["assets"]) == {"logo"}
+    assert base64.b64decode(package["assets"]["logo"]).startswith(b"\x89PNG")
+
+
+def test_package_export_needs_the_assets_and_a_valid_template(client):
+    assert client.post("/api/template/package", json={"template": logo_template()}).status_code == 422
+    assert client.post("/api/template/package", json={"template": {"schema_version": 3}}).status_code == 400
+
+
+def test_a_package_opens_back_in_the_designer(client):
+    upload(client, "logo.png")
+    package = client.post("/api/template/package", json={"template": logo_template()}).data
+    client.delete("/api/template/assets/logo")
+    resp = import_file(client, package, "ward-ipads.brander.json")
+    assert resp.status_code == 200
+    assert resp.get_json()["template"] == logo_template()
+    assert resp.get_json()["assets"] == ["logo"]

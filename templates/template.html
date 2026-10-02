@@ -230,9 +230,10 @@
                     <div class="action-bar tpl-row">
                         <label class="btn btn-secondary tpl-file-btn">
                             <i class="fas fa-folder-open" aria-hidden="true"></i> Open template (.json or .zip)
-                            <input type="file" id="openTemplate" accept=".json,.zip,application/json,application/zip">
+                            <input type="file" id="openTemplate" accept=".json,.zip,.brander.json,application/json,application/zip">
                         </label>
-                        <button type="button" class="btn" id="downloadBundle"><i class="fas fa-file-archive" aria-hidden="true"></i> Download for Brander (.zip)</button>
+                        <button type="button" class="btn" id="downloadPackage"><i class="fas fa-file-export" aria-hidden="true"></i> Download for JAWA's template store</button>
+                        <button type="button" class="btn btn-secondary" id="downloadBundle"><i class="fas fa-file-archive" aria-hidden="true"></i> Download for Brander's assets folder (.zip)</button>
                         <button type="button" class="btn btn-secondary" id="downloadJson"><i class="fas fa-download" aria-hidden="true"></i> Template JSON only</button>
                     </div>
                     <p id="ioStatus" class="tpl-status" aria-live="polite"></p>
