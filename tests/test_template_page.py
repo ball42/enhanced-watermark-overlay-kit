@@ -52,3 +52,9 @@ def test_stress_toggle_is_on_the_page(client):
     body = client.get("/template").get_data(as_text=True)
     assert 'id="stressToggle"' in body
     assert 'id="stressRenders"' in body
+
+
+def test_open_and_bundle_download_are_on_the_page(client):
+    body = client.get("/template").get_data(as_text=True)
+    assert 'id="openTemplate"' in body and 'accept=".json,.zip' in body
+    assert 'id="downloadBundle"' in body

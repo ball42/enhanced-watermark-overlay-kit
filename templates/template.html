@@ -201,9 +201,15 @@
                         </div>
                     </section>
 
-                    <div class="action-bar">
-                        <button type="button" class="btn" id="downloadJson"><i class="fas fa-download" aria-hidden="true"></i> Download template JSON</button>
+                    <div class="action-bar tpl-row">
+                        <label class="btn btn-secondary tpl-file-btn">
+                            <i class="fas fa-folder-open" aria-hidden="true"></i> Open template (.json or .zip)
+                            <input type="file" id="openTemplate" accept=".json,.zip,application/json,application/zip">
+                        </label>
+                        <button type="button" class="btn" id="downloadBundle"><i class="fas fa-file-archive" aria-hidden="true"></i> Download for Brander (.zip)</button>
+                        <button type="button" class="btn btn-secondary" id="downloadJson"><i class="fas fa-download" aria-hidden="true"></i> Template JSON only</button>
                     </div>
+                    <p id="ioStatus" class="tpl-status" aria-live="polite"></p>
                 </div>
 
                 <aside class="preview-panel tpl-preview" aria-labelledby="previewHeading">

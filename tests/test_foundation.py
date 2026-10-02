@@ -67,3 +67,12 @@ def test_wallrender_is_importable_from_the_app():
     import wallrender
 
     assert wallrender.SCHEMA_VERSION == 1
+
+
+def test_pillow_is_pinned_to_jawas_range():
+    """Text pixels differ between Pillow releases, so EWOK must render with
+    the Pillow JAWA's Brander uses (JAWA requirements.txt: >=11.3,<12)."""
+    import PIL
+
+    major, minor = (int(p) for p in PIL.__version__.split(".")[:2])
+    assert (11, 3) <= (major, minor) < (12, 0)
