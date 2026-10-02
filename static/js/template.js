@@ -134,8 +134,9 @@
       const custom = e.target.value === 'custom';
       $('#customSize').hidden = !custom;
       if (custom) {
-        $('#canvasWidth').value = state.template.canvas.width;
-        $('#canvasHeight').value = state.template.canvas.height;
+        // A template without a canvas takes its size from its background image.
+        $('#canvasWidth').value = (state.template.canvas || {}).width || '';
+        $('#canvasHeight').value = (state.template.canvas || {}).height || '';
         return;
       }
       const [w, h] = e.target.value.split('x').map(Number);
@@ -566,15 +567,82 @@
     });
   }
 
+  function slug(name) {
+    return (name || 'template').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'template';
+  }
+
+  function saveBlob(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function ioStatus(text) {
+    $('#ioStatus').textContent = text;
+  }
+
+  // Put a loaded template into the form: name, canvas, background, layers.
+  function loadTemplate(t) {
+    state.template = t;
+    state.selected = t.layers.length ? 0 : -1;
+    $('#tplName').value = t.name || '';
+    const preset = $('#canvasPreset');
+    const key = t.canvas ? `${t.canvas.width}x${t.canvas.height}` : '';
+    const known = Array.from(preset.options).some((o) => o.value === key);
+    preset.value = known ? key : 'custom';
+    $('#customSize').hidden = known;
+    $('#canvasWidth').value = t.canvas ? t.canvas.width : '';
+    $('#canvasHeight').value = t.canvas ? t.canvas.height : '';
+    const isAsset = Boolean(t.background && t.background.asset);
+    $(`input[name="bgKind"][value="${isAsset ? 'asset' : 'color'}"]`).checked = true;
+    $('#bgColorRow').hidden = isAsset;
+    $('#bgAssetRow').hidden = !isAsset;
+    if (isAsset) $('#bgAsset').value = t.background.asset;
+    else $('#bgColor').value = (t.background.color || '#000000').slice(0, 7).toLowerCase();
+    drawLayers();
+    drawProperties();
+    schedulePreview();
+  }
+
   function bindExport() {
+    $('#openTemplate').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      const form = new FormData();
+      form.append('file', file);
+      const resp = await fetch('/api/template/import', { method: 'POST', body: form });
+      const body = await resp.json();
+      if (!resp.ok) {
+        ioStatus(`Not opened: ${body.error}${body.problems ? ' ' + body.problems.join('; ') : ''}`);
+        return;
+      }
+      await loadAssets();
+      loadTemplate(body.template);
+      const added = body.assets.length ? ` Added assets: ${body.assets.join(', ')}.` : '';
+      const skipped = body.skipped && body.skipped.length ? ` Skipped: ${body.skipped.join('; ')}.` : '';
+      ioStatus(`Opened ${file.name}.${added}${skipped}`);
+    });
+    $('#downloadBundle').addEventListener('click', async () => {
+      const t = exportable();
+      const resp = await fetch('/api/template/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template: t }),
+      });
+      if (!resp.ok) {
+        const body = await resp.json();
+        ioStatus(`Not exported: ${(body.problems || [body.error]).join('; ')}`);
+        return;
+      }
+      saveBlob(await resp.blob(), `${slug(t.name)}.zip`);
+      ioStatus(`Downloaded ${slug(t.name)}.zip: copy its files into Brander's assets folder.`);
+    });
     $('#downloadJson').addEventListener('click', () => {
       const t = exportable();
-      const blob = new Blob([JSON.stringify(t, null, 2) + '\n'], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${(t.name || 'template').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'template'}.json`;
-      a.click();
-      URL.revokeObjectURL(a.href);
+      saveBlob(new Blob([JSON.stringify(t, null, 2) + '\n'], { type: 'application/json' }), `${slug(t.name)}.json`);
     });
   }
 

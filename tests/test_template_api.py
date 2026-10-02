@@ -1,6 +1,7 @@
 """Template mode T1: preview renders and the template asset library."""
 
 import base64
+import os
 import io
 
 import pytest
@@ -148,3 +149,135 @@ def test_delete_asset(client):
 @pytest.mark.parametrize("asset_id", ["..", "%2e%2e%2fconfig", "UPPER"])
 def test_serving_rejects_odd_ids(client, asset_id):
     assert client.get(f"/api/template/assets/{asset_id}").status_code == 404
+
+
+# --- T5: export and import ---------------------------------------------------
+
+import json  # noqa: E402
+import zipfile  # noqa: E402
+
+
+def logo_template(**extra):
+    template = json.loads(json.dumps(TEMPLATE))
+    template["name"] = "Ward iPads"
+    template["layers"].append({"type": "image", "asset": "logo",
+                               "box": {"x": 0.3, "y": 0.1, "w": 0.4, "h": 0.2}})
+    template.update(extra)
+    return template
+
+
+def export(client, template):
+    return client.post("/api/template/export", json={"template": template})
+
+
+def test_export_zips_the_template_and_its_assets(client):
+    upload(client, "logo.png")
+    upload(client, "unused.png")
+    resp = export(client, logo_template())
+    assert resp.status_code == 200
+    assert resp.mimetype == "application/zip"
+    assert "ward-ipads.zip" in resp.headers["Content-Disposition"]
+    with zipfile.ZipFile(io.BytesIO(resp.data)) as z:
+        names = sorted(z.namelist())
+        assert names == ["README.txt", "logo.png", "ward-ipads.json"]
+        assert json.loads(z.read("ward-ipads.json")) == logo_template()
+        assert "ward-ipads.json" in z.read("README.txt").decode()
+
+
+def test_export_includes_a_background_asset(client):
+    upload(client, "bg.png", size=(60, 120))
+    template = logo_template(background={"asset": "bg"})
+    template.pop("canvas")
+    upload(client, "logo.png")
+    with zipfile.ZipFile(io.BytesIO(export(client, template).data)) as z:
+        assert {"bg.png", "logo.png"} <= set(z.namelist())
+
+
+def test_export_of_a_missing_asset_is_422(client):
+    resp = export(client, logo_template())
+    assert resp.status_code == 422
+    assert "logo" in json.dumps(resp.get_json())
+
+
+def test_export_of_an_invalid_template_is_400(client):
+    assert export(client, {"schema_version": 7}).status_code == 400
+
+
+def import_file(client, data, name):
+    return client.post("/api/template/import", data={"file": (io.BytesIO(data), name)},
+                       content_type="multipart/form-data")
+
+
+def test_export_then_import_round_trips(client, app, tmp_path):
+    upload(client, "logo.png")
+    bundle = export(client, logo_template()).data
+    client.delete("/api/template/assets/logo")
+    resp = import_file(client, bundle, "ward-ipads.zip")
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["template"] == logo_template()
+    assert body["assets"] == ["logo"]
+    assert client.get("/api/template/assets/logo").status_code == 200
+
+
+def test_import_a_plain_json_template(client):
+    resp = import_file(client, json.dumps(TEMPLATE).encode(), "t.json")
+    assert resp.status_code == 200
+    assert resp.get_json() == {"template": TEMPLATE, "assets": []}
+
+
+@pytest.mark.parametrize("data", [b"{not json", b"[1, 2]", json.dumps({"schema_version": 3}).encode()])
+def test_import_rejects_bad_json(client, data):
+    resp = import_file(client, data, "t.json")
+    assert resp.status_code == 400
+
+
+def make_zip(entries):
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, data in entries.items():
+            z.writestr(name, data)
+    return buffer.getvalue()
+
+
+def png_bytes():
+    return make_test_image(10, 10).getvalue()
+
+
+def test_import_zip_needs_exactly_one_template(client):
+    assert import_file(client, make_zip({"a.png": png_bytes()}), "x.zip").status_code == 400
+    two = make_zip({"a.json": json.dumps(TEMPLATE), "b.json": json.dumps(TEMPLATE)})
+    assert import_file(client, two, "x.zip").status_code == 400
+
+
+def test_import_zip_never_writes_outside_the_library(client, app, tmp_path):
+    """Zip-slip: entry paths are ignored; only the file name, as an asset id."""
+    bundle = make_zip({"t.json": json.dumps(TEMPLATE), "../../evil.png": png_bytes(),
+                       "nested/dir/ok.png": png_bytes()})
+    resp = import_file(client, bundle, "x.zip")
+    assert resp.status_code == 200
+    assert sorted(resp.get_json()["assets"]) == ["evil", "ok"]
+    import config
+    assert sorted(os.listdir(config.TEMPLATE_ASSETS_FOLDER)) == ["evil.png", "ok.png"]
+    assert not (tmp_path / "evil.png").exists()
+
+
+def test_import_zip_skips_files_that_are_not_assets(client):
+    bundle = make_zip({"t.json": json.dumps(TEMPLATE), "README.txt": "hi",
+                       "Bad Name.png": png_bytes(), "fake.png": b"not an image"})
+    resp = import_file(client, bundle, "x.zip")
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["assets"] == []
+    assert any("fake.png" in s for s in body["skipped"])
+
+
+def test_import_zip_bomb_is_refused(client):
+    huge = make_zip({"t.json": json.dumps(TEMPLATE), "big.png": b"\0" * (70 * 1024 * 1024)})
+    resp = import_file(client, huge, "x.zip")
+    assert resp.status_code == 400
+    assert "too large" in resp.get_json()["error"]
+
+
+def test_import_rejects_other_file_types(client):
+    assert import_file(client, png_bytes(), "x.png").status_code == 400

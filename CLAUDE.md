@@ -32,7 +32,7 @@ config.py               # Settings, wallpaper presets, SECRET_KEY
 views/
   api.py                # REST API: upload, process, download, preview (with path traversal protection)
   main.py               # Serves index page
-  template_api.py       # Template mode: /api/template/preview (wallrender) and the asset library
+  template_api.py       # Template mode: preview (wallrender), asset library, bundle export/import
 utils/
   image_processing.py   # PIL: resize, text overlays, image overlays, backgrounds, watermarks
   cleanup.py            # Periodic cleanup of temp/upload files (before_request hook)
@@ -50,6 +50,7 @@ tests/
 
 ### Key Patterns
 
+- **Pillow pin:** `Pillow>=11.3,<12`, the same as JAWA. Text pixels differ between Pillow releases, so the preview only matches devices on the same version; change both repos together.
 - **Path safety:** All file-serving endpoints use `safe_filepath()` in `views/api.py` — `os.path.basename()` + `os.path.realpath()` containment check
 - **Hex colors:** Validated via `hex_to_rgb()` in `utils/image_processing.py` — regex-based, returns `(0,0,0)` fallback
 - **Font loading:** `load_font(size)` helper with system font fallback chain
