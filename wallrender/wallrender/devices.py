@@ -1,7 +1,7 @@
 """Device profiles: how iOS crops a wallpaper on each device class, and which
 parts of the screen the clock, controls and dock cover.
 
-iOS scales a wallpaper to fill the screen ("cover") and centres it, so a
+iOS scales a wallpaper to fill the screen ("cover") and centers it, so a
 template whose shape differs from the screen loses its edges. Regions here
 are (x0, y0, x1, y1) fractions: of the screen for zones, of the template
 canvas for what this module returns.
@@ -35,7 +35,7 @@ def orientations(profile: dict[str, Any]) -> list[tuple[str, tuple[int, int]]]:
 
 
 def visible_region(canvas: tuple[int, int], screen: tuple[int, int]) -> Region:
-    """The part of the canvas a screen shows after cover-scaling and centring."""
+    """The part of the canvas a screen shows after cover-scaling and centering."""
     cw, ch = canvas
     sw, sh = screen
     scale = max(sw / cw, sh / ch)

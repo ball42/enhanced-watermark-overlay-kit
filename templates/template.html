@@ -58,16 +58,16 @@
                         </div>
                         <fieldset class="control-group tpl-fieldset">
                             <legend>Background</legend>
-                            <label class="tpl-inline"><input type="radio" name="bgKind" value="color" checked> Colour</label>
+                            <label class="tpl-inline"><input type="radio" name="bgKind" value="color" checked> Color</label>
                             <label class="tpl-inline"><input type="radio" name="bgKind" value="asset"> Image</label>
                             <div id="bgColorRow">
-                                <label for="bgColor" class="visually-hidden">Background colour</label>
+                                <label for="bgColor" class="visually-hidden">Background color</label>
                                 <input type="color" id="bgColor" value="#0b2545">
                             </div>
                             <div id="bgAssetRow" hidden>
                                 <label for="bgAsset" class="visually-hidden">Background image</label>
                                 <select id="bgAsset" class="asset-select"></select>
-                                <small>Fills the canvas and is cropped from the centre.</small>
+                                <small>Fills the canvas and is cropped from the center.</small>
                             </div>
                         </fieldset>
                         <div class="control-group">
@@ -128,14 +128,14 @@
                                     <input type="number" id="propSize" data-prop="size" data-type="number" min="0.001" max="0.5" step="0.001">
                                 </div>
                                 <div class="control-group">
-                                    <label for="propColor">Colour</label>
+                                    <label for="propColor">Color</label>
                                     <input type="color" id="propColor" data-prop="color">
                                 </div>
                                 <div class="control-group">
                                     <label for="propAlign">Align</label>
                                     <select id="propAlign" data-prop="align">
                                         <option value="left">Left</option>
-                                        <option value="center">Centre</option>
+                                        <option value="center">Center</option>
                                         <option value="right">Right</option>
                                     </select>
                                 </div>
@@ -170,7 +170,7 @@
                             </div>
                             <div class="tpl-row">
                                 <div class="control-group">
-                                    <label for="propQrColor">Code colour</label>
+                                    <label for="propQrColor">Code color</label>
                                     <input type="color" id="propQrColor" data-prop="color">
                                 </div>
                                 <div class="control-group">
@@ -269,14 +269,14 @@
                         </div>
                     </fieldset>
                     <script type="application/json" id="deviceProfiles">{{ device_profiles | tojson }}</script>
-                    <p class="tpl-hint" id="boxHelp">Drag a box to move it, or its corner to resize it. With a box focused, arrow keys move it and Alt with arrow keys resizes it; hold Shift for bigger steps. Boxes snap to the centre lines.</p>
+                    <p class="tpl-hint" id="boxHelp">Drag a box to move it, or its corner to resize it. With a box focused, arrow keys move it and Alt with arrow keys resizes it; hold Shift for bigger steps. Boxes snap to the center lines.</p>
                     <div class="tpl-preview-frame">
                         <div class="tpl-stage" id="stage">
                             <img id="previewImage" alt="Rendered wallpaper preview" hidden>
                             <div class="tpl-safe" id="safeAreas" aria-hidden="true"></div>
                             <div class="tpl-overlay" id="overlay" role="group" aria-label="Layer boxes" aria-describedby="boxHelp">
-                                <div class="tpl-guide tpl-guide-v" hidden><span>centre</span></div>
-                                <div class="tpl-guide tpl-guide-h" hidden><span>centre</span></div>
+                                <div class="tpl-guide tpl-guide-v" hidden><span>center</span></div>
+                                <div class="tpl-guide tpl-guide-h" hidden><span>center</span></div>
                             </div>
                         </div>
                     </div>

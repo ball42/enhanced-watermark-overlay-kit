@@ -378,7 +378,7 @@ input[type="color"] {
 
 /* ── T6: safe areas and the device grid ─────── */
 
-/* Hatching plus a text label: never colour alone. */
+/* Hatching plus a text label: never color alone. */
 .tpl-safe {
   position: absolute;
   inset: 0;

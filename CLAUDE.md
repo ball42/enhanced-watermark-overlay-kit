@@ -50,7 +50,7 @@ tests/
 
 ### Key Patterns
 
-- **Design: one family with JAWA.** `static/css/style.css` uses JAWA's tokens (Inter and JetBrains Mono, parchment surfaces, borders, radii, shadows, primary blue `#3c6aa7`). EWOK's own identity is Endor: the forest navbar (`#2f4a33`) with a treeline edge, a bark accent and moss success colour. Change shared tokens in both repos. Status is never colour alone: messages and toasts lead with a word, switches say On or Off.
+- **Design: one family with JAWA.** `static/css/style.css` uses JAWA's tokens (Inter and JetBrains Mono, parchment surfaces, borders, radii, shadows, primary blue `#3c6aa7`). EWOK's own identity is Endor: the forest navbar (`#2f4a33`) with a treeline edge, a bark accent and moss success color. Change shared tokens in both repos. Status is never color alone: messages and toasts lead with a word, switches say On or Off.
 - **Pillow pin:** `Pillow>=11.3,<12`, the same as JAWA. Text pixels differ between Pillow releases, so the preview only matches devices on the same version; change both repos together.
 - **Path safety:** All file-serving endpoints use `safe_filepath()` in `views/api.py` — `os.path.basename()` + `os.path.realpath()` containment check
 - **Hex colors:** Validated via `hex_to_rgb()` in `utils/image_processing.py` — regex-based, returns `(0,0,0)` fallback

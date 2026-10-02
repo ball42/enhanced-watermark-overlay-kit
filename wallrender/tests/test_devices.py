@@ -34,7 +34,7 @@ def test_cover_crop_of_a_tall_canvas_on_a_wide_screen():
     assert y0 == pytest.approx((1 - (y1 - y0)) / 2)
 
 
-def test_square_canvas_keeps_the_centre_in_both_orientations():
+def test_square_canvas_keeps_the_center_in_both_orientations():
     portrait = visible_region((2732, 2732), (2048, 2732))
     landscape = visible_region((2732, 2732), (2732, 2048))
     assert portrait[1] == 0 and portrait[3] == 1

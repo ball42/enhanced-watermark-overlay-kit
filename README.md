@@ -54,7 +54,7 @@ uv run pytest
 (cd wallrender && uv run --with pytest pytest)
 ```
 
-The app tests cover upload, processing, download, preview, path traversal protection, colour validation, font loading, wallpaper resize modes and the local-only server settings. `wallrender/` has its own suite.
+The app tests cover upload, processing, download, preview, path traversal protection, color validation, font loading, wallpaper resize modes and the local-only server settings. `wallrender/` has its own suite.
 
 ## Architecture
 

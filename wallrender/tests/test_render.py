@@ -64,9 +64,9 @@ def test_qr_code_is_square_and_inside_its_box():
     assert abs((right - left) - (bottom - top)) <= 2
 
 
-def _png(w, h, colour):
+def _png(w, h, color):
     buf = io.BytesIO()
-    Image.new("RGB", (w, h), colour).save(buf, "PNG")
+    Image.new("RGB", (w, h), color).save(buf, "PNG")
     return buf.getvalue()
 
 
@@ -132,3 +132,28 @@ def test_example_template_renders_with_the_sample_device():
     img = render(template, values, no_assets)
     assert img.mode == "RGB" and img.size == (1290, 2796)
     assert lint(template, values, no_assets) == []
+
+
+@pytest.mark.parametrize("align", ["left", "center", "right"])
+def test_each_line_of_multi_line_text_follows_the_alignment(align):
+    """A short line under a long one sits at the left edge, the middle or
+    the right edge of the block, as the layer's align says."""
+    layer = text_layer("WWWWWWWWWW\nii", box=(0.05, 0.4, 0.9, 0.2), align=align, size=0.04)
+    img = render(tpl(layer), {}, no_assets).convert("L")
+    w, h = img.size
+
+    def ink_columns(y0, y1):
+        cols = [x for x in range(w) if any(img.getpixel((x, y)) > 40 for y in range(y0, y1))]
+        return min(cols), max(cols)
+
+    rows = [y for y in range(h) if any(img.getpixel((x, y)) > 40 for x in range(w))]
+    top, bottom = rows[0], rows[-1]
+    mid = (top + bottom) // 2
+    long_left, long_right = ink_columns(top, mid - 2)
+    short_left, short_right = ink_columns(mid + 2, bottom + 1)
+    if align == "left":
+        assert abs(short_left - long_left) <= 4
+    elif align == "right":
+        assert abs(short_right - long_right) <= 4
+    else:
+        assert abs((short_left + short_right) / 2 - (long_left + long_right) / 2) <= 4

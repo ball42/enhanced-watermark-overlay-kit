@@ -128,20 +128,21 @@ def _canvas(template: dict[str, Any], session: _Session) -> Image.Image:
     return Image.new("RGBA", (canvas["width"], canvas["height"]), _rgba(background["color"], (0, 0, 0, 255)))
 
 
-def _fit_font(session: _Session, text: str, px: int, bw: int, bh: int, floor: int = MIN_FONT_PX):
+def _fit_font(session: _Session, text: str, px: int, bw: int, bh: int, floor: int = MIN_FONT_PX,
+              align: str = "left"):
     """Largest size in [floor, px] whose text fits the box: one measurement plus
     a few checks, never a pixel-by-pixel walk down from a huge size."""
     probe = ImageDraw.Draw(Image.new("L", (1, 1)))
     for _ in range(4):
         f = session.font(px)
-        left, top, right, bottom = probe.textbbox((0, 0), text, font=f)
+        left, top, right, bottom = probe.textbbox((0, 0), text, font=f, align=align)
         width, height = right - left, bottom - top
         if (width <= bw and height <= bh) or px <= floor:
             return f, (left, top, width, height)
         scale = min(bw / max(width, 1), bh / max(height, 1))
         px = max(floor, min(px - 1, math.floor(px * scale)))
     f = session.font(px)
-    left, top, right, bottom = probe.textbbox((0, 0), text, font=f)
+    left, top, right, bottom = probe.textbbox((0, 0), text, font=f, align=align)
     return f, (left, top, right - left, bottom - top)
 
 
@@ -207,24 +208,27 @@ def _draw_text(img: Image.Image, session: _Session, layer: dict[str, Any],
         return
     bx, by, bw, bh = _box_px(layer["box"], img.size)
     px = max(MIN_FONT_PX, round(layer["size"] * img.height))
+    align = layer.get("align", "center")
     f, (left, top, width, height) = _fit_font(session, text, px, bw, bh,
-                                              _floor_px(layer, px, img.height))
+                                              _floor_px(layer, px, img.height), align)
     shortened = False
     if layer.get("overflow") == "ellipsis" and width > bw:
         text, shortened = _ellipsize(text, f, bw), True
-        left, top, right, bottom = ImageDraw.Draw(Image.new("L", (1, 1))).textbbox((0, 0), text, font=f)
+        left, top, right, bottom = ImageDraw.Draw(Image.new("L", (1, 1))).textbbox(
+            (0, 0), text, font=f, align=align)
         width, height = right - left, bottom - top
     color = _rgba(layer.get("color"), (255, 255, 255, 255))
     if fits is not None:
         behind = ImageStat.Stat(img.crop((bx, by, bx + bw, by + bh)).convert("RGB")).mean
         fits.append(_TextFit(index, px, round(f.size), width > bw or height > bh,
                              tuple(round(c) for c in behind), color, shortened))
-    align = layer.get("align", "center")
     x = 0 if align == "left" else bw - width if align == "right" else (bw - width) // 2
     y = (bh - height) // 2
     # Draw into a box-sized layer: bounded memory, and nothing spills outside the box.
     box_layer = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
-    ImageDraw.Draw(box_layer).text((x - left, y - top), text, font=f, fill=color)
+    # align applies line by line inside a multi-line block (Pillow's
+    # default is left); x above places the block itself.
+    ImageDraw.Draw(box_layer).text((x - left, y - top), text, font=f, fill=color, align=align)
     img.alpha_composite(box_layer, (bx, by))
 
 
