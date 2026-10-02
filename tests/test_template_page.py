@@ -94,3 +94,9 @@ def test_preview_refuses_user_fields_without_the_opt_in(client):
     assert client.post("/api/template/preview", json={"template": template, "values": {}}).status_code == 400
     template["person_fields"] = True
     assert client.post("/api/template/preview", json={"template": template, "values": {}}).status_code == 200
+
+
+def test_role_attribute_can_load_names_exported_by_jawa(client):
+    body = client.get("/template").get_data(as_text=True)
+    assert 'list="eaNames"' in body and 'id="eaNamesFile"' in body
+    assert "Load attribute names from JAWA" in body

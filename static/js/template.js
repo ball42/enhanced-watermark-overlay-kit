@@ -829,6 +829,25 @@
     });
   }
 
+  // Extension attribute names exported by JAWA (/brander/ea-names.json):
+  // offered as suggestions for the role attribute. Names only, read here.
+  function bindEaNames() {
+    $('#eaNamesFile').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        if (data.kind !== 'jamf-ea-names' || !Array.isArray(data.names)) throw new Error('not a JAWA attribute names file');
+        const names = data.names.filter((n) => typeof n === 'string' && n.length <= 100).slice(0, 500);
+        $('#eaNames').replaceChildren(...names.map((n) => new Option(n, n)));
+        $('#eaNamesStatus').textContent = `Loaded ${names.length} attribute names; pick one above.`;
+      } catch (err) {
+        $('#eaNamesStatus').textContent = `Not loaded: ${err.message}.`;
+      }
+    });
+  }
+
   function bindRoles() {
     $('#rolesOn').addEventListener('change', (e) => {
       if (e.target.checked) state.template.roles = { variants: {}, empty: {}, default: {} };
@@ -997,6 +1016,7 @@
     bindExport();
     bindDevices();
     bindRoles();
+    bindEaNames();
     bindPersonFields();
     drawVariants();
     drawLayers();
