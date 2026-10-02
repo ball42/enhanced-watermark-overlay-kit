@@ -127,13 +127,18 @@
     });
 
     // Toggle buttons
-    $('[data-action="toggle-wallpaper"]').addEventListener('click', toggleWallpaperMode);
-    $('[data-action="toggle-background"]').addEventListener('click', toggleBackground);
+    bindSwitch($('[data-action="toggle-wallpaper"]'), toggleWallpaperMode);
+    bindSwitch($('[data-action="toggle-background"]'), toggleBackground);
 
-    // Section collapse — delegate from all section headers
+    // Section collapse — click, or Enter/Space when the header has focus
     $$('[data-section]').forEach((header) => {
-      header.addEventListener('click', () => {
-        toggleSection(header.getAttribute('data-section'));
+      const toggle = () => toggleSection(header.getAttribute('data-section'));
+      header.addEventListener('click', toggle);
+      header.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggle();
+        }
       });
     });
   }
@@ -235,10 +240,13 @@
 
       if (result.success) {
         processedFilename = result.processed_filename;
+        const warnings = result.warnings || [];
         showStatus(
-          `Processed — ${result.dimensions.width}\u00d7${result.dimensions.height}`,
-          'success'
+          `Processed — ${result.dimensions.width}\u00d7${result.dimensions.height}` +
+            (warnings.length ? `, with ${warnings.length} problem${warnings.length > 1 ? 's' : ''}: ${warnings.join(' ')}` : ''),
+          warnings.length ? 'warning' : 'success'
         );
+        if (warnings.length) showToast(warnings.join(' '), 'warning');
         showPreview();
         downloadSection.style.display = 'block';
       } else {
@@ -327,11 +335,39 @@
 
   // ── Toggle Modes ────────────────────────────
 
+  // The toggles are labels around a hidden checkbox: make each a real,
+  // focusable switch that says On or Off in words, not just in colour.
+  function bindSwitch(el, onToggle) {
+    el.setAttribute('role', 'switch');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-checked', 'false');
+    const state = document.createElement('span');
+    state.className = 'toggle-state';
+    state.textContent = 'Off';
+    el.insertBefore(state, el.querySelector('.toggle-switch'));
+    el.addEventListener('click', (e) => {
+      e.preventDefault(); // the label would also flip the hidden checkbox
+      onToggle();
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onToggle();
+      }
+    });
+  }
+
+  function syncSwitch(el, on) {
+    el.classList.toggle('active', on);
+    el.setAttribute('aria-checked', String(on));
+    el.querySelector('.toggle-state').textContent = on ? 'On' : 'Off';
+  }
+
   function toggleWallpaperMode() {
     const cb = $('#wallpaperMode');
     const button = cb.parentElement;
     cb.checked = !cb.checked;
-    button.classList.toggle('active', cb.checked);
+    syncSwitch(button, cb.checked);
     $('#wallpaperOptions').style.display = cb.checked ? 'block' : 'none';
   }
 
@@ -339,7 +375,7 @@
     const cb = $('#enableBackground');
     const button = cb.parentElement;
     cb.checked = !cb.checked;
-    button.classList.toggle('active', cb.checked);
+    syncSwitch(button, cb.checked);
     $('#backgroundOptions').style.display = cb.checked ? 'block' : 'none';
     adjustFontSizesForBackground(cb.checked);
   }
@@ -388,14 +424,14 @@
           </div>
           <div class="setting-group">
             <label>Align</label>
-            <div class="alignment-group">
-              <button type="button" class="align-btn" data-align="left" title="Left align">
+            <div class="alignment-group" role="group" aria-label="Text alignment">
+              <button type="button" class="align-btn" data-align="left" title="Left align" aria-label="Left align" aria-pressed="false">
                 <i class="fas fa-align-left"></i>
               </button>
-              <button type="button" class="align-btn active" data-align="center" title="Center align">
+              <button type="button" class="align-btn active" data-align="center" title="Center align" aria-label="Center align" aria-pressed="true">
                 <i class="fas fa-align-center"></i>
               </button>
-              <button type="button" class="align-btn" data-align="right" title="Right align">
+              <button type="button" class="align-btn" data-align="right" title="Right align" aria-label="Right align" aria-pressed="false">
                 <i class="fas fa-align-right"></i>
               </button>
             </div>
@@ -467,8 +503,12 @@
     // Alignment buttons — toggle active state
     div.querySelectorAll('.align-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        div.querySelectorAll('.align-btn').forEach((b) => b.classList.remove('active'));
+        div.querySelectorAll('.align-btn').forEach((b) => {
+          b.classList.remove('active');
+          b.setAttribute('aria-pressed', 'false');
+        });
         btn.classList.add('active');
+        btn.setAttribute('aria-pressed', 'true');
       });
     });
 
@@ -770,6 +810,8 @@
     statusMessage.setAttribute('aria-live', 'polite');
   }
 
+  const TOAST_WORDS = { success: 'Done:', error: 'Error:', warning: 'Warning:', info: 'Note:' };
+
   function showToast(message, type) {
     // Remove existing toast
     const old = $('.toast');
@@ -777,19 +819,33 @@
 
     const toast = document.createElement('div');
     toast.className = 'toast toast-' + type;
-    toast.textContent = message;
-    toast.setAttribute('role', 'alert');
+    toast.setAttribute('role', type === 'error' || type === 'warning' ? 'alert' : 'status');
+    const word = document.createElement('strong');
+    word.textContent = TOAST_WORDS[type] || '';
+    const text = document.createElement('span');
+    text.textContent = ' ' + message;
+    toast.append(word, text);
+    const dismiss = () => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 300);
+    };
+    // Problems stay until dismissed; confirmations leave on their own.
+    if (type === 'error' || type === 'warning') {
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'toast-close';
+      close.textContent = 'Dismiss';
+      close.addEventListener('click', dismiss);
+      toast.append(close);
+    } else {
+      setTimeout(dismiss, 4000);
+    }
     document.body.appendChild(toast);
 
     // Trigger animation
     requestAnimationFrame(() => {
       toast.classList.add('show');
     });
-
-    setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => toast.remove(), 300);
-    }, 4000);
   }
 
   // ── Loading State ───────────────────────────

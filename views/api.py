@@ -66,6 +66,7 @@ def process_image():
     if not input_path or not os.path.exists(input_path):
         return jsonify({'error': 'File not found'}), 404
     
+    warnings = []  # problems the user should see, e.g. a skipped overlay
     try:
         with Image.open(input_path) as base_img:
             # Convert to RGBA for transparency support
@@ -113,7 +114,8 @@ def process_image():
 
             # Apply rotation
             if 'rotation' in data and data['rotation'] != 0:
-                result_img = result_img.rotate(data['rotation'], expand=True, fillcolor=(0, 0, 0, 0))
+                result_img = result_img.rotate(data['rotation'], resample=Image.Resampling.BICUBIC,
+                                               expand=True, fillcolor=(0, 0, 0, 0))
 
             # Apply custom resize
             if 'resize' in data and data['resize'] != 100:
@@ -139,7 +141,8 @@ def process_image():
             
             # Add image overlays
             if 'image_overlays' in data:
-                result_img = add_image_overlays(result_img, data['image_overlays'], UPLOAD_FOLDER)
+                result_img = add_image_overlays(result_img, data['image_overlays'], UPLOAD_FOLDER,
+                                                warnings=warnings)
             
             # Add background
             if 'background' in data and data['background']:
@@ -176,6 +179,7 @@ def process_image():
             return jsonify({
                 'success': True,
                 'processed_filename': output_filename,
+                'warnings': warnings,
                 'dimensions': {'width': result_img.width, 'height': result_img.height}
             })
             

@@ -6,22 +6,26 @@
     <title>EWOK — Enhanced Watermark Overlay Kit</title>
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/ewok.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
+    <header class="ewok-nav">
+        <a class="ewok-brand" href="/"><img src="/static/ewok.png" alt=""> EWOK</a>
+        <span class="ewok-tagline">Watermarks, wallpapers and Brander templates</span>
+        <nav class="mode-nav" aria-label="Mode">
+            <a href="/" aria-current="page">Photo</a>
+            <a href="/template">Template</a>
+        </nav>
+    </header>
     <div class="container">
-        <header class="header">
-            <h1>
-                <img src="/static/ewok.png" alt="EWOK" class="logo">
-                Enhanced Watermark Overlay Kit
-            </h1>
-            <p>Upload, edit, and watermark your images</p>
-            <nav class="mode-nav" aria-label="Mode">
-                <a href="/" aria-current="page">Photo</a>
-                <a href="/template">Template</a>
-            </nav>
-        </header>
+        <div class="page-intro">
+            <h1>Photo editor</h1>
+            <p>Upload an image, adjust it, and add text, overlays and a watermark.</p>
+        </div>
 
         <main class="main-content">
             <!-- Upload -->
