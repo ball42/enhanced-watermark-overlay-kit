@@ -215,10 +215,38 @@
                 <aside class="preview-panel tpl-preview" aria-labelledby="previewHeading">
                     <h3 id="previewHeading"><i class="fas fa-eye" aria-hidden="true"></i> Preview</h3>
                     <p id="previewStatus" class="tpl-status" aria-live="polite">Waiting for the first render…</p>
+                    <fieldset class="tpl-fieldset tpl-guides">
+                        <legend>Safe areas on the preview</legend>
+                        <div class="tpl-row">
+                            <div class="control-group">
+                                <label for="guideDevice">Device</label>
+                                <select id="guideDevice">
+                                    <option value="">None</option>
+                                    {% for p in device_profiles %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label for="guideOrientation">Orientation</label>
+                                <select id="guideOrientation">
+                                    <option value="portrait">Portrait</option>
+                                    <option value="landscape">Landscape</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label for="guideScreen">Screen</label>
+                                <select id="guideScreen">
+                                    <option value="lock">Lock screen</option>
+                                    <option value="home">Home screen</option>
+                                </select>
+                            </div>
+                        </div>
+                    </fieldset>
+                    <script type="application/json" id="deviceProfiles">{{ device_profiles | tojson }}</script>
                     <p class="tpl-hint" id="boxHelp">Drag a box to move it, or its corner to resize it. With a box focused, arrow keys move it and Alt with arrow keys resizes it; hold Shift for bigger steps. Boxes snap to the centre lines.</p>
                     <div class="tpl-preview-frame">
                         <div class="tpl-stage" id="stage">
                             <img id="previewImage" alt="Rendered wallpaper preview" hidden>
+                            <div class="tpl-safe" id="safeAreas" aria-hidden="true"></div>
                             <div class="tpl-overlay" id="overlay" role="group" aria-label="Layer boxes" aria-describedby="boxHelp">
                                 <div class="tpl-guide tpl-guide-v" hidden><span>centre</span></div>
                                 <div class="tpl-guide tpl-guide-h" hidden><span>centre</span></div>
@@ -227,6 +255,18 @@
                     </div>
                     <h4 class="tpl-subheading">Warnings</h4>
                     <ul id="warningList" class="tpl-warnings" aria-live="polite"></ul>
+                    <h4 class="tpl-subheading">On devices</h4>
+                    <p class="tpl-hint">iOS scales the wallpaper to fill each screen and crops the rest. Hatched areas are covered by the clock, controls or dock.</p>
+                    <fieldset class="tpl-fieldset">
+                        <legend class="visually-hidden">Devices to preview</legend>
+                        <div class="tpl-device-picks">
+                        {% for p in device_profiles %}
+                            <label class="tpl-inline"><input type="checkbox" class="device-pick" value="{{ p.id }}"{% if p.id in ('iphone-6.7', 'ipad-12.9') %} checked{% endif %}> {{ p.name }}</label>
+                        {% endfor %}
+                        </div>
+                    </fieldset>
+                    <div id="deviceGrid" class="tpl-device-grid"></div>
+                    <ul id="deviceWarnings" class="tpl-warnings" aria-live="polite"></ul>
                     <label class="tpl-inline tpl-stress-toggle">
                         <input type="checkbox" id="stressToggle"> Also show every value long, and every value empty
                     </label>

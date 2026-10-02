@@ -281,3 +281,29 @@ def test_import_zip_bomb_is_refused(client):
 
 def test_import_rejects_other_file_types(client):
     assert import_file(client, png_bytes(), "x.png").status_code == 400
+
+
+# --- T6: device fit ------------------------------------------------------------
+
+
+def test_preview_reports_device_fit(client):
+    template = json.loads(json.dumps(TEMPLATE))
+    template["canvas"] = {"width": 1290, "height": 2796}
+    template["layers"].append({"type": "qr", "data": "x",
+                               "box": {"x": 0.35, "y": 0.76, "w": 0.3, "h": 0.14}})
+    resp = client.post("/api/template/preview", json={
+        "template": template, "values": {"device_name": "iPad"},
+        "devices": ["ipad-12.9", "iphone-6.7"], "screen": "lock"})
+    fit = resp.get_json()["renders"][0]["device_warnings"]
+    assert any("layer 1: cut off on iPad Pro 12.9-inch" in w for w in fit), fit
+
+
+def test_preview_without_devices_has_no_device_warnings(client):
+    resp = client.post("/api/template/preview", json={"template": TEMPLATE, "values": {}})
+    assert resp.get_json()["renders"][0]["device_warnings"] == []
+
+
+def test_bad_screen_kind_is_400(client):
+    resp = client.post("/api/template/preview", json={
+        "template": TEMPLATE, "values": {}, "devices": ["ipad-12.9"], "screen": "wat"})
+    assert resp.status_code == 400

@@ -78,6 +78,16 @@ Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from 
 - **Deterministic:** for a given Pillow version, the same template, values and assets always give the same pixels. Text uses Pillow's BASIC layout engine, the Regular instance of the bundled font, and whole-pixel positions.
 - **Pinning:** pin Pillow exactly where byte-identical output across hosts matters.
 
+## Devices: crops and covered areas
+
+iOS scales a wallpaper to fill the screen and centres it, so a template whose shape differs from the screen loses its edges. On a 2048×2732 iPad, a 1290×2796 iPhone template keeps only the middle 62% of its height. `wallrender.devices` models this:
+
+- `device_profiles()`: iPhone 6.7-inch, 6.1-inch and SE, and iPad Pro 12.9-inch, 11-inch and 10.9-inch, from `device_profiles.json`. Each has a screen size, whether it rotates, and the approximate areas the clock and controls (lock screen) or the status bar and dock (home screen) cover.
+- `visible_region(canvas, screen)`: the part of the canvas a screen shows.
+- `fit_warnings(template, canvas, device_ids, "lock" | "home")`: layers that a device crops off, or that sit under its clock, controls or dock, in each orientation.
+
+A square canvas with everything in its centre 75% survives both iPad orientations. The covered areas are approximate, so check a new device or iOS release on hardware.
+
 ## Limits (templates are untrusted input)
 
 | Limit | Value |

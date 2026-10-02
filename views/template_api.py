@@ -19,6 +19,7 @@ from PIL import Image, UnidentifiedImageError
 import config
 from wallrender import TemplateError, lint, render, validate
 from wallrender.cli import folder_assets, stress_values
+from wallrender.devices import fit_warnings
 from wallrender.schema import ASSET_ID, MAX_PIXELS, MAX_SIDE
 
 template_bp = Blueprint("template_api", __name__, url_prefix="/api/template")
@@ -40,10 +41,11 @@ def _png_data_url(image):
     return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
-def _render_one(template, values, assets, label):
+def _render_one(template, values, assets, label, devices=(), screen="lock"):
     image = render(template, values, assets)
     return {"label": label, "image": _png_data_url(image),
-            "warnings": lint(template, values, assets)}
+            "warnings": lint(template, values, assets),
+            "device_warnings": fit_warnings(template, image.size, list(devices), screen)}
 
 
 @template_bp.route("/preview", methods=["POST"])
@@ -53,6 +55,11 @@ def preview():
             or "template" not in body:
         return jsonify({"error": "Send JSON with a template and a values object."}), 400
     template, values = body["template"], body["values"]
+    devices = body.get("devices") or []
+    screen = body.get("screen", "lock")
+    if screen not in ("lock", "home") or not isinstance(devices, list) \
+            or not all(isinstance(d, str) for d in devices):
+        return jsonify({"error": "devices must be a list of ids and screen lock or home."}), 400
     problems = validate(template)
     if problems:
         return jsonify({"problems": problems}), 400
@@ -61,7 +68,8 @@ def preview():
     if body.get("stress"):
         variants += [("long", stress_values(template)), ("empty", {})]
     try:
-        renders = [_render_one(template, v, assets, label) for label, v in variants]
+        renders = [_render_one(template, v, assets, label, devices if label == "sample" else (), screen)
+                   for label, v in variants]
     except TemplateError as err:
         return jsonify({"problems": err.problems}), 422
     return jsonify({"renders": renders})
