@@ -128,3 +128,18 @@ def test_stress_values_send_a_long_role_string():
 
     values = stress_values(roled())
     assert isinstance(values["role"], str) and len(values["role"]) > 40
+
+
+def test_stress_renders_each_role_variant(tmp_path, capsys):
+    import json
+
+    from wallrender.cli import main
+
+    t = tmp_path / "t.json"
+    t.write_text(json.dumps(roled()))
+    v = tmp_path / "v.json"
+    v.write_text("{}")
+    out = tmp_path / "out.png"
+    main(["preview", str(t), str(v), "-o", str(out), "--stress", "--assets", str(tmp_path)])
+    names = {p.name for p in tmp_path.iterdir()}
+    assert "out-role-nursing.png" in names

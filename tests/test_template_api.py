@@ -252,7 +252,11 @@ def test_import_zip_needs_exactly_one_template(client):
 
 def test_import_zip_never_writes_outside_the_library(client, app, tmp_path):
     """Zip-slip: entry paths are ignored; only the file name, as an asset id."""
-    bundle = make_zip({"t.json": json.dumps(TEMPLATE), "../../evil.png": png_bytes(),
+    template = json.loads(json.dumps(TEMPLATE))
+    for asset in ("evil", "ok"):  # the template uses both, so both are imported
+        template["layers"].append({"type": "image", "asset": asset,
+                                   "box": {"x": 0, "y": 0, "w": 0.5, "h": 0.5}})
+    bundle = make_zip({"t.json": json.dumps(template), "../../evil.png": png_bytes(),
                        "nested/dir/ok.png": png_bytes()})
     resp = import_file(client, bundle, "x.zip")
     assert resp.status_code == 200

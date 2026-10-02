@@ -820,6 +820,26 @@
     });
   }
 
+  // Which screen the template is for. "both" checks the lock screen's
+  // safe areas, the stricter of the two.
+  function applyTemplateScreen() {
+    const screen = state.template.screen;
+    if (screen) {
+      state.guide.screen = screen === 'home' ? 'home' : 'lock';
+      $('#guideScreen').value = state.guide.screen;
+    }
+  }
+
+  function bindTemplateScreen() {
+    $('#templateScreen').addEventListener('change', (e) => {
+      if (e.target.value) state.template.screen = e.target.value;
+      else delete state.template.screen;
+      applyTemplateScreen();
+      drawSafeAreas();
+      schedulePreview();
+    });
+  }
+
   function bindPersonFields() {
     $('#personFields').addEventListener('change', (e) => {
       if (e.target.checked) state.template.person_fields = true;
@@ -944,6 +964,8 @@
     else $('#bgColor').value = (t.background.color || '#000000').slice(0, 7).toLowerCase();
     state.roleLabels = {};
     $('#personFields').checked = t.person_fields === true;
+    $('#templateScreen').value = t.screen || '';
+    applyTemplateScreen();
     drawVariants();
     drawLayers();
     drawProperties();
@@ -966,8 +988,9 @@
       await loadAssets();
       loadTemplate(body.template);
       const added = body.assets.length ? ` Added assets: ${body.assets.join(', ')}.` : '';
+      const replaced = body.replaced && body.replaced.length ? ` Replaced library assets: ${body.replaced.join(', ')}.` : '';
       const skipped = body.skipped && body.skipped.length ? ` Skipped: ${body.skipped.join('; ')}.` : '';
-      ioStatus(`Opened ${file.name}.${added}${skipped}`);
+      ioStatus(`Opened ${file.name}.${added}${replaced}${skipped}`);
     });
     $('#downloadPackage').addEventListener('click', async () => {
       const t = exportable();
@@ -1018,6 +1041,7 @@
     bindRoles();
     bindEaNames();
     bindPersonFields();
+    bindTemplateScreen();
     drawVariants();
     drawLayers();
     drawProperties();

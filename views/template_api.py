@@ -17,7 +17,7 @@ from flask import Blueprint, abort, jsonify, request, send_file
 from PIL import Image, UnidentifiedImageError
 
 import config
-from wallrender import TemplateError, lint, render, validate
+from wallrender import TemplateError, render_with_lint, validate
 from wallrender.cli import folder_assets, stress_values
 from wallrender.devices import fit_warnings
 from wallrender.schema import ASSET_ID, MAX_PIXELS, MAX_SIDE
@@ -41,16 +41,27 @@ def _png_data_url(image):
     return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
+MAX_DEVICES = 20
+
+
+def _json_body():
+    """The request's JSON, or None (including JSON nested too deeply)."""
+    try:
+        return request.get_json(silent=True)
+    except RecursionError:
+        return None
+
+
 def _render_one(template, values, assets, label, devices=(), screen="lock"):
-    image = render(template, values, assets)
+    image, warnings = render_with_lint(template, values, assets)
     return {"label": label, "image": _png_data_url(image),
-            "warnings": lint(template, values, assets),
+            "warnings": warnings,
             "device_warnings": fit_warnings(template, image.size, list(devices), screen)}
 
 
 @template_bp.route("/preview", methods=["POST"])
 def preview():
-    body = request.get_json(silent=True)
+    body = _json_body()
     if not isinstance(body, dict) or not isinstance(body.get("values"), dict) \
             or "template" not in body:
         return jsonify({"error": "Send JSON with a template and a values object."}), 400
@@ -58,8 +69,9 @@ def preview():
     devices = body.get("devices") or []
     screen = body.get("screen", "lock")
     if screen not in ("lock", "home") or not isinstance(devices, list) \
-            or not all(isinstance(d, str) for d in devices):
-        return jsonify({"error": "devices must be a list of ids and screen lock or home."}), 400
+            or not all(isinstance(d, str) for d in devices) or len(devices) > MAX_DEVICES:
+        return jsonify({"error": f"devices must be a list of at most {MAX_DEVICES} ids, "
+                                 "and screen lock or home."}), 400
     problems = validate(template)
     if problems:
         return jsonify({"problems": problems}), 400
@@ -97,8 +109,11 @@ def list_assets():
     for name in sorted(os.listdir(_folder())):
         asset_id, ext = os.path.splitext(name)
         if ext.lstrip(".") in EXTENSIONS and ASSET_ID.fullmatch(asset_id):
-            with Image.open(os.path.join(_folder(), name)) as img:
-                assets.append({"id": asset_id, "width": img.width, "height": img.height})
+            try:
+                with Image.open(os.path.join(_folder(), name)) as img:
+                    assets.append({"id": asset_id, "width": img.width, "height": img.height})
+            except (OSError, Image.DecompressionBombError):
+                continue  # not a readable image: leave it out of the library
     return jsonify({"assets": assets})
 
 
@@ -185,7 +200,7 @@ README = """This is a Brander wallpaper template made in EWOK.
 
 @template_bp.route("/export", methods=["POST"])
 def export_bundle():
-    body = request.get_json(silent=True)
+    body = _json_body()
     template = body.get("template") if isinstance(body, dict) else None
     problems = validate(template)
     if problems:
@@ -210,7 +225,7 @@ def export_bundle():
 def export_package():
     """The template as a .brander.json package for JAWA's template store:
     one JSON file, assets inside as base64, nothing to unpack."""
-    body = request.get_json(silent=True)
+    body = _json_body()
     template = body.get("template") if isinstance(body, dict) else None
     problems = validate(template)
     if problems:
@@ -233,7 +248,7 @@ def export_package():
 def _load_template(raw):
     try:
         template = json.loads(raw)
-    except (ValueError, UnicodeDecodeError):
+    except (ValueError, UnicodeDecodeError, RecursionError):
         return None, ["the template is not valid JSON"]
     problems = validate(template)
     return (None, problems) if problems else (template, [])
@@ -248,7 +263,7 @@ def import_bundle():
     if (upload.filename or "").lower().endswith(".json"):
         try:
             parsed = json.loads(data)
-        except (ValueError, UnicodeDecodeError):
+        except (ValueError, UnicodeDecodeError, RecursionError):
             parsed = None
         if isinstance(parsed, dict) and parsed.get("kind") == "brander-template":
             return _import_package(parsed)
@@ -258,55 +273,68 @@ def import_bundle():
         return jsonify({"template": template, "assets": []})
     if not zipfile.is_zipfile(io.BytesIO(data)):
         return jsonify({"error": "Open a template .json or an EWOK .zip bundle."}), 400
-    with zipfile.ZipFile(io.BytesIO(data)) as bundle:
-        entries = [e for e in bundle.infolist() if not e.is_dir()]
-        if len(entries) > MAX_BUNDLE_ENTRIES or sum(e.file_size for e in entries) > MAX_BUNDLE_BYTES:
-            return jsonify({"error": "That bundle is too large."}), 400
-        jsons = [e for e in entries if e.filename.lower().endswith(".json")]
-        if len(jsons) != 1:
-            return jsonify({"error": "A bundle must hold exactly one template .json."}), 400
-        template, problems = _load_template(bundle.read(jsons[0]))
-        if problems:
-            return jsonify({"error": "That template cannot be used.", "problems": problems}), 400
-        added, skipped = [], []
-        for entry in entries:
-            # Only the file name counts: entry paths never reach the disk.
-            name = os.path.basename(entry.filename.replace("\\", "/"))
-            stem, ext = os.path.splitext(name)
-            if ext.lower().lstrip(".") not in EXTENSIONS:
-                continue
-            if not ASSET_ID.fullmatch(stem):
-                skipped.append(f"{name}: not a valid asset id")
-                continue
-            stored, error = _store_asset(stem, bundle.read(entry))
-            if error:
-                skipped.append(f"{name}: {error}")
-            else:
-                added.append(stored["id"])
-    return jsonify({"template": template, "assets": added, "skipped": skipped})
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as bundle:
+            entries = [e for e in bundle.infolist() if not e.is_dir()]
+            if len(entries) > MAX_BUNDLE_ENTRIES or sum(e.file_size for e in entries) > MAX_BUNDLE_BYTES:
+                return jsonify({"error": "That bundle is too large."}), 400
+            jsons = [e for e in entries if e.filename.lower().endswith(".json")]
+            if len(jsons) != 1:
+                return jsonify({"error": "A bundle must hold exactly one template .json."}), 400
+            template, problems = _load_template(bundle.read(jsons[0]))
+            if problems:
+                return jsonify({"error": "That template cannot be used.", "problems": problems}), 400
+            images = {}
+            for entry in entries:
+                # Only the file name counts: entry paths never reach the disk.
+                name = os.path.basename(entry.filename.replace("\\", "/"))
+                stem, ext = os.path.splitext(name)
+                if ext.lower().lstrip(".") in EXTENSIONS:
+                    images[name] = (stem, entry)
+            found = {stem: (name, bundle.read(entry)) for name, (stem, entry) in images.items()}
+    except (zipfile.BadZipFile, OSError, EOFError):
+        return jsonify({"error": "That bundle is damaged and cannot be read."}), 400
+    return _store_imported(template, found)
+
+
+def _store_imported(template, found):
+    """Keep only the assets the template uses (so a bundle cannot quietly
+    replace unrelated library assets), and say which ones it replaced."""
+    used = set(asset_ids(template))
+    added, replaced, skipped = [], [], []
+    for asset_id, (name, data) in found.items():
+        if asset_id not in used:
+            skipped.append(f"{name}: not used by the template")
+            continue
+        if not ASSET_ID.fullmatch(asset_id):
+            skipped.append(f"{name}: not a valid asset id")
+            continue
+        existed = _asset_path(asset_id) is not None
+        stored, error = _store_asset(asset_id, data)
+        if error:
+            skipped.append(f"{name}: {error}")
+        else:
+            added.append(stored["id"])
+            if existed:
+                replaced.append(stored["id"])
+    return jsonify({"template": template, "assets": added, "replaced": replaced, "skipped": skipped})
 
 
 def _import_package(package):
-    """Open a .brander.json: its template, and its assets into the library."""
+    """Open a .brander.json: its template, and the assets it uses."""
     template, problems = _load_template(json.dumps(package.get("template")))
     if problems:
         return jsonify({"error": "That template cannot be used.", "problems": problems}), 400
     assets = package.get("assets")
     if not isinstance(assets, dict) or len(assets) > MAX_BUNDLE_ENTRIES:
         return jsonify({"error": "That package's assets are not usable."}), 400
-    added, skipped = [], []
+    found, bad = {}, []
     for asset_id, encoded in assets.items():
-        if not ASSET_ID.fullmatch(str(asset_id)):
-            skipped.append(f"{asset_id}: not a valid asset id")
-            continue
         try:
-            data = base64.b64decode(encoded, validate=True)
+            found[str(asset_id)] = (str(asset_id), base64.b64decode(encoded, validate=True))
         except (ValueError, TypeError):
-            skipped.append(f"{asset_id}: not valid base64")
-            continue
-        stored, error = _store_asset(asset_id, data)
-        if error:
-            skipped.append(f"{asset_id}: {error}")
-        else:
-            added.append(stored["id"])
-    return jsonify({"template": template, "assets": added, "skipped": skipped})
+            bad.append(f"{asset_id}: not valid base64")
+    response = _store_imported(template, found)
+    body = response.get_json()
+    body["skipped"] = bad + body["skipped"]
+    return jsonify(body)

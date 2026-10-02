@@ -100,3 +100,18 @@ def test_role_attribute_can_load_names_exported_by_jawa(client):
     body = client.get("/template").get_data(as_text=True)
     assert 'list="eaNames"' in body and 'id="eaNamesFile"' in body
     assert "Load attribute names from JAWA" in body
+
+
+def test_icons_are_linked_and_served(client):
+    for page in ("/", "/template"):
+        body = client.get(page).get_data(as_text=True)
+        assert 'href="/static/favicon.ico"' in body and 'href="/static/apple-touch-icon.png"' in body
+    for path in ("/static/favicon.ico", "/static/ewok.png", "/static/apple-touch-icon.png"):
+        assert client.get(path).status_code == 200
+
+
+def test_screen_choice_is_on_the_page(client):
+    body = client.get("/template").get_data(as_text=True)
+    assert 'id="templateScreen"' in body
+    for value in ("lock", "home", "both"):
+        assert f'<option value="{value}"' in body
