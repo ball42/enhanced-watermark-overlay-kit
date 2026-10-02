@@ -375,3 +375,74 @@ input[type="color"] {
 .tpl-stress .tpl-warnings {
   margin-top: var(--space-sm);
 }
+
+/* ── T6: safe areas and the device grid ─────── */
+
+/* Hatching plus a text label: never colour alone. */
+.tpl-safe {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.tpl-zone,
+.tpl-cropped {
+  position: absolute;
+  line-height: 1.2;
+  overflow: hidden;
+}
+
+.tpl-zone {
+  background: repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.45) 0 6px, rgba(255, 255, 255, 0.15) 6px 12px);
+  border: 2px dashed #f59e0b;
+}
+
+.tpl-cropped {
+  background: repeating-linear-gradient(-45deg, rgba(15, 23, 42, 0.75) 0 6px, rgba(15, 23, 42, 0.45) 6px 12px);
+}
+
+.tpl-zone span,
+.tpl-cropped span {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 5px;
+  background: #111827;
+  color: white;
+}
+
+.tpl-device-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
+}
+
+.tpl-device-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  align-items: flex-end;
+  margin: var(--space-md) 0;
+}
+
+.tpl-device-grid figure {
+  margin: 0;
+  max-width: 220px;
+}
+
+.tpl-device-grid figcaption {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-top: var(--space-xs);
+}
+
+.tpl-screen {
+  position: relative;
+  background-size: cover;   /* exactly what iOS does: fill, then crop */
+  background-position: center;
+  border: 3px solid #111827;
+  border-radius: 10px;
+  overflow: hidden;
+}

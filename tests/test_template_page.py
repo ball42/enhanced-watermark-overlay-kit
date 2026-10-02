@@ -58,3 +58,15 @@ def test_open_and_bundle_download_are_on_the_page(client):
     body = client.get("/template").get_data(as_text=True)
     assert 'id="openTemplate"' in body and 'accept=".json,.zip' in body
     assert 'id="downloadBundle"' in body
+
+
+def test_device_profiles_and_guides_are_on_the_page(client):
+    import json
+    import re
+
+    body = client.get("/template").get_data(as_text=True)
+    data = re.search(r'<script type="application/json" id="deviceProfiles">(.*?)</script>', body, re.S)
+    ids = {p["id"] for p in json.loads(data.group(1))}
+    assert {"iphone-6.7", "ipad-12.9"} <= ids
+    for element in ('id="guideDevice"', 'id="guideOrientation"', 'id="guideScreen"', 'id="deviceGrid"'):
+        assert element in body

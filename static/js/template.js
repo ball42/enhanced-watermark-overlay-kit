@@ -10,6 +10,8 @@
   // Preset sample devices come from the server (config.SAMPLE_DEVICES).
   const PRESETS = JSON.parse(document.getElementById('sampleDevices').textContent);
   const SAMPLE = PRESETS[0].values;
+  // Device profiles come from wallrender (device_profiles.json).
+  const DEVICES = JSON.parse(document.getElementById('deviceProfiles').textContent);
 
   const NEW_LAYERS = {
     text: () => ({ type: 'text', text: '{{device_name}}', box: { x: 0.1, y: 0.6, w: 0.8, h: 0.05 },
@@ -30,6 +32,8 @@
     assets: [],
     values: SAMPLE,
     stress: false,
+    guide: { device: '', orientation: 'portrait', screen: 'lock' },
+    lastImage: null,
   };
 
   // ── Preview ────────────────────────────────────────
@@ -58,7 +62,10 @@
       const resp = await fetch('/api/template/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template: exportable(), values: state.values, stress: state.stress }),
+        body: JSON.stringify({
+          template: exportable(), values: state.values, stress: state.stress,
+          devices: pickedDevices(), screen: state.guide.screen,
+        }),
         signal: previewController.signal,
       });
       const body = await resp.json();
@@ -75,6 +82,13 @@
       $('.tpl-preview').classList.remove('is-stale');
       showWarnings(render.warnings);
       showStress(body.renders.slice(1));
+      state.lastImage = render.image;
+      img.onload = () => {
+        drawSafeAreas();
+        drawDeviceGrid();
+      };
+      showWarnings(render.device_warnings, $('#deviceWarnings'),
+        pickedDevices().length ? 'Fits every selected device.' : 'No devices selected.');
       setStatus(`Rendered ${state.template.canvas ? state.template.canvas.width + '×' + state.template.canvas.height : ''} with the sample device.`);
     } catch (err) {
       if (err.name !== 'AbortError') setStatus('Not rendered: could not reach EWOK.');
@@ -106,13 +120,13 @@
     });
   }
 
-  function showWarnings(list, target) {
+  function showWarnings(list, target, okText) {
     const ul = target || $('#warningList');
     ul.replaceChildren();
     if (!list.length) {
       const li = document.createElement('li');
       li.className = 'ok';
-      li.textContent = 'No warnings.';
+      li.textContent = okText || 'No warnings.';
       ul.append(li);
       return;
     }
@@ -533,6 +547,106 @@
     nudge.guideTimer = setTimeout(hideGuides, 800);
   }
 
+  // ── Devices: safe-area guides and the device grid ──
+
+  function pickedDevices() {
+    return $$('.device-pick:checked').map((c) => c.value);
+  }
+
+  function profile(id) {
+    return DEVICES.find((p) => p.id === id);
+  }
+
+  function screenSize(p, orientation) {
+    const [w, h] = p.screen;
+    return orientation === 'landscape' ? [h, w] : [w, h];
+  }
+
+  // Mirrors wallrender.devices.visible_region: cover-scale, then centre.
+  function visibleRegion(cw, ch, sw, sh) {
+    const scale = Math.max(sw / cw, sh / ch);
+    const vw = Math.min(1, sw / scale / cw);
+    const vh = Math.min(1, sh / scale / ch);
+    return [(1 - vw) / 2, (1 - vh) / 2, (1 + vw) / 2, (1 + vh) / 2];
+  }
+
+  function hatch(cls, label, [x0, y0, x1, y1]) {
+    const el = document.createElement('div');
+    el.className = cls;
+    Object.assign(el.style, {
+      left: `${x0 * 100}%`, top: `${y0 * 100}%`, width: `${(x1 - x0) * 100}%`, height: `${(y1 - y0) * 100}%`,
+    });
+    const span = document.createElement('span');
+    span.textContent = label;
+    el.append(span);
+    return el;
+  }
+
+  function drawSafeAreas() {
+    const layer = $('#safeAreas');
+    layer.replaceChildren();
+    const img = $('#previewImage');
+    const p = profile(state.guide.device);
+    $('#guideOrientation').disabled = !p || !p.rotates;
+    if (!p || !img.naturalWidth) return;
+    const orientation = p.rotates ? state.guide.orientation : 'portrait';
+    const [sw, sh] = screenSize(p, orientation);
+    const [vx0, vy0, vx1, vy1] = visibleRegion(img.naturalWidth, img.naturalHeight, sw, sh);
+    const cut = 'Cropped off';
+    if (vy0 > 0) layer.append(hatch('tpl-cropped', cut, [0, 0, 1, vy0]), hatch('tpl-cropped', cut, [0, vy1, 1, 1]));
+    if (vx0 > 0) layer.append(hatch('tpl-cropped', cut, [0, vy0, vx0, vy1]), hatch('tpl-cropped', cut, [vx1, vy0, 1, vy1]));
+    p.zones[orientation][state.guide.screen].forEach((z) => {
+      const [x0, y0, x1, y1] = z.box;
+      layer.append(hatch('tpl-zone', z.label, [
+        vx0 + x0 * (vx1 - vx0), vy0 + y0 * (vy1 - vy0), vx0 + x1 * (vx1 - vx0), vy0 + y1 * (vy1 - vy0),
+      ]));
+    });
+  }
+
+  function drawDeviceGrid() {
+    const grid = $('#deviceGrid');
+    grid.replaceChildren();
+    if (!state.lastImage) return;
+    pickedDevices().forEach((id) => {
+      const p = profile(id);
+      (p.rotates ? ['portrait', 'landscape'] : ['portrait']).forEach((orientation) => {
+        const [sw, sh] = screenSize(p, orientation);
+        const fig = document.createElement('figure');
+        const screen = document.createElement('div');
+        screen.className = 'tpl-screen';
+        const width = orientation === 'landscape' ? 200 : 120;
+        screen.style.width = `${width}px`;
+        screen.style.height = `${Math.round(width * sh / sw)}px`;
+        screen.style.backgroundImage = `url(${state.lastImage})`;
+        screen.setAttribute('role', 'img');
+        screen.setAttribute('aria-label', `${p.name}, ${orientation}, ${state.guide.screen} screen`);
+        p.zones[orientation][state.guide.screen].forEach((z) => screen.append(hatch('tpl-zone', z.label, z.box)));
+        const cap = document.createElement('figcaption');
+        cap.textContent = p.rotates ? `${p.name} (${orientation})` : p.name;
+        fig.append(screen, cap);
+        grid.append(fig);
+      });
+    });
+  }
+
+  function bindDevices() {
+    $('#guideDevice').addEventListener('change', (e) => {
+      state.guide.device = e.target.value;
+      drawSafeAreas();
+    });
+    $('#guideOrientation').addEventListener('change', (e) => {
+      state.guide.orientation = e.target.value;
+      drawSafeAreas();
+    });
+    $('#guideScreen').addEventListener('change', (e) => {
+      state.guide.screen = e.target.value;
+      drawSafeAreas();
+      schedulePreview(); // device warnings depend on the screen
+    });
+    $$('.device-pick').forEach((c) => c.addEventListener('change', schedulePreview));
+    $('#guideOrientation').disabled = true;
+  }
+
   // ── Sample values and export ───────────────────────
 
   function bindValues() {
@@ -655,6 +769,7 @@
     bindProperties();
     bindValues();
     bindExport();
+    bindDevices();
     drawLayers();
     drawProperties();
     loadAssets();
