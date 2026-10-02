@@ -206,6 +206,30 @@ def export_bundle():
                      download_name=f"{name}.zip")
 
 
+@template_bp.route("/package", methods=["POST"])
+def export_package():
+    """The template as a .brander.json package for JAWA's template store:
+    one JSON file, assets inside as base64, nothing to unpack."""
+    body = request.get_json(silent=True)
+    template = body.get("template") if isinstance(body, dict) else None
+    problems = validate(template)
+    if problems:
+        return jsonify({"problems": problems}), 400
+    missing = [i for i in asset_ids(template) if not _asset_path(i)]
+    if missing:
+        return jsonify({"problems": [f"asset {i!r} is not in the library" for i in missing]}), 422
+    assets = {}
+    for asset_id in asset_ids(template):
+        with open(_asset_path(asset_id), "rb") as handle:
+            assets[asset_id] = base64.b64encode(handle.read()).decode("ascii")
+    name = template.get("name") or "Untitled template"
+    package = {"kind": "brander-template", "format": 1, "name": name,
+               "template": template, "assets": assets}
+    data = io.BytesIO((json.dumps(package, indent=1) + "\n").encode())
+    return send_file(data, mimetype="application/json", as_attachment=True,
+                     download_name=f"{_slug(name)}.brander.json")
+
+
 def _load_template(raw):
     try:
         template = json.loads(raw)
@@ -222,6 +246,12 @@ def import_bundle():
         return jsonify({"error": "No file provided."}), 400
     data = upload.read()
     if (upload.filename or "").lower().endswith(".json"):
+        try:
+            parsed = json.loads(data)
+        except (ValueError, UnicodeDecodeError):
+            parsed = None
+        if isinstance(parsed, dict) and parsed.get("kind") == "brander-template":
+            return _import_package(parsed)
         template, problems = _load_template(data)
         if problems:
             return jsonify({"error": "That template cannot be used.", "problems": problems}), 400
@@ -253,4 +283,30 @@ def import_bundle():
                 skipped.append(f"{name}: {error}")
             else:
                 added.append(stored["id"])
+    return jsonify({"template": template, "assets": added, "skipped": skipped})
+
+
+def _import_package(package):
+    """Open a .brander.json: its template, and its assets into the library."""
+    template, problems = _load_template(json.dumps(package.get("template")))
+    if problems:
+        return jsonify({"error": "That template cannot be used.", "problems": problems}), 400
+    assets = package.get("assets")
+    if not isinstance(assets, dict) or len(assets) > MAX_BUNDLE_ENTRIES:
+        return jsonify({"error": "That package's assets are not usable."}), 400
+    added, skipped = [], []
+    for asset_id, encoded in assets.items():
+        if not ASSET_ID.fullmatch(str(asset_id)):
+            skipped.append(f"{asset_id}: not a valid asset id")
+            continue
+        try:
+            data = base64.b64decode(encoded, validate=True)
+        except (ValueError, TypeError):
+            skipped.append(f"{asset_id}: not valid base64")
+            continue
+        stored, error = _store_asset(asset_id, data)
+        if error:
+            skipped.append(f"{asset_id}: {error}")
+        else:
+            added.append(stored["id"])
     return jsonify({"template": template, "assets": added, "skipped": skipped})
