@@ -7,13 +7,9 @@
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-  const SAMPLE = {
-    device_name: 'Ward 3 iPad',
-    serial_number: 'DMPX1234ABCD',
-    asset_tag: 'HR-0042',
-    jss_id: 42,
-    location: { building: 'North Campus' },
-  };
+  // Preset sample devices come from the server (config.SAMPLE_DEVICES).
+  const PRESETS = JSON.parse(document.getElementById('sampleDevices').textContent);
+  const SAMPLE = PRESETS[0].values;
 
   const NEW_LAYERS = {
     text: () => ({ type: 'text', text: '{{device_name}}', box: { x: 0.1, y: 0.6, w: 0.8, h: 0.05 },
@@ -33,6 +29,7 @@
     selected: 0,
     assets: [],
     values: SAMPLE,
+    stress: false,
   };
 
   // ── Preview ────────────────────────────────────────
@@ -61,7 +58,7 @@
       const resp = await fetch('/api/template/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template: exportable(), values: state.values }),
+        body: JSON.stringify({ template: exportable(), values: state.values, stress: state.stress }),
         signal: previewController.signal,
       });
       const body = await resp.json();
@@ -77,6 +74,7 @@
       img.hidden = false;
       $('.tpl-preview').classList.remove('is-stale');
       showWarnings(render.warnings);
+      showStress(body.renders.slice(1));
       setStatus(`Rendered ${state.template.canvas ? state.template.canvas.width + '×' + state.template.canvas.height : ''} with the sample device.`);
     } catch (err) {
       if (err.name !== 'AbortError') setStatus('Not rendered: could not reach EWOK.');
@@ -87,8 +85,29 @@
     $('#previewStatus').textContent = text;
   }
 
-  function showWarnings(list) {
-    const ul = $('#warningList');
+  const STRESS_CAPTIONS = { long: 'Every value long', empty: 'Every value empty' };
+
+  function showStress(renders) {
+    const box = $('#stressRenders');
+    box.hidden = !renders.length;
+    box.replaceChildren();
+    renders.forEach((r) => {
+      const fig = document.createElement('figure');
+      const cap = document.createElement('figcaption');
+      cap.textContent = STRESS_CAPTIONS[r.label] || r.label;
+      const img = document.createElement('img');
+      img.src = r.image;
+      img.alt = `Preview with ${(STRESS_CAPTIONS[r.label] || r.label).toLowerCase()}`;
+      const ul = document.createElement('ul');
+      ul.className = 'tpl-warnings';
+      fig.append(cap, img, ul);
+      box.append(fig);
+      showWarnings(r.warnings, ul);
+    });
+  }
+
+  function showWarnings(list, target) {
+    const ul = target || $('#warningList');
     ul.replaceChildren();
     if (!list.length) {
       const li = document.createElement('li');
@@ -518,7 +537,22 @@
   function bindValues() {
     const area = $('#sampleValues');
     area.value = JSON.stringify(SAMPLE, null, 2);
+    $('#samplePreset').addEventListener('change', (e) => {
+      if (e.target.value === 'custom') {
+        area.focus();
+        return;
+      }
+      state.values = PRESETS[Number(e.target.value)].values;
+      area.value = JSON.stringify(state.values, null, 2);
+      $('#sampleError').hidden = true;
+      schedulePreview();
+    });
+    $('#stressToggle').addEventListener('change', (e) => {
+      state.stress = e.target.checked;
+      schedulePreview();
+    });
     area.addEventListener('input', () => {
+      $('#samplePreset').value = 'custom';
       try {
         const parsed = JSON.parse(area.value);
         if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Values must be a JSON object.');

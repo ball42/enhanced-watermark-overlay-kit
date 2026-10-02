@@ -344,3 +344,34 @@ input[type="color"] {
   padding: 0 4px;
   white-space: nowrap;
 }
+
+/* ── T4: stress renders ─────────────────────── */
+
+.tpl-stress-toggle {
+  margin-top: var(--space-md);
+}
+
+.tpl-stress {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.tpl-stress figure {
+  margin: 0;
+}
+
+.tpl-stress figcaption {
+  font-weight: 600;
+  margin-bottom: var(--space-xs);
+}
+
+.tpl-stress img {
+  width: 100%;
+  box-shadow: var(--shadow-md);
+}
+
+.tpl-stress .tpl-warnings {
+  margin-top: var(--space-sm);
+}

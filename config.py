@@ -48,6 +48,20 @@ TEMPLATE_CANVASES = {
     'iPad Pro 12.9" (portrait)': (2048, 2732),
 }
 
+# Sample devices for the template preview: the shape Brander's
+# build_values() produces from a verified Jamf record.
+SAMPLE_DEVICES = [
+    {'name': 'iPhone', 'values': {
+        'device_name': "Chris's iPhone", 'serial_number': 'F9FXK2Q1N72Q',
+        'asset_tag': 'HR-0042', 'jss_id': 42, 'location': {'building': 'North Campus'}}},
+    {'name': 'iPad', 'values': {
+        'device_name': 'Ward 3 iPad', 'serial_number': 'DMPX1234ABCD',
+        'asset_tag': 'NUR-0317', 'jss_id': 317, 'location': {'building': 'Main Hospital'}}},
+    {'name': 'No asset tag, no building', 'values': {
+        'device_name': 'ControlPad', 'serial_number': 'T9T0377WR6',
+        'asset_tag': '', 'jss_id': 12, 'location': {'building': ''}}},
+]
+
 # Flask app settings
 # Local tool: debug (and its interactive debugger) only when asked for.
 DEBUG = os.environ.get('EWOK_DEBUG', '').lower() in ('1', 'true', 'yes')
