@@ -1,31 +1,44 @@
 /* ── EWOK Design System ─────────────────────── */
 
 :root {
-  /* Colors */
-  --color-primary: #4F46E5;
-  --color-primary-hover: #4338CA;
-  --color-primary-light: #EEF2FF;
-  --color-primary-ring: rgba(79, 70, 229, 0.3);
-  --color-text: #1e293b;
-  --color-text-muted: #64748b;
-  --color-text-light: #94a3b8;
-  --color-surface: #ffffff;
-  --color-bg: #f8fafc;
-  --color-border: #e2e8f0;
-  --color-border-hover: #cbd5e1;
-  --color-success: #16a34a;
-  --color-success-bg: #f0fdf4;
-  --color-success-border: #bbf7d0;
-  --color-error: #dc2626;
-  --color-error-bg: #fef2f2;
-  --color-error-border: #fecaca;
-  --color-info-bg: #eff6ff;
-  --color-info-border: #bfdbfe;
-  --color-info-text: #1d4ed8;
-  --color-danger: #dc2626;
-  --color-danger-hover: #b91c1c;
-  --color-secondary: #64748b;
-  --color-secondary-hover: #475569;
+  /* Shared with JAWA (static/css/main.css): one family of tools. */
+  --color-primary: #3c6aa7;
+  --color-primary-hover: #26446b;
+  --color-primary-light: #edf2f8;
+  --color-primary-ring: rgba(60, 106, 167, 0.3);
+  --color-text: #112a46;
+  --color-text-muted: #5a6978;
+  --color-text-light: #8a95a3;
+  --color-bg: #faf8f5;
+  --color-surface: #fffdf9;
+  --color-surface-raised: #f3efe9;
+  --color-border: #ddd6cc;
+  --color-border-hover: #c9bfb1;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+  /* Endor: JAWA's sandcrawler rust and sand become canopy, bark and moss. */
+  --color-navbar: #2f4a33;
+  --color-navbar-dark: #1f3323;
+  --color-accent: #8a5a3b;
+  --color-accent-light: #b07f57;
+
+  --color-success: #4f7a3a;
+  --color-success-bg: #eef3e8;
+  --color-success-border: #c8d8bb;
+  --color-warning: #8a5208;
+  --color-warning-bg: #fdf4e6;
+  --color-warning-border: #f0d6a8;
+  --color-error: #b4322d;
+  --color-error-bg: #fbeeed;
+  --color-error-border: #ecc5c2;
+  --color-info-bg: #edf2f8;
+  --color-info-border: #c9d7ea;
+  --color-info-text: #26446b;
+  --color-danger: #b4322d;
+  --color-danger-hover: #8f2622;
+  --color-secondary: #6b5a4a;
+  --color-secondary-hover: #57483b;
 
   /* Spacing */
   --space-xs: 4px;
@@ -35,17 +48,17 @@
   --space-xl: 32px;
   --space-2xl: 48px;
 
-  /* Radii */
+  /* Radii (JAWA's) */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-full: 9999px;
 
-  /* Shadows */
+  /* Shadows (JAWA's) */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.12);
 
   /* Transitions */
   --transition-fast: 150ms ease;
@@ -65,11 +78,11 @@
 /* ── Base ──────────────────────────────────── */
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
   background: var(--color-bg);
   color: var(--color-text);
   min-height: 100vh;
-  padding: var(--space-lg);
   line-height: 1.5;
 }
 
@@ -78,39 +91,71 @@ body {
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xl);
-  overflow: hidden;
+  padding-bottom: var(--space-xl);
 }
 
-/* ── Header ────────────────────────────────── */
+/* ── Navbar: JAWA's bar, in Endor's canopy ─── */
 
-.header {
-  background: var(--color-primary);
-  color: white;
-  padding: var(--space-lg) var(--space-xl);
-  text-align: center;
-}
-
-.header h1 {
-  font-size: 1.75rem;
-  font-weight: 700;
+.ewok-nav {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-sm);
+  gap: var(--space-md);
+  padding: 10px var(--space-lg);
+  background: var(--color-navbar);
+  color: white;
 }
 
-.header .logo {
-  width: 40px;
-  height: 40px;
+/* The one decorative moment: a treeline along the bar's lower edge. */
+.ewok-nav::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 18px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='18' viewBox='0 0 120 18'%3E%3Cpath fill='%232f4a33' d='M0 0h120v4l-6 8-4-6-5 11-5-9-4 5-6-12-5 9-4-4-6 10-5-8-4 6-5-11-5 8-4-3-6 9-5-6-4 4-5-10-5 7-4-3-6 10-5-7-4 2-6-10z'/%3E%3C/svg%3E") repeat-x;
+  pointer-events: none;
+}
+
+.ewok-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: white;
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+}
+
+.ewok-brand img {
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-sm);
 }
 
-.header p {
-  font-size: 0.95rem;
-  opacity: 0.85;
+.ewok-brand:hover {
+  text-decoration: underline;
+}
+
+.ewok-tagline {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.9rem;
+}
+
+.page-intro {
+  padding: calc(var(--space-xl) + 8px) var(--space-xl) 0;
+}
+
+.page-intro h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.page-intro p {
+  color: var(--color-text-muted);
   margin-top: var(--space-xs);
 }
 
@@ -805,9 +850,6 @@ body {
 }
 
 @media (max-width: 768px) {
-  body {
-    padding: var(--space-md);
-  }
 
   .controls-grid {
     grid-template-columns: 1fr;
@@ -828,9 +870,6 @@ body {
 }
 
 @media (max-width: 480px) {
-  body {
-    padding: var(--space-sm);
-  }
 
   .header {
     padding: var(--space-md);
@@ -853,24 +892,29 @@ body {
 
 .mode-nav {
   display: flex;
-  justify-content: center;
-  gap: var(--space-sm);
-  margin-top: var(--space-md);
+  gap: var(--space-xs);
+  margin-left: auto;
 }
 
+/* Like JAWA's nav links: quiet until current. */
 .mode-nav a {
-  color: white;
+  color: rgba(255, 255, 255, 0.85);
   text-decoration: none;
-  padding: var(--space-xs) var(--space-md);
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  border-radius: var(--radius-full);
-  font-weight: 600;
+  font-weight: 500;
+  font-size: 0.92rem;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+}
+
+.mode-nav a:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* Current mode: filled and underlined, so it does not rely on colour alone. */
 .mode-nav a[aria-current="page"] {
-  background: white;
-  color: var(--color-primary);
+  background: var(--color-surface);
+  color: var(--color-navbar);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -880,3 +924,86 @@ body {
   outline-offset: 2px;
 }
 
+/* ── Accessibility: focus, states in words ─── */
+
+:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.status-message::before {
+  font-weight: 700;
+}
+
+.status-success::before { content: "\2713  Done: "; }
+.status-error::before { content: "\2715  Error: "; }
+.status-info::before { content: "\2139  Note: "; }
+
+.status-warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning-border);
+}
+
+.status-warning::before { content: "\26A0  Warning: "; }
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  max-width: min(480px, calc(100vw - 2 * var(--space-lg)));
+}
+
+.toast-warning {
+  background: var(--color-warning);
+}
+
+.toast-close {
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius-sm);
+  padding: 2px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.toggle-state {
+  font-weight: 700;
+  min-width: 2.2em;
+}
+
+/* Selected alignment: a check mark as well as the fill. */
+.align-btn.active::after {
+  content: " \2713";
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .ewok-tagline {
+    display: none;
+  }
+
+  .page-intro {
+    padding: calc(var(--space-lg) + 8px) var(--space-md) 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+.control-group .toggle-button {
+  display: flex;   /* beats .control-group label { display: block } */
+  flex-wrap: nowrap;
+  margin-bottom: 0;
+}
+
+.toggle-button .toggle-switch {
+  margin-left: auto;
+  flex-shrink: 0;
+}

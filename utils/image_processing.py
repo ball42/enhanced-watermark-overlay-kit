@@ -8,7 +8,7 @@ import math
 import os
 import re
 
-from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageChops
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,8 @@ def load_font(size, family=None):
         try:
             return ImageFont.truetype("/System/Library/Fonts/Arial.ttf", size)
         except Exception:
-            return ImageFont.load_default()
+            # Pillow's scalable built-in font, so the size is still honoured.
+            return ImageFont.load_default(size=size)
 
 
 def optimize_wallpaper_size(img):
@@ -158,6 +159,26 @@ def _draw_text_with_effects(draw, pos_x, pos_y, text, font, color, effect, effec
     draw.text((pos_x, pos_y), text, fill=color, font=font)
 
 
+def parse_position(value, total, default=0):
+    """A position or size in pixels: an int or float, or a string such as
+    "25", "25px" or "12.5%" (of total). Anything else gives default."""
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        text = value.strip().lower()
+        try:
+            if text.endswith('%'):
+                return int(float(text[:-1]) / 100 * total)
+            if text.endswith('px'):
+                text = text[:-2].strip()
+            return int(float(text))
+        except ValueError:
+            return default
+    return default
+
+
 def add_text_overlays(img, text_overlays):
     """Add text overlays to image with alignment support and percentage-based sizing"""
     draw = ImageDraw.Draw(img)
@@ -192,28 +213,8 @@ def add_text_overlays(img, text_overlays):
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
 
-        # Convert percentage positions to pixels or handle plain numbers
-        if isinstance(x, str):
-            if x.endswith('%'):
-                x = int(float(x[:-1]) / 100 * img.width)
-            else:
-                try:
-                    x = int(float(x))
-                except ValueError:
-                    x = img.width // 2
-        elif not isinstance(x, (int, float)):
-            x = img.width // 2
-
-        if isinstance(y, str):
-            if y.endswith('%'):
-                y = int(float(y[:-1]) / 100 * img.height)
-            else:
-                try:
-                    y = int(float(y))
-                except ValueError:
-                    y = img.height // 2
-        elif not isinstance(y, (int, float)):
-            y = img.height // 2
+        x = parse_position(x, img.width, default=img.width // 2)
+        y = parse_position(y, img.height, default=img.height // 2)
 
         # Apply alignment to x position
         if alignment == 'center':
@@ -247,11 +248,15 @@ def add_text_overlays(img, text_overlays):
     return img
 
 
-def add_image_overlays(img, image_overlays, upload_folder):
-    """Add image overlays to main image"""
+def add_image_overlays(img, image_overlays, upload_folder, warnings=None):
+    """Add image overlays to main image. Problems are appended to warnings
+    (when given) so the UI can say which overlay was skipped and why."""
+    warnings = [] if warnings is None else warnings
     for overlay in image_overlays:
-        overlay_path = os.path.join(upload_folder, overlay.get('filename', ''))
-        if not os.path.exists(overlay_path):
+        name = os.path.basename(str(overlay.get('filename', '')))
+        overlay_path = os.path.join(upload_folder, name)
+        if not name or not os.path.isfile(overlay_path):
+            warnings.append(f"Image overlay {name or '(none)'} was skipped: the file is not uploaded.")
             continue
             
         try:
@@ -265,21 +270,8 @@ def add_image_overlays(img, image_overlays, upload_folder):
                     raw_h = overlay.get('height')
                     orig_w, orig_h = overlay_img.width, overlay_img.height
 
-                    # Parse width
-                    if isinstance(raw_w, str) and raw_w.endswith('%'):
-                        w = int(float(raw_w[:-1]) / 100 * img.width)
-                    elif raw_w is not None:
-                        w = int(raw_w)
-                    else:
-                        w = None
-
-                    # Parse height
-                    if isinstance(raw_h, str) and raw_h.endswith('%'):
-                        h = int(float(raw_h[:-1]) / 100 * img.height)
-                    elif raw_h is not None:
-                        h = int(raw_h)
-                    else:
-                        h = None
+                    w = parse_position(raw_w, img.width, default=None) if raw_w is not None else None
+                    h = parse_position(raw_h, img.height, default=None) if raw_h is not None else None
 
                     # Aspect-ratio preservation when only one dimension given
                     if w and not h:
@@ -297,19 +289,13 @@ def add_image_overlays(img, image_overlays, upload_folder):
                     alpha = alpha.point(lambda p: int(p * (overlay['opacity'] / 100.0)))
                     overlay_img.putalpha(alpha)
                 
-                x = overlay.get('x', 0)
-                y = overlay.get('y', 0)
-                
-                # Convert percentage positions to pixels
-                if isinstance(x, str) and x.endswith('%'):
-                    x = int(float(x[:-1]) / 100 * img.width)
-                if isinstance(y, str) and y.endswith('%'):
-                    y = int(float(y[:-1]) / 100 * img.height)
-                
+                x = parse_position(overlay.get('x', 0), img.width)
+                y = parse_position(overlay.get('y', 0), img.height)
                 img.paste(overlay_img, (x, y), overlay_img)
-                
+
         except Exception as e:
             logger.warning("Error adding overlay: %s", e)
+            warnings.append(f"Image overlay {name} was skipped: {e}")
             continue
     
     return img
@@ -343,35 +329,20 @@ def add_background(img, background_config):
         start_rgb = hex_to_rgb(start_color)
         end_rgb = hex_to_rgb(end_color)
         
-        # Create gradient
+        # Built from Pillow's 256-step linear gradient: one resize, not a
+        # putpixel per pixel.
         width, height = img.size
-        background = Image.new('RGB', (width, height))
-        
+        vertical = Image.linear_gradient('L').resize((width, height))
+        horizontal = Image.linear_gradient('L').rotate(90).resize((width, height))
         if direction == 'horizontal':
-            for x in range(width):
-                ratio = x / width
-                r = int(start_rgb[0] * (1 - ratio) + end_rgb[0] * ratio)
-                g = int(start_rgb[1] * (1 - ratio) + end_rgb[1] * ratio)
-                b = int(start_rgb[2] * (1 - ratio) + end_rgb[2] * ratio)
-                for y in range(height):
-                    background.putpixel((x, y), (r, g, b))
+            mask = horizontal
         elif direction == 'diagonal':
-            for x in range(width):
-                for y in range(height):
-                    ratio = (x + y) / (width + height)
-                    r = int(start_rgb[0] * (1 - ratio) + end_rgb[0] * ratio)
-                    g = int(start_rgb[1] * (1 - ratio) + end_rgb[1] * ratio)
-                    b = int(start_rgb[2] * (1 - ratio) + end_rgb[2] * ratio)
-                    background.putpixel((x, y), (r, g, b))
-        else:  # vertical
-            for y in range(height):
-                ratio = y / height
-                r = int(start_rgb[0] * (1 - ratio) + end_rgb[0] * ratio)
-                g = int(start_rgb[1] * (1 - ratio) + end_rgb[1] * ratio)
-                b = int(start_rgb[2] * (1 - ratio) + end_rgb[2] * ratio)
-                for x in range(width):
-                    background.putpixel((x, y), (r, g, b))
-        
+            mask = ImageChops.add(horizontal, vertical, scale=2)
+        else:
+            mask = vertical
+        background = Image.composite(Image.new('RGB', (width, height), end_rgb),
+                                     Image.new('RGB', (width, height), start_rgb), mask)
+
         # Paste image onto gradient background
         if img.mode == 'RGBA':
             background.paste(img, (0, 0), img)
