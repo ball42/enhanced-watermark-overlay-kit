@@ -106,7 +106,9 @@
                             <button type="button" class="btn btn-secondary" data-add="text"><i class="fas fa-font" aria-hidden="true"></i> Add text</button>
                             <button type="button" class="btn btn-secondary" data-add="qr"><i class="fas fa-qrcode" aria-hidden="true"></i> Add QR</button>
                             <button type="button" class="btn btn-secondary" data-add="image"><i class="fas fa-image" aria-hidden="true"></i> Add image</button>
+                            <button type="button" class="btn btn-secondary" data-add="panel"><i class="fas fa-square" aria-hidden="true"></i> Add panel</button>
                         </div>
+                        <p class="tpl-hint">A panel is a backdrop that keeps text readable over a photo. It goes behind the selected layer; stretch it to cover more.</p>
                     </section>
 
                     <section class="section-container" aria-labelledby="propsHeading" id="propsSection" hidden>
@@ -199,6 +201,24 @@
                                 <select id="propAsset" data-prop="asset" class="asset-select"></select>
                                 <small>Contained in its box, never stretched.</small>
                             </div>
+                        </div>
+
+                        <div data-kind="panel">
+                            <div class="tpl-row">
+                                <div class="control-group">
+                                    <label for="propPanelColor">Color</label>
+                                    <input type="color" id="propPanelColor" data-prop="color">
+                                </div>
+                                <div class="control-group">
+                                    <label for="propOpacity">Opacity (0 to 1)</label>
+                                    <input type="number" id="propOpacity" data-prop="opacity" data-type="number" min="0" max="1" step="0.05">
+                                </div>
+                                <div class="control-group">
+                                    <label for="propRadius">Corner radius (0 to 0.5)</label>
+                                    <input type="number" id="propRadius" data-prop="radius" data-type="number" min="0" max="0.5" step="0.01">
+                                </div>
+                            </div>
+                            <small>Corner radius is a fraction of the panel's shorter side; 0.5 makes the ends fully round.</small>
                         </div>
                     </section>
 

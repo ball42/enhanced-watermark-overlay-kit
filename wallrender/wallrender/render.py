@@ -303,6 +303,20 @@ def _draw_image(img: Image.Image, session: _Session, layer: dict[str, Any]) -> N
     img.alpha_composite(fitted, (bx + (bw - fitted.width) // 2, by + (bh - fitted.height) // 2))
 
 
+def _draw_panel(img: Image.Image, layer: dict[str, Any]) -> None:
+    """A filled, optionally rounded and translucent rectangle: a backdrop that
+    keeps text readable over a busy background."""
+    bx, by, bw, bh = _box_px(layer["box"], img.size)
+    r, g, b, a = _rgba(layer.get("color"), (0, 0, 0, 255))
+    a = round(a * layer.get("opacity", 1))
+    if a == 0:
+        return
+    shape = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+    radius = round(min(bw, bh) * layer.get("radius", 0))
+    ImageDraw.Draw(shape).rounded_rectangle((0, 0, bw - 1, bh - 1), radius=radius, fill=(r, g, b, a))
+    img.alpha_composite(shape, (bx, by))
+
+
 def _flatten(img: Image.Image) -> Image.Image:
     """Transparent areas render black: a defined result for the delivered PNG."""
     base = Image.new("RGBA", img.size, (0, 0, 0, 255))
@@ -335,6 +349,8 @@ def _render(template: dict[str, Any], values: dict[str, Any], assets: AssetResol
                 _draw_text(img, session, layer, values, missing, fits, index, hidden)
             elif kind == "qr":
                 _draw_qr(img, layer, values, missing, index, hidden)
+            elif kind == "panel":
+                _draw_panel(img, layer)
             else:
                 _draw_image(img, session, layer)
         return _flatten(img), missing, fits or [], hidden or []

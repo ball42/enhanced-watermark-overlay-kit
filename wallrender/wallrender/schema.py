@@ -21,6 +21,8 @@ FONTS = {"noto-sans"}
 ALIGNS = {"left", "center", "right"}
 SCREENS = {"lock", "home", "both"}  # which screen a template is designed for
 OVERFLOWS = {"shrink", "ellipsis"}  # what a text layer does when its text is too long
+LAYER_TYPES = ("text", "qr", "image", "panel")
+MAX_RADIUS = 0.5  # a panel's corner radius, as a fraction of its shorter side
 
 ASSET_ID = re.compile(r"[a-z0-9_-]{1,64}")  # always used with fullmatch
 COLOR = re.compile(r"#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?")
@@ -196,7 +198,7 @@ def validate(template: Any) -> list[str]:
             problems.append(f"{where}: must be an object")
             continue
         kind = layer.get("type")
-        if kind not in ("text", "qr", "image"):
+        if kind not in LAYER_TYPES:
             problems.append(f"{where}: unknown layer type {kind!r}")
             continue
         _check_box(where, layer.get("box"), problems)
@@ -240,4 +242,12 @@ def validate(template: Any) -> list[str]:
         elif kind == "image":
             if not _matches(ASSET_ID, layer.get("asset")):
                 problems.append(f"{where}: asset id must match {ASSET_ID.pattern}")
+        elif kind == "panel":
+            _check_color(where, layer.get("color"), problems)
+            opacity = layer.get("opacity", 1)
+            if not (_number(opacity) and 0 <= opacity <= 1):
+                problems.append(f"{where}: opacity must be a number from 0 to 1")
+            radius = layer.get("radius", 0)
+            if not (_number(radius) and 0 <= radius <= MAX_RADIUS):
+                problems.append(f"{where}: radius must be a fraction of the shorter side from 0 to {MAX_RADIUS}")
     return problems

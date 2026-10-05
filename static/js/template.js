@@ -18,7 +18,12 @@
       size: 0.028, color: '#FFFFFF', align: 'center' }),
     qr: () => ({ type: 'qr', data: 'jamf-device:{{jss_id}}', box: { x: 0.35, y: 0.72, w: 0.3, h: 0.14 } }),
     image: () => ({ type: 'image', asset: '', box: { x: 0.35, y: 0.3, w: 0.3, h: 0.14 } }),
+    panel: () => ({ type: 'panel', box: { x: 0.05, y: 0.45, w: 0.9, h: 0.2 },
+      color: '#0B2545', opacity: 0.6, radius: 0.12 }),
   };
+  // What the renderer assumes when a property is absent.
+  const PROP_DEFAULTS = { overflow: 'shrink', align: 'center', opacity: 1, radius: 0 };
+  const PANEL_MARGIN = 0.015; // of the canvas, around the layer a new panel sits behind
 
   const state = {
     template: {
@@ -266,6 +271,7 @@
   function describe(layer) {
     if (layer.type === 'text') return `Text: ${layer.text || '(empty)'}`;
     if (layer.type === 'qr') return `QR: ${layer.data || '(empty)'}`;
+    if (layer.type === 'panel') return `Panel: ${Math.round((layer.opacity ?? 1) * 100)}% ${layer.color || '#000000'}`;
     return `Image: ${layer.asset || '(choose an asset)'}`;
   }
 
@@ -328,8 +334,22 @@
   function bindLayerButtons() {
     $$('[data-add]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        state.template.layers.push(NEW_LAYERS[btn.dataset.add]());
-        select(state.template.layers.length - 1);
+        const layer = NEW_LAYERS[btn.dataset.add]();
+        const under = current();
+        if (layer.type === 'panel' && under) {
+          // Behind the selected layer, a margin larger than it.
+          const b = under.box;
+          const x = Math.max(0, b.x - PANEL_MARGIN);
+          const y = Math.max(0, b.y - PANEL_MARGIN);
+          layer.box = { x: round(x), y: round(y),
+            w: round(Math.min(1, b.x + b.w + PANEL_MARGIN) - x),
+            h: round(Math.min(1, b.y + b.h + PANEL_MARGIN) - y) };
+          state.template.layers.splice(state.selected, 0, layer);
+          select(state.selected);
+        } else {
+          state.template.layers.push(layer);
+          select(state.template.layers.length - 1);
+        }
         schedulePreview();
       });
     });
@@ -357,14 +377,13 @@
       const value = layer[input.dataset.prop];
       if (input.type === 'checkbox') input.checked = Boolean(value);
       else if (input.type === 'color') input.value = (value || defaultColor(input)).slice(0, 7);
-      else input.value = value === undefined ? (input.dataset.prop === 'overflow' ? 'shrink'
-        : input.dataset.prop === 'align' ? 'center' : '') : value;
+      else input.value = value === undefined ? (PROP_DEFAULTS[input.dataset.prop] ?? '') : value;
     });
   }
 
   function defaultColor(input) {
     if (input.dataset.prop === 'background') return '#ffffff';
-    return current().type === 'qr' ? '#000000' : '#ffffff';
+    return current().type === 'qr' || current().type === 'panel' ? '#000000' : '#ffffff';
   }
 
   function bindProperties() {
