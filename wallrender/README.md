@@ -56,6 +56,7 @@ Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from 
 | `text` | At most 500 characters, with `{{variables}}`. `size` is a fraction of canvas height (for example 0.028). `align` is `left`, `center` or `right`, and applies to every line of multi-line text; the text block is centered vertically in its box. Text that does not fit is handled by the layer's overflow policy (below). Font: `noto-sans` (bundled). |
 | `qr` | `data` of at most 512 characters, with `{{variables}}`. Drawn square, centered in its box, with a quiet zone so it scans. `color` and `background` are optional. `hide_if_empty` works as for text. |
 | `image` | `asset` id matching `^[a-z0-9_-]{1,64}$`, contained (never stretched) and centered in its box. |
+| `panel` | A filled rectangle that fills its box: a backdrop that keeps text readable over a photo. `color` (default black), `opacity` from 0 to 1 (default 1, multiplied with any alpha in the color) and `radius`, the corner radius as a fraction of the shorter side from 0 to 0.5 (default 0). Put it before the layers it sits behind; lint's contrast check sees it. |
 | Colors | `#RRGGBB` or `#RRGGBBAA`. |
 | Layers | At most 50, drawn in list order. |
 

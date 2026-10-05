@@ -363,3 +363,34 @@ def test_a_package_opens_back_in_the_designer(client):
     assert resp.status_code == 200
     assert resp.get_json()["template"] == logo_template()
     assert resp.get_json()["assets"] == ["logo"]
+
+
+# --- panels: a backdrop behind text -------------------------------------------
+
+
+def panel_template():
+    panel = {"type": "panel", "box": {"x": 0.05, "y": 0.38, "w": 0.9, "h": 0.14},
+             "color": "#000000", "opacity": 0.6, "radius": 0.12}
+    return dict(TEMPLATE, name="Panel", background={"color": "#F4D35E"},
+                layers=[panel, dict(TEMPLATE["layers"][0])])
+
+
+def test_preview_draws_a_panel_and_its_contrast_counts(client):
+    bare = dict(panel_template(), background={"color": "#F4D35E"}, layers=[TEMPLATE["layers"][0]])
+    values = {"device_name": "Front Desk iPad"}
+    without = client.post("/api/template/preview", json={"template": bare, "values": values}).get_json()
+    with_panel = client.post("/api/template/preview", json={"template": panel_template(), "values": values}).get_json()
+    assert any("contrast" in w for w in without["renders"][0]["warnings"])
+    assert not any("contrast" in w for w in with_panel["renders"][0]["warnings"])
+    with decode(with_panel["renders"][0]["image"]) as img:
+        assert img.convert("RGB").getpixel((150, 236))[0] < 120  # darkened by the panel
+
+
+def test_a_panel_exports_in_the_package(client):
+    import json
+
+    resp = client.post("/api/template/package", json={"template": panel_template()})
+    assert resp.status_code == 200
+    package = json.loads(resp.get_data())
+    assert package["template"]["layers"][0]["type"] == "panel"
+    assert package["assets"] == {}
