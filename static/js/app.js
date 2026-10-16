@@ -94,6 +94,8 @@
       const result = await response.json();
 
       if (result.success) {
+        cancelPreview(); // a render of the previous image must not land on this one
+        setLoading(processBtn, false);
         currentFilename = result.filename;
         showStatus(
           `Image uploaded — ${result.dimensions.width}\u00d7${result.dimensions.height}`,
