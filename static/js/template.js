@@ -53,7 +53,52 @@
   let previewTimer = null;
   let previewController = null;
 
+  // ── Draft ──────────────────────────────────────────
+  // The template is kept in this browser after every edit, so a reload or a
+  // closed tab does not lose it. Leaving with edits not downloaded asks first.
+
+  const DRAFT_KEY = 'ewok-template-draft';
+  let dirty = false;
+
+  function saveDraft() {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(state.template));
+    } catch (err) { /* storage full or blocked: the tab still works */ }
+  }
+
+  function readDraft() {
+    try {
+      const draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
+      return draft && typeof draft === 'object' && Array.isArray(draft.layers) ? draft : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function restoreDraft(draft) {
+    try {
+      loadTemplate(draft);
+      ioStatus('Restored your last draft.');
+    } catch (err) {
+      loadTemplate(newTemplate());
+      ioStatus('Your last draft could not be opened, so this is a new template.');
+    }
+    dirty = false; // it is kept in this browser; nothing new to lose yet
+  }
+
+  function markEdited() {
+    dirty = true;
+    saveDraft();
+  }
+
+  window.addEventListener('beforeunload', (e) => {
+    if (!dirty) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
   function schedulePreview() {
+    markEdited();
     $('.tpl-preview').classList.add('is-stale');
     clearTimeout(previewTimer);
     previewTimer = setTimeout(renderPreview, 300);
@@ -160,6 +205,7 @@
   function bindCanvas() {
     $('#tplName').addEventListener('input', (e) => {
       state.template.name = e.target.value;
+      markEdited(); // the name is not drawn, so there is no preview to schedule
     });
     $('#canvasPreset').addEventListener('change', (e) => {
       const custom = e.target.value === 'custom';
@@ -1000,6 +1046,7 @@
     $('#newTemplate').addEventListener('click', () => {
       if (!confirm('Start a new template? The current design is not saved unless you downloaded it.')) return;
       loadTemplate(newTemplate());
+      dirty = false;
       ioStatus('Started a new template.');
     });
     $('#openTemplate').addEventListener('change', async (e) => {
@@ -1034,6 +1081,7 @@
         return;
       }
       saveBlob(await resp.blob(), `${slug(t.name)}.brander.json`);
+      dirty = false;
       ioStatus(`Downloaded ${slug(t.name)}.brander.json: upload it to JAWA's template store.`);
     });
     $('#downloadBundle').addEventListener('click', async () => {
@@ -1049,11 +1097,13 @@
         return;
       }
       saveBlob(await resp.blob(), `${slug(t.name)}.zip`);
+      dirty = false;
       ioStatus(`Downloaded ${slug(t.name)}.zip: copy its files into Brander's assets folder.`);
     });
     $('#downloadJson').addEventListener('click', () => {
       const t = exportable();
       saveBlob(new Blob([JSON.stringify(t, null, 2) + '\n'], { type: 'application/json' }), `${slug(t.name)}.json`);
+      dirty = false;
     });
   }
 
@@ -1074,8 +1124,14 @@
     drawVariants();
     drawLayers();
     drawProperties();
-    loadAssets();
-    renderPreview();
+    const draft = readDraft();
+    if (draft) {
+      // Assets first, so a background or image asset shows in its select.
+      loadAssets().catch(() => {}).finally(() => restoreDraft(draft));
+    } else {
+      loadAssets();
+      renderPreview();
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);
