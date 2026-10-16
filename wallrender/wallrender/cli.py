@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 
 from .render import render_with_lint
@@ -40,6 +41,38 @@ def folder_assets(folder: str):
 def _load_json(path: str):
     with open(path, encoding="utf-8") as handle:
         return json.load(handle)
+
+
+LAYER_REF = re.compile(r"\blayer (\d+)")
+LABEL_CHARS = 40
+
+
+def _describe(layer) -> str:
+    """A layer as the designer's layer list names it: its type and content."""
+    if not isinstance(layer, dict) or not isinstance(layer.get("type"), str):
+        return ""
+    kind = layer["type"]
+    detail = {"text": layer.get("text"), "qr": layer.get("data"),
+              "image": layer.get("asset")}.get(kind)
+    if not isinstance(detail, str) or not detail:
+        return f" ({kind})"
+    detail = " ".join(detail.split())
+    if len(detail) > LABEL_CHARS:
+        detail = detail[:LABEL_CHARS - 1] + "\u2026"
+    return f" ({kind}: {detail})"
+
+
+def _label(template, message: str) -> str:
+    """Number layers from 1, as the designer does, and say which layer it is.
+    The renderer's own messages stay 0-based (JAWA reads them)."""
+    layers = template.get("layers") if isinstance(template, dict) else None
+    layers = layers if isinstance(layers, list) else []
+
+    def one(match):
+        i = int(match.group(1))
+        return f"layer {i + 1}" + (_describe(layers[i]) if i < len(layers) else "")
+
+    return LAYER_REF.sub(one, message)
 
 
 def _paths(template: dict) -> list[str]:
@@ -85,11 +118,11 @@ def _variant(template, values, assets, output: str, label: str) -> int:
         image, warnings = render_with_lint(template, values, assets)
     except TemplateError as err:
         for problem in err.problems:
-            print(f"[{label}] error: {problem}", file=sys.stderr)
+            print(f"[{label}] error: {_label(template, problem)}", file=sys.stderr)
         return len(err.problems)
     image.save(output)
     for warning in warnings:
-        print(f"[{label}] warning: {warning}", file=sys.stderr)
+        print(f"[{label}] warning: {_label(template, warning)}", file=sys.stderr)
     print(f"wrote {output} ({label} values, {len(warnings)} warnings)")
     return len(warnings)
 
@@ -108,11 +141,11 @@ def preview(args: argparse.Namespace) -> int:
         image, warnings = render_with_lint(template, values, assets)
     except TemplateError as err:
         for problem in err.problems:
-            print(f"error: {problem}", file=sys.stderr)
+            print(f"error: {_label(template, problem)}", file=sys.stderr)
         return 1
     image.save(args.output)
     for warning in warnings:
-        print(f"warning: {warning}", file=sys.stderr)
+        print(f"warning: {_label(template, warning)}", file=sys.stderr)
     print(f"wrote {args.output} ({image.width}x{image.height}, {len(warnings)} warnings)")
     problems = len(warnings)
     if args.stress:

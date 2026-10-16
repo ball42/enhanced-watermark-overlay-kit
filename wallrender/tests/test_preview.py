@@ -155,3 +155,24 @@ def test_shipped_example_previews_cleanly(tmp_path):
         "-o", out, "--strict",
     ])
     assert code == 0
+
+
+def test_cli_numbers_layers_from_1_with_the_designers_label(files, capsys):
+    template = tpl(text_layer("Hi"), text_layer("{{device_name}}"))
+    t, v, out = files(template, {"device_name": "W" * 25})
+    assert main(["preview", t, v, "-o", out]) == 0
+    err = capsys.readouterr().err
+    assert "warning: layer 2 (text: {{device_name}}): text shrank" in err, err
+    assert "layer 1" not in err
+
+
+def test_shipped_example_stress_names_the_first_layer_from_1(tmp_path, capsys):
+    import os
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    main(["preview", os.path.join(here, "examples", "brander-basic.json"),
+          os.path.join(here, "examples", "sample-device.json"),
+          "-o", str(tmp_path / "x.png"), "--stress"])
+    err = capsys.readouterr().err
+    assert "layer 1 (text: {{device_name}})" in err, err
+    assert "layer 0" not in err

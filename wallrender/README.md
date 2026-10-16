@@ -29,6 +29,8 @@ It renders the template with the sample values, writes the PNG, and prints warni
 - text that shrank below half its set size, or is cut off even at the minimum size;
 - text whose contrast against what is behind it is below WCAG's 4.5:1, or 3:1 for large text.
 
+It numbers layers from 1 and names each one as EWOK's layer list does, for example `layer 1 (text: {{device_name}})`. The library's own messages (`lint`, `fit_warnings`) number layers from 0.
+
 Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from `--assets DIR`. `--stress` also writes `OUT-long.png` and `OUT-empty.png`, with every variable the template uses set to a long, wide value and then to nothing. `--strict` exits 3 when there are warnings in any of them, for use in CI. Exit 1 means nothing was written, because the template, the values or an asset was unusable. `python -m wallrender` works too.
 
 ## Template format (schema v1)
