@@ -30,7 +30,6 @@ def app(tmp_path):
 
     application = create_app()
     application.config["TESTING"] = True
-    application.config["UPLOAD_FOLDER"] = upload_dir
 
     yield application
 

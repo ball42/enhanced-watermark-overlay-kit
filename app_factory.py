@@ -20,13 +20,14 @@ def create_app(config_name=None):
     # Load configuration
     import config
     app.config['UPLOAD_FOLDER'] = config.UPLOAD_FOLDER
+    app.config['TEMP_FOLDER'] = config.TEMP_FOLDER
     app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
     app.config['DEBUG'] = config.DEBUG
     app.config['SECRET_KEY'] = config.SECRET_KEY
 
     # Ensure upload and temp directories exist
-    os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
-    os.makedirs(config.TEMP_FOLDER, exist_ok=True)
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(app.config['TEMP_FOLDER'], exist_ok=True)
 
     # Register blueprints
     from views.main import main_bp
@@ -58,6 +59,7 @@ def create_app(config_name=None):
 
     @app.before_request
     def run_cleanup():
-        cleanup_old_files(config.TEMP_FOLDER, config.UPLOAD_FOLDER)
+        # The same folders the routes in views/api.py use.
+        cleanup_old_files(app.config['TEMP_FOLDER'], app.config['UPLOAD_FOLDER'])
 
     return app
