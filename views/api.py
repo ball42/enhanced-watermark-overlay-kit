@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, send_file
 import os
+import re
 import uuid
 from werkzeug.utils import secure_filename
 from PIL import Image, ImageEnhance, ImageFilter
@@ -15,6 +16,18 @@ api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 MAX_PHOTO_PIXELS = 40_000_000  # same budget as wallrender's canvas
 RESIZE_RANGE = (10, 400)  # percent, as the slider offers
+
+# Upload names are "<uuid4>_<name>" (upload_file below).
+UPLOAD_NAME = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_')
+EXPIRED = 'This upload expired after an hour without use. Upload it again.'
+
+
+def mark_used(path):
+    """Refresh a file's mtime: cleanup removes files an hour after their last use."""
+    try:
+        os.utime(path)
+    except OSError:
+        pass
 
 def allowed_file(filename):
     """Check if file extension is allowed"""
@@ -74,7 +87,15 @@ def process_image():
     
     input_path = safe_filepath(data['filename'], UPLOAD_FOLDER)
     if not input_path or not os.path.exists(input_path):
+        if UPLOAD_NAME.match(os.path.basename(str(data['filename']))):
+            return jsonify({'error': EXPIRED}), 410
         return jsonify({'error': 'File not found'}), 404
+    mark_used(input_path)
+    for overlay in data.get('image_overlays') or []:
+        if isinstance(overlay, dict) and isinstance(overlay.get('filename'), str):
+            overlay_path = safe_filepath(overlay['filename'], UPLOAD_FOLDER)
+            if overlay_path and os.path.exists(overlay_path):
+                mark_used(overlay_path)
     
     warnings = []  # problems the user should see, e.g. a skipped overlay
     try:
@@ -208,6 +229,7 @@ def download_file(filename):
     filepath = safe_filepath(filename, TEMP_FOLDER)
     if not filepath or not os.path.exists(filepath):
         return jsonify({'error': 'File not found'}), 404
+    mark_used(filepath)
     return send_file(filepath, as_attachment=True, download_name=f"edited_{filename}")
 
 @api_bp.route('/preview/<filename>')
@@ -216,6 +238,7 @@ def preview_file(filename):
     filepath = safe_filepath(filename, TEMP_FOLDER)
     if not filepath or not os.path.exists(filepath):
         return jsonify({'error': 'File not found'}), 404
+    mark_used(filepath)
     return send_file(filepath)
 
 @api_bp.route('/original/<filename>')
@@ -224,4 +247,5 @@ def preview_original(filename):
     filepath = safe_filepath(filename, UPLOAD_FOLDER)
     if not filepath or not os.path.exists(filepath):
         return jsonify({'error': 'File not found'}), 404
+    mark_used(filepath)
     return send_file(filepath)

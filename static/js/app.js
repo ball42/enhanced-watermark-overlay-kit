@@ -249,6 +249,14 @@
         if (warnings.length) showToast(warnings.join(' '), 'warning');
         showPreview();
         downloadSection.style.display = 'block';
+      } else if (response.status === 410) {
+        // The upload was cleaned up: it cannot be processed again.
+        currentFilename = null;
+        showStatus(result.error, 'error');
+        showToast(result.error, 'error');
+        setLoading(processBtn, false);
+        processBtn.disabled = true;
+        return;
       } else {
         showStatus('Processing failed: ' + result.error, 'error');
         showToast(result.error, 'error');
