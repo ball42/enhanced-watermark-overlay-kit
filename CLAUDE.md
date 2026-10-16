@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Enhanced Watermark Overlay Kit (EWOK) — a Flask web application for image editing with watermark and overlay capabilities. Users can upload images, adjust opacity/saturation, add text overlays (with click-to-place positioning), apply watermarks, add backgrounds, and create wallpapers with device presets.
+Enhanced Watermark Overlay Kit (EWOK) is a local Flask tool. Its main purpose is the **template designer** (`/template`): it designs wallpaper templates for JAWA's Brander, with text, QR, image and panel layers that use device variables (`{{device_name}}`, `{{serial_number}}`, `{{asset_tag}}`, `{{jss_id}}`, `{{location.building}}`, `{{role.*}}`, opt-in `{{user.*}}`). It previews live through `wallrender/` against sample devices, shows device crops and covered areas, supports role variants, and exports a `.brander.json` package or a `.zip` bundle. The **photo editor** (`/`) is the original tool: upload one image, adjust it, add text overlays (click to place), watermarks, image overlays and backgrounds, and resize it to wallpaper presets.
 
 ## Development Commands
 
@@ -18,7 +18,7 @@ uv run ewok
 
 # Run tests
 uv run pytest
-(cd wallrender && uv run --with pytest pytest)
+(cd wallrender && uv run --project .. pytest)
 
 # Browser tests (tests/browser, headless Chromium; skipped without Playwright)
 uv sync --group browser
@@ -31,27 +31,37 @@ uv run pytest tests/browser
 The app uses the Flask factory pattern with blueprints:
 
 ```
-app.py                  # Entry point — calls create_app()
-app_factory.py          # Factory: config, blueprints, cleanup hook
-config.py               # Settings, wallpaper presets, SECRET_KEY
+app.py                  # Entry point: the `ewok` command, calls create_app()
+app_factory.py          # Factory: config, blueprints, local-only checks, cleanup hook
+config.py               # Settings, canvas presets and their devices, sample devices, Brander variables
 views/
-  api.py                # REST API: upload, process, download, preview (with path traversal protection)
-  main.py               # Serves index page
-  template_api.py       # Template mode: preview (wallrender), asset library, bundle export/import
+  main.py               # Pages: / (photo editor) and /template (template designer)
+  api.py                # Photo API: upload, process, download, preview (path traversal protection)
+  template_api.py       # Template API: preview (wallrender), asset library, .zip and .brander.json export, import
 utils/
-  image_processing.py   # PIL: resize, text overlays, image overlays, backgrounds, watermarks
-  cleanup.py            # Periodic cleanup of temp/upload files (before_request hook)
+  image_processing.py   # Photo editor: resize, text overlays, image overlays, backgrounds, watermarks
+  cleanup.py            # Removes uploads and results an hour after last use (before_request hook)
 templates/
-  index.html            # Jinja2 template — semantic HTML, links to external CSS/JS
+  index.html            # Photo editor page
+  template.html         # Template designer page
 static/
-  css/style.css         # Design system with CSS custom properties
-  js/app.js             # Client-side app (IIFE, no inline handlers, click-to-place)
-  ewok.png              # Logo
+  css/style.css         # Design tokens shared with JAWA, Endor theme
+  css/template.css      # Template designer layout
+  js/app.js             # Photo editor (IIFE, no inline handlers, live preview, click-to-place)
+  js/template.js        # Template designer (layers, drag placement, devices, roles, draft)
+wallrender/             # Renderer shared with JAWA (vendored, hash-pinned there); own pyproject and tests
+  wallrender/schema.py      # Validation of untrusted templates (caps, roles, person_fields, QR rule, screen)
+  wallrender/render.py      # Rendering and lint (missing values, glyphs, overflow, WCAG contrast)
+  wallrender/devices.py     # device_profiles.json, crop and safe-area fit
+  wallrender/roles.py, variables.py
+  wallrender/cli.py         # `wallrender preview TEMPLATE VALUES -o OUT [--stress --devices IDS --strict]`, `wallrender devices`
 tests/
   conftest.py           # Fixtures: isolated app with tmp_path dirs, test client, image helper
-  test_api.py           # Upload, process, download, preview, path traversal tests
-  test_utils.py         # hex_to_rgb, load_font, resize_for_wallpaper tests
+  test_*.py             # Photo API, template API, pages, foundation, isolation
+  browser/              # Playwright tests of both pages (skipped without Playwright)
 ```
+
+Data lives only in gitignored folders (`static/uploads/`, `temp/`, `template_assets/`). There is no database or external service. Views read the upload and temp folders from `current_app.config`, never from module-level copies.
 
 ### Key Patterns
 
@@ -67,4 +77,4 @@ tests/
 
 - Uses MIT License
 - Default branch: main
-- Tests: `pytest tests/ -v` (35 tests, all should pass)
+- Tests: `uv run pytest` and `(cd wallrender && uv run --project .. pytest)`; all should pass

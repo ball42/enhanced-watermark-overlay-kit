@@ -2,126 +2,160 @@
 
 # Enhanced Watermark Overlay Kit (EWOK)
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
-[![Flask](https://img.shields.io/badge/Flask-3.0-green.svg)](https://flask.palletsprojects.com/)
+[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://python.org)
+[![Flask](https://img.shields.io/badge/Flask-3.1-green.svg)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/License-MIT-brightgreen.svg)](LICENSE)
 
-A web application for image editing with watermark and overlay capabilities.
+A local template designer for Brander device wallpapers, with a photo editor for watermarks and overlays.
 
 </div>
 
 ---
 
-## Features
+EWOK runs on your own computer. Its main page is the **template designer** (`/template`): you design a wallpaper template for JAWA's Brander, which fills in each device's details (name, serial number, asset tag and more) when it sets the wallpaper. The **photo editor** (`/`) is EWOK's original tool: it adds text, watermarks, overlays and backgrounds to one photo.
 
-- **Image Upload** — JPG, PNG, GIF, BMP, WebP (max 16MB) with drag-and-drop
-- **Opacity & Saturation** — Adjust transparency and color intensity
-- **Text Overlays** — Multiple overlays with position, size, color, and effects (shadow, outline, glow)
-- **Click-to-Place** — Click the preview image to position text overlays
-- **Watermarks** — Text watermarks with corner/center positioning and adjustable opacity
-- **Wallpaper Mode** — Resize to device presets (iPhone, iPad, MacBook, iMac, etc.)
-- **Fit Modes** — Fit, crop, or stretch to target dimensions
-- **Backgrounds** — Solid color, gradient, or pattern (dots, stripes, checker, starburst, sunburst)
-- **Live Preview** — See changes before downloading
+Both modes preview through `wallrender/`, or Pillow for the photo editor. `wallrender` is the renderer that JAWA vendors, so the template preview is what a device receives.
 
-## Wallpaper Presets
+## Template designer (`/template`)
 
-| Category | Presets |
-|----------|---------|
-| iPhone | 15 Pro, 15, 14 Pro, 14 |
-| iPad | Pro 12.9", Air, Standard |
-| MacBook | Air 13", Pro 14", Pro 16" |
-| Desktop | iMac 24", Studio Display, Pro Display XDR |
-| Standard | 1080p, 4K, 4:3, Square |
+- **Canvas and background** — iPhone and iPad presets or a custom size, and a color or an image background.
+- **Layers** — text, QR code, image and panel (a translucent backdrop) layers. Text and QR data use device variables: `{{device_name}}`, `{{serial_number}}`, `{{asset_tag}}`, `{{jss_id}}`, `{{location.building}}`, `{{role.*}}`, and `{{user.*}}` when the template opts in to personal fields.
+- **Live preview** — renders through `wallrender` against sample devices after each change, with warnings for missing values, missing glyphs, overflow and low contrast.
+- **Stress view** — extra renders with every value long, then empty, then once per role.
+- **Placement** — drag boxes on the preview, or move and resize them with the arrow keys.
+- **Devices** — safe-area guides for the clock, controls and dock, and a grid that shows how each iPhone and iPad crops the canvas. The checked devices follow the canvas preset until you change them.
+- **Role variants** — one template with a background and wording per device role, read from a Jamf extension attribute.
+- **Asset library** — PNG and JPEG images that backgrounds and image layers use.
+- **Export** — a `.brander.json` package for JAWA's template store, or a `.zip` bundle for Brander's assets folder. Both open again in EWOK.
+- **Draft** — the template is kept in the browser, so a reload does not lose it.
+
+## Photo editor (`/`)
+
+- **Image upload** — JPG, PNG, GIF, BMP or WebP (16 MB at most), with drag and drop.
+- **Adjustments** — opacity, saturation, brightness, contrast, blur or sharpen, rotation and resize.
+- **Text overlays** — several overlays with position, size, color and effects (shadow, outline, glow). Click the preview to place one.
+- **Image overlays and watermarks** — corner or center positions, with adjustable opacity.
+- **Wallpaper mode** — resize to device presets (iPhone, iPad, MacBook, iMac and more) by fit, crop or stretch.
+- **Backgrounds** — solid color, gradient or pattern (dots, stripes, checker, starburst, sunburst).
+- **Live preview** — the preview renders again a moment after each change. **Update preview** renders at once.
+
+Uploads expire one hour after their last use.
 
 ## Installation
 
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/ball42/enhanced-watermark-overlay-kit.git
 cd enhanced-watermark-overlay-kit
 uv sync
 uv run ewok
 ```
 
-Open `http://127.0.0.1:5055` in your browser. EWOK listens on localhost only and has no login, so don't expose it to a network. `--port` (or `EWOK_PORT`) changes the port, and `EWOK_DEBUG=1` turns on Flask's debug mode.
+Open `http://127.0.0.1:5055/template` in your browser. EWOK listens on localhost only and has no login, so don't expose it to a network. `--port` (or `EWOK_PORT`) changes the port, and `EWOK_DEBUG=1` turns on Flask's debug mode.
 
 ## Testing
 
 ```bash
 uv run pytest
-(cd wallrender && uv run --with pytest pytest)
+(cd wallrender && uv run --project .. pytest)
+```
 
-# Browser tests (tests/browser, headless Chromium; skipped without Playwright)
+The app tests cover both modes: the photo API (upload, processing, download, preview, expiry, path traversal), the template API (preview, asset library, export and import), the pages, and the local-only server settings. Browser tests in `tests/browser` drive both pages in headless Chromium. They are skipped until Playwright is installed:
+
+```bash
 uv sync --group browser
 uv run playwright install chromium
 uv run pytest tests/browser
 ```
 
-The app tests cover upload, processing, download, preview, path traversal protection, color validation, font loading, wallpaper resize modes and the local-only server settings. `wallrender/` has its own suite.
+`wallrender/` has its own suite, and its own README for the template format and the `wallrender` command line.
 
 ## Architecture
 
 ```
-app.py                  # Entry point
-app_factory.py          # Flask factory with blueprint registration and cleanup
-config.py               # Settings, wallpaper presets, SECRET_KEY
+app.py                  # Entry point: the `ewok` command
+app_factory.py          # Flask factory: config, blueprints, local-only checks, cleanup
+config.py               # Settings, canvas presets, sample devices, Brander variables
 views/
-  api.py                # REST endpoints: upload, process, download, preview
-  main.py               # Page route
+  main.py               # Pages: / and /template
+  api.py                # Photo editor API: upload, process, download, preview
+  template_api.py       # Template designer API: preview, asset library, export, import
 utils/
-  image_processing.py   # PIL operations: resize, overlays, backgrounds, watermarks
-  cleanup.py            # Periodic temp file cleanup (1hr max age, 5min interval)
+  image_processing.py   # Photo editor: resize, overlays, backgrounds, watermarks (Pillow)
+  cleanup.py            # Removes uploads and results an hour after their last use
 templates/
-  index.html            # Jinja2 template (semantic HTML, links external CSS/JS)
+  index.html            # Photo editor page
+  template.html         # Template designer page
 static/
-  css/style.css         # Design system (CSS custom properties, responsive)
-  js/app.js             # Client app (IIFE, addEventListener, click-to-place)
-  ewok.png              # Logo
-tests/
-  conftest.py           # Fixtures: isolated app, test client, sample image helper
-  test_api.py           # Endpoint tests
-  test_utils.py         # Unit tests for image processing helpers
+  css/style.css         # Design tokens shared with JAWA, Endor theme
+  css/template.css      # Template designer layout
+  js/app.js             # Photo editor
+  js/template.js        # Template designer
+wallrender/             # Renderer shared with JAWA (Pillow + qrcode only)
+  wallrender/schema.py      # Validates untrusted templates
+  wallrender/render.py      # Rendering and lint warnings
+  wallrender/devices.py     # Device profiles, crops and covered areas
+  wallrender/roles.py       # Role variants
+  wallrender/variables.py   # {{variable}} substitution
+  wallrender/cli.py         # `wallrender preview` and `wallrender devices`
+tests/                  # App tests; tests/browser for Playwright
 ```
 
-## API Endpoints
+## API endpoints
+
+Photo editor:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/api/upload` | Upload an image file |
-| `POST` | `/api/process` | Process image with parameters |
-| `GET` | `/api/preview/<filename>` | Preview processed image |
-| `GET` | `/api/original/<filename>` | Preview original upload |
-| `GET` | `/api/download/<filename>` | Download processed image |
+| `POST` | `/api/process` | Process the image with the given settings |
+| `GET` | `/api/preview/<filename>` | Preview a processed image |
+| `GET` | `/api/original/<filename>` | Preview the original upload |
+| `GET` | `/api/download/<filename>` | Download a processed image |
+
+Template designer:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/template/preview` | Render a template with sample values; returns images and warnings, with device warnings for the chosen devices and screen |
+| `GET` | `/api/template/assets` | List the asset library |
+| `POST` | `/api/template/assets` | Add a PNG or JPEG to the asset library |
+| `GET` | `/api/template/assets/<asset_id>` | Serve one asset |
+| `DELETE` | `/api/template/assets/<asset_id>` | Delete one asset |
+| `POST` | `/api/template/export` | Download a `.zip` bundle: the template JSON, its assets and a README |
+| `POST` | `/api/template/package` | Download a `.brander.json` package for JAWA's template store |
+| `POST` | `/api/template/import` | Open a template `.json`, a `.zip` bundle or a `.brander.json` package |
 
 ## Configuration
 
 | Setting | Default |
 |---------|---------|
+| Address | `127.0.0.1:5055` (`--port` or `EWOK_PORT`) |
 | Upload folder | `static/uploads/` |
 | Temp folder | `temp/` |
+| Template asset library | `template_assets/` |
 | Max file size | 16 MB |
-| Formats | PNG, JPG, JPEG, GIF, BMP, WebP |
-| SECRET_KEY | `$SECRET_KEY` env var (random fallback with warning) |
+| Photo formats | PNG, JPG, JPEG, GIF, BMP, WebP |
+| SECRET_KEY | `$SECRET_KEY` env var (random fallback) |
 
-## Technology Stack
+## Technology stack
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Flask 3.0, Python 3.8+ |
-| Image Processing | Pillow (PIL) |
-| Frontend | HTML5, CSS3, vanilla JavaScript |
+| Backend | Flask 3.1, Python 3.12+ |
+| Rendering | Pillow 11.3 (pinned below 12, the same as JAWA), qrcode |
+| Frontend | HTML, CSS, vanilla JavaScript |
 | Icons | Font Awesome 6 |
-| Testing | pytest, pytest-flask |
+| Testing | pytest, pytest-flask, Playwright |
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/name`)
-3. Run tests (`pytest tests/ -v`)
-4. Commit and push
-5. Open a Pull Request
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/name`).
+3. Run both test suites (see Testing).
+4. Commit and push.
+5. Open a pull request.
 
 ## License
 
