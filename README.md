@@ -52,6 +52,11 @@ Open `http://127.0.0.1:5055` in your browser. EWOK listens on localhost only and
 ```bash
 uv run pytest
 (cd wallrender && uv run --with pytest pytest)
+
+# Browser tests (tests/browser, headless Chromium; skipped without Playwright)
+uv sync --group browser
+uv run playwright install chromium
+uv run pytest tests/browser
 ```
 
 The app tests cover upload, processing, download, preview, path traversal protection, color validation, font loading, wallpaper resize modes and the local-only server settings. `wallrender/` has its own suite.

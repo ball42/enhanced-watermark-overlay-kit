@@ -372,6 +372,11 @@ body {
   box-shadow: var(--shadow-md);
 }
 
+/* A render is on its way: the status line also says "Updating preview…". */
+#preview-image.is-stale {
+  opacity: 0.6;
+}
+
 .preview-container {
   position: relative;
   display: inline-block;

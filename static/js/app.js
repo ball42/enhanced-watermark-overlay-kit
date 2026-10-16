@@ -8,6 +8,8 @@
   let processedFilename = null;
   let textOverlayCount = 0;
   let imageOverlayCount = 0;
+  let previewTimer = null;
+  let previewAbort = null; // the in-flight render's AbortController
 
   // ── DOM refs ────────────────────────────────
   const $ = (sel) => document.querySelector(sel);
@@ -47,6 +49,7 @@
     bindRangeInputs();
     bindBackgroundType();
     bindEffectStrengthDelegation();
+    bindLivePreview();
   }
 
   // ── Upload ──────────────────────────────────
@@ -200,13 +203,57 @@
     });
   }
 
+  // ── Live preview ────────────────────────────
+
+  // Any edit in the controls re-renders the preview after a short pause,
+  // as the template designer does. The Update preview button stays.
+  const PREVIEW_DELAY = 400;
+
+  function schedulePreview() {
+    if (!currentFilename) return;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(processImage, PREVIEW_DELAY);
+  }
+
+  function cancelPreview() {
+    clearTimeout(previewTimer);
+    if (previewAbort) previewAbort.abort();
+    previewAbort = null;
+  }
+
+  function bindLivePreview() {
+    const onEdit = (e) => {
+      // An overlay file schedules a render once its upload is done.
+      if (e.target.type === 'file') return;
+      schedulePreview();
+    };
+    controlsGrid.addEventListener('input', onEdit);
+    controlsGrid.addEventListener('change', onEdit);
+    // Buttons and switches change settings without input events.
+    controlsGrid.addEventListener('click', (e) => {
+      const control = e.target.closest('button, [role="switch"]');
+      if (!control || control.closest('.action-bar, #downloadSection')) return;
+      if (/^add-/.test(control.dataset.action || '')) return; // a new, empty overlay
+      schedulePreview();
+    });
+  }
+
+  function setStale(stale) {
+    const img = $('#preview-image');
+    if (img) img.classList.toggle('is-stale', stale);
+  }
+
   // ── Process Image ───────────────────────────
 
   async function processImage() {
     if (!currentFilename) return;
 
+    cancelPreview();
+    const controller = new AbortController();
+    previewAbort = controller;
     setLoading(processBtn, true);
-    showStatus('Processing image...', 'info');
+    setStale(true);
+    showStatus('Updating preview\u2026', 'info');
 
     const data = {
       filename: currentFilename,
@@ -235,8 +282,10 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        signal: controller.signal,
       });
       const result = await response.json();
+      if (previewAbort !== controller) return; // a newer render replaced this one
 
       if (result.success) {
         processedFilename = result.processed_filename;
@@ -252,8 +301,10 @@
       } else if (response.status === 410) {
         // The upload was cleaned up: it cannot be processed again.
         currentFilename = null;
+        previewAbort = null;
         showStatus(result.error, 'error');
         showToast(result.error, 'error');
+        setStale(false);
         setLoading(processBtn, false);
         processBtn.disabled = true;
         return;
@@ -262,10 +313,13 @@
         showToast(result.error, 'error');
       }
     } catch (err) {
+      if (err.name === 'AbortError' || previewAbort !== controller) return;
       showStatus('Processing failed: ' + err.message, 'error');
       showToast('Processing failed — check console for details', 'error');
     }
 
+    previewAbort = null;
+    setStale(false);
     setLoading(processBtn, false);
   }
 
@@ -666,6 +720,7 @@
         if (result.success) {
           hiddenInput.value = result.filename;
           filenameSpan.textContent = file.name;
+          schedulePreview();
         } else {
           filenameSpan.textContent = 'Upload failed';
           showToast('Overlay upload failed: ' + result.error, 'error');
@@ -793,6 +848,7 @@
     const lastOverlay = overlayItems[overlayItems.length - 1];
     lastOverlay.querySelector('.overlay-x').value = xPct + '%';
     lastOverlay.querySelector('.overlay-y').value = yPct + '%';
+    if (lastOverlay.querySelector('.overlay-text').value.trim()) schedulePreview();
 
     // Visual indicator
     const wrapper = img.parentElement;
