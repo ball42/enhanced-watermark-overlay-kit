@@ -334,6 +334,8 @@
   // ── Reset ───────────────────────────────────
 
   function resetAll() {
+    cancelPreview();
+    setLoading(processBtn, false);
     currentFilename = null;
     processedFilename = null;
     controlsGrid.style.display = 'none';
@@ -343,36 +345,34 @@
     downloadSection.style.display = 'none';
     processBtn.disabled = true;
     textOverlayCount = 0;
-
-    // Reset sliders
-    $('#opacity').value = 100;
-    $('#opacityValue').textContent = '100%';
-    $('#saturation').value = 100;
-    $('#saturationValue').textContent = '100%';
-    $('#resize').value = 100;
-    $('#resizeValue').textContent = '100%';
-    $('#brightness').value = 100;
-    $('#brightnessValue').textContent = '100%';
-    $('#contrast').value = 100;
-    $('#contrastValue').textContent = '100%';
-    $('#blurSharpen').value = 50;
-    $('#blurSharpenValue').textContent = '50';
-    $('#rotation').value = 0;
-    $('#rotationValue').textContent = '0\u00b0';
+    fileInput.value = ''; // so the same file can be chosen again
 
     // Reset image overlays
     imageOverlaysContainer.innerHTML = '';
     imageOverlayCount = 0;
 
-    // Reset format selector
-    $('#outputFormat').value = 'png';
+    // Every control goes back to its default in index.html: sliders,
+    // watermark, background, wallpaper and the format selector.
+    controlsGrid.querySelectorAll('input[id], select[id]').forEach((el) => {
+      if (el.tagName === 'SELECT') {
+        const initial = Array.from(el.options).findIndex((o) => o.defaultSelected);
+        el.selectedIndex = Math.max(initial, 0);
+      } else if (el.type === 'checkbox') {
+        el.checked = el.defaultChecked;
+      } else {
+        el.value = el.defaultValue;
+      }
+    });
+    rangeBindings.forEach(({ input, display, suffix }) => {
+      $('#' + display).textContent = $('#' + input).value + suffix;
+    });
+    $('#backgroundType').dispatchEvent(new Event('change')); // show the color options
 
-    // Reset toggles
-    $('#wallpaperMode').checked = false;
+    // Reset toggles: the switches say Off again, in words and to assistive tech
     $('#wallpaperOptions').style.display = 'none';
-    $('#enableBackground').checked = false;
     $('#backgroundOptions').style.display = 'none';
-    $$('.toggle-button').forEach((btn) => btn.classList.remove('active'));
+    syncSwitch($('#wallpaperMode').parentElement, false);
+    syncSwitch($('#enableBackground').parentElement, false);
 
     // Reset preview
     previewContainer.innerHTML = '<p>Upload an image to see preview</p>';

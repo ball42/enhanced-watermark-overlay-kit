@@ -3,10 +3,11 @@
 from tests.conftest import make_test_image
 
 
-def upload(page, tmp_path):
+def upload(page, tmp_path, reload=True):
     path = tmp_path / "photo.png"
     path.write_bytes(make_test_image(120, 80, (40, 120, 200)).getvalue())
-    page.goto("/")
+    if reload:
+        page.goto("/")
     page.set_input_files("#fileInput", str(path))
     page.wait_for_selector("#preview-image[src^='/api/original/']")
 
