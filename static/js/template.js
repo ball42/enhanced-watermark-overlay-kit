@@ -25,14 +25,19 @@
   const PROP_DEFAULTS = { overflow: 'shrink', align: 'center', opacity: 1, radius: 0 };
   const PANEL_MARGIN = 0.015; // of the canvas, around the layer a new panel sits behind
 
-  const state = {
-    template: {
+  // The template a first visit and "New template" start from.
+  function newTemplate() {
+    return {
       schema_version: 1,
       name: 'Untitled template',
       canvas: { width: 1290, height: 2796 },
       background: { color: '#0B2545' },
       layers: [NEW_LAYERS.text(), NEW_LAYERS.qr()],
-    },
+    };
+  }
+
+  const state = {
+    template: newTemplate(),
     selected: 0,
     assets: [],
     values: SAMPLE,
@@ -992,6 +997,11 @@
   }
 
   function bindExport() {
+    $('#newTemplate').addEventListener('click', () => {
+      if (!confirm('Start a new template? The current design is not saved unless you downloaded it.')) return;
+      loadTemplate(newTemplate());
+      ioStatus('Started a new template.');
+    });
     $('#openTemplate').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       e.target.value = '';
