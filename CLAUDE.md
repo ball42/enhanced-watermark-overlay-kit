@@ -19,6 +19,11 @@ uv run ewok
 # Run tests
 uv run pytest
 (cd wallrender && uv run --with pytest pytest)
+
+# Browser tests (tests/browser, headless Chromium; skipped without Playwright)
+uv sync --group browser
+uv run playwright install chromium
+uv run pytest tests/browser
 ```
 
 ## Architecture

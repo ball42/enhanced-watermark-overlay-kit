@@ -8,6 +8,8 @@
   let processedFilename = null;
   let textOverlayCount = 0;
   let imageOverlayCount = 0;
+  let previewTimer = null;
+  let previewAbort = null; // the in-flight render's AbortController
 
   // ── DOM refs ────────────────────────────────
   const $ = (sel) => document.querySelector(sel);
@@ -47,6 +49,7 @@
     bindRangeInputs();
     bindBackgroundType();
     bindEffectStrengthDelegation();
+    bindLivePreview();
   }
 
   // ── Upload ──────────────────────────────────
@@ -91,6 +94,8 @@
       const result = await response.json();
 
       if (result.success) {
+        cancelPreview(); // a render of the previous image must not land on this one
+        setLoading(processBtn, false);
         currentFilename = result.filename;
         showStatus(
           `Image uploaded — ${result.dimensions.width}\u00d7${result.dimensions.height}`,
@@ -200,13 +205,57 @@
     });
   }
 
+  // ── Live preview ────────────────────────────
+
+  // Any edit in the controls re-renders the preview after a short pause,
+  // as the template designer does. The Update preview button stays.
+  const PREVIEW_DELAY = 400;
+
+  function schedulePreview() {
+    if (!currentFilename) return;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(processImage, PREVIEW_DELAY);
+  }
+
+  function cancelPreview() {
+    clearTimeout(previewTimer);
+    if (previewAbort) previewAbort.abort();
+    previewAbort = null;
+  }
+
+  function bindLivePreview() {
+    const onEdit = (e) => {
+      // An overlay file schedules a render once its upload is done.
+      if (e.target.type === 'file') return;
+      schedulePreview();
+    };
+    controlsGrid.addEventListener('input', onEdit);
+    controlsGrid.addEventListener('change', onEdit);
+    // Buttons and switches change settings without input events.
+    controlsGrid.addEventListener('click', (e) => {
+      const control = e.target.closest('button, [role="switch"]');
+      if (!control || control.closest('.action-bar, #downloadSection')) return;
+      if (/^add-/.test(control.dataset.action || '')) return; // a new, empty overlay
+      schedulePreview();
+    });
+  }
+
+  function setStale(stale) {
+    const img = $('#preview-image');
+    if (img) img.classList.toggle('is-stale', stale);
+  }
+
   // ── Process Image ───────────────────────────
 
   async function processImage() {
     if (!currentFilename) return;
 
+    cancelPreview();
+    const controller = new AbortController();
+    previewAbort = controller;
     setLoading(processBtn, true);
-    showStatus('Processing image...', 'info');
+    setStale(true);
+    showStatus('Updating preview\u2026', 'info');
 
     const data = {
       filename: currentFilename,
@@ -235,8 +284,10 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        signal: controller.signal,
       });
       const result = await response.json();
+      if (previewAbort !== controller) return; // a newer render replaced this one
 
       if (result.success) {
         processedFilename = result.processed_filename;
@@ -249,15 +300,28 @@
         if (warnings.length) showToast(warnings.join(' '), 'warning');
         showPreview();
         downloadSection.style.display = 'block';
+      } else if (response.status === 410) {
+        // The upload was cleaned up: it cannot be processed again.
+        currentFilename = null;
+        previewAbort = null;
+        showStatus(result.error, 'error');
+        showToast(result.error, 'error');
+        setStale(false);
+        setLoading(processBtn, false);
+        processBtn.disabled = true;
+        return;
       } else {
         showStatus('Processing failed: ' + result.error, 'error');
         showToast(result.error, 'error');
       }
     } catch (err) {
+      if (err.name === 'AbortError' || previewAbort !== controller) return;
       showStatus('Processing failed: ' + err.message, 'error');
       showToast('Processing failed — check console for details', 'error');
     }
 
+    previewAbort = null;
+    setStale(false);
     setLoading(processBtn, false);
   }
 
@@ -272,6 +336,8 @@
   // ── Reset ───────────────────────────────────
 
   function resetAll() {
+    cancelPreview();
+    setLoading(processBtn, false);
     currentFilename = null;
     processedFilename = null;
     controlsGrid.style.display = 'none';
@@ -281,36 +347,34 @@
     downloadSection.style.display = 'none';
     processBtn.disabled = true;
     textOverlayCount = 0;
-
-    // Reset sliders
-    $('#opacity').value = 100;
-    $('#opacityValue').textContent = '100%';
-    $('#saturation').value = 100;
-    $('#saturationValue').textContent = '100%';
-    $('#resize').value = 100;
-    $('#resizeValue').textContent = '100%';
-    $('#brightness').value = 100;
-    $('#brightnessValue').textContent = '100%';
-    $('#contrast').value = 100;
-    $('#contrastValue').textContent = '100%';
-    $('#blurSharpen').value = 50;
-    $('#blurSharpenValue').textContent = '50';
-    $('#rotation').value = 0;
-    $('#rotationValue').textContent = '0\u00b0';
+    fileInput.value = ''; // so the same file can be chosen again
 
     // Reset image overlays
     imageOverlaysContainer.innerHTML = '';
     imageOverlayCount = 0;
 
-    // Reset format selector
-    $('#outputFormat').value = 'png';
+    // Every control goes back to its default in index.html: sliders,
+    // watermark, background, wallpaper and the format selector.
+    controlsGrid.querySelectorAll('input[id], select[id]').forEach((el) => {
+      if (el.tagName === 'SELECT') {
+        const initial = Array.from(el.options).findIndex((o) => o.defaultSelected);
+        el.selectedIndex = Math.max(initial, 0);
+      } else if (el.type === 'checkbox') {
+        el.checked = el.defaultChecked;
+      } else {
+        el.value = el.defaultValue;
+      }
+    });
+    rangeBindings.forEach(({ input, display, suffix }) => {
+      $('#' + display).textContent = $('#' + input).value + suffix;
+    });
+    $('#backgroundType').dispatchEvent(new Event('change')); // show the color options
 
-    // Reset toggles
-    $('#wallpaperMode').checked = false;
+    // Reset toggles: the switches say Off again, in words and to assistive tech
     $('#wallpaperOptions').style.display = 'none';
-    $('#enableBackground').checked = false;
     $('#backgroundOptions').style.display = 'none';
-    $$('.toggle-button').forEach((btn) => btn.classList.remove('active'));
+    syncSwitch($('#wallpaperMode').parentElement, false);
+    syncSwitch($('#enableBackground').parentElement, false);
 
     // Reset preview
     previewContainer.innerHTML = '<p>Upload an image to see preview</p>';
@@ -658,6 +722,7 @@
         if (result.success) {
           hiddenInput.value = result.filename;
           filenameSpan.textContent = file.name;
+          schedulePreview();
         } else {
           filenameSpan.textContent = 'Upload failed';
           showToast('Overlay upload failed: ' + result.error, 'error');
@@ -785,6 +850,7 @@
     const lastOverlay = overlayItems[overlayItems.length - 1];
     lastOverlay.querySelector('.overlay-x').value = xPct + '%';
     lastOverlay.querySelector('.overlay-y').value = yPct + '%';
+    if (lastOverlay.querySelector('.overlay-text').value.trim()) schedulePreview();
 
     // Visual indicator
     const wrapper = img.parentElement;

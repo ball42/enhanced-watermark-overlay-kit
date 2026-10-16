@@ -115,3 +115,8 @@ def test_screen_choice_is_on_the_page(client):
     assert 'id="templateScreen"' in body
     for value in ("lock", "home", "both"):
         assert f'<option value="{value}"' in body
+
+
+def test_new_template_button_is_on_the_page(client):
+    body = client.get("/template").get_data(as_text=True)
+    assert 'id="newTemplate"' in body and "New template" in body
