@@ -218,6 +218,7 @@
       }
       const [w, h] = e.target.value.split('x').map(Number);
       state.template.canvas = { width: w, height: h };
+      applyCanvasDevices();
       schedulePreview();
     });
     ['#canvasWidth', '#canvasHeight'].forEach((sel) => {
@@ -631,6 +632,17 @@
     return $$('.device-pick:checked').map((c) => c.value);
   }
 
+  // The picks follow the canvas preset (its data-devices) until the user
+  // ticks or unticks a device; after that their choice is kept.
+  let devicesTouched = false;
+
+  function applyCanvasDevices() {
+    const option = $('#canvasPreset').selectedOptions[0];
+    if (devicesTouched || !option || !option.dataset.devices) return;
+    const ids = option.dataset.devices.split(',');
+    $$('.device-pick').forEach((c) => { c.checked = ids.includes(c.value); });
+  }
+
   function profile(id) {
     return DEVICES.find((p) => p.id === id);
   }
@@ -721,7 +733,10 @@
       drawSafeAreas();
       schedulePreview(); // device warnings depend on the screen
     });
-    $$('.device-pick').forEach((c) => c.addEventListener('change', schedulePreview));
+    $$('.device-pick').forEach((c) => c.addEventListener('change', () => {
+      devicesTouched = true;
+      schedulePreview();
+    }));
     $('#guideOrientation').disabled = true;
   }
 
@@ -1026,6 +1041,7 @@
     $('#customSize').hidden = known;
     $('#canvasWidth').value = t.canvas ? t.canvas.width : '';
     $('#canvasHeight').value = t.canvas ? t.canvas.height : '';
+    applyCanvasDevices();
     const isAsset = Boolean(t.background && t.background.asset);
     $(`input[name="bgKind"][value="${isAsset ? 'asset' : 'color'}"]`).checked = true;
     $('#bgColorRow').hidden = isAsset;

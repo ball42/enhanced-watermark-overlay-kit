@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template
 
-from config import BRANDER_VARIABLES, SAMPLE_DEVICES, TEMPLATE_CANVASES, WALLPAPER_PRESETS
+from config import (BRANDER_VARIABLES, CANVAS_DEVICES, SAMPLE_DEVICES, TEMPLATE_CANVASES,
+                    WALLPAPER_PRESETS)
 from wallrender.devices import device_profiles
 
 main_bp = Blueprint('main', __name__)
@@ -15,5 +16,7 @@ def index():
 def template_editor():
     """Template mode: design a Brander wallpaper template"""
     return render_template('template.html', variables=BRANDER_VARIABLES,
-                           canvases=TEMPLATE_CANVASES, sample_devices=SAMPLE_DEVICES,
-                           device_profiles=device_profiles())
+                           canvases=TEMPLATE_CANVASES, canvas_devices=CANVAS_DEVICES,
+                           # A new template starts on the first canvas.
+                           default_devices=CANVAS_DEVICES[next(iter(TEMPLATE_CANVASES))],
+                           sample_devices=SAMPLE_DEVICES, device_profiles=device_profiles())
