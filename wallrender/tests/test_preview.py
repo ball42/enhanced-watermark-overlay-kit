@@ -176,3 +176,68 @@ def test_shipped_example_stress_names_the_first_layer_from_1(tmp_path, capsys):
     err = capsys.readouterr().err
     assert "layer 1 (text: {{device_name}})" in err, err
     assert "layer 0" not in err
+
+
+# --- the CLI: device fit -----------------------------------------------------
+
+
+def _example(name):
+    import os
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(here, "examples", name)
+
+
+def test_devices_option_reports_an_ipad_crop_and_fails_strict(tmp_path, capsys):
+    code = main(["preview", _example("brander-basic.json"), _example("sample-device.json"),
+                 "-o", str(tmp_path / "x.png"), "--devices", "ipad-12.9", "--strict"])
+    captured = capsys.readouterr()
+    assert code == 3
+    assert "cut off on iPad Pro 12.9-inch" in captured.err, captured.err
+    assert "warning: layer " in captured.err  # 1-based, with the layer's label
+
+
+def test_devices_that_fit_keep_strict_green(files, capsys):
+    t, v, out = files(tpl(text_layer("Hi")))
+    assert main(["preview", t, v, "-o", out, "--devices", "iphone-6.7", "--strict"]) == 0, \
+        capsys.readouterr().err
+
+
+def test_a_both_screens_template_is_checked_on_each(files, capsys):
+    template = tpl(text_layer("Hi", box=(0.1, 0.9, 0.8, 0.08)), screen="both")
+    t, v, out = files(template)
+    main(["preview", t, v, "-o", out, "--devices", "iphone-6.7"])
+    assert ", home screen" in capsys.readouterr().err
+
+
+def test_devices_all_and_unknown_ids(tmp_path, capsys):
+    args = ["preview", _example("brander-basic.json"), _example("sample-device.json"),
+            "-o", str(tmp_path / "x.png")]
+    assert main(args + ["--devices", "all"]) == 0
+    assert "iPad Pro 11-inch" in capsys.readouterr().err
+    with pytest.raises(SystemExit) as stop:
+        main(args + ["--devices", "ipad-99"])
+    assert stop.value.code == 2
+    assert "ipad-99" in capsys.readouterr().err
+
+
+def test_screen_option_checks_the_home_screen(files, capsys):
+    # A box at the very bottom of an iPhone canvas: the home screen's dock covers it.
+    template = tpl(text_layer("Hi", box=(0.1, 0.9, 0.8, 0.08)))
+    t, v, out = files(template)
+    main(["preview", t, v, "-o", out, "--devices", "iphone-6.7", "--screen", "home"])
+    assert "under the" in capsys.readouterr().err
+
+
+def test_devices_command_lists_the_profiles(capsys):
+    assert main(["devices"]) == 0
+    lines = capsys.readouterr().out.strip().splitlines()
+    assert len(lines) == 6
+    assert lines[0].startswith("iphone-6.7")
+
+
+def test_stress_help_names_the_role_renders(capsys):
+    with pytest.raises(SystemExit):
+        main(["preview", "--help"])
+    help_text = " ".join(capsys.readouterr().out.split())
+    assert "OUT-role-<key>" in help_text

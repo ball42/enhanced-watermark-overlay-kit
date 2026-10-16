@@ -1,9 +1,10 @@
 """`wallrender preview TEMPLATE VALUES -o OUT.png`: render a template with
 sample device values and print what a designer should fix.
+`wallrender devices`: list the device ids that --devices takes.
 
 Exit codes: 0 written; 1 the template, values or an asset is unusable
 (nothing written); 2 bad arguments; 3 written, but --strict and there
-were warnings.
+were warnings (device warnings included).
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import os
 import re
 import sys
 
+from .devices import MAX_DEVICE_IDS, device_profiles, fit_warnings
 from .render import render_with_lint
 from .schema import ASSET_ID, TemplateError, variables_in
 
@@ -127,6 +129,32 @@ def _variant(template, values, assets, output: str, label: str) -> int:
     return len(warnings)
 
 
+def _device_ids(text: str) -> list[str]:
+    """--devices: comma-separated profile ids, or "all"."""
+    known = [p["id"] for p in device_profiles()]
+    if text.strip() == "all":
+        return known
+    ids = [part.strip() for part in text.split(",") if part.strip()]
+    unknown = [i for i in ids if i not in known]
+    if unknown or not ids:
+        raise argparse.ArgumentTypeError(
+            f"unknown device {', '.join(unknown) or '(none given)'}; "
+            f"`wallrender devices` lists: {', '.join(known)}")
+    return ids[:MAX_DEVICE_IDS]
+
+
+def _screens(template, choice) -> list[str]:
+    """--screen, else the template's own screen ("both" checks each)."""
+    screen = choice or (template.get("screen") if isinstance(template, dict) else None)
+    return ["lock", "home"] if screen == "both" else [screen if screen == "home" else "lock"]
+
+
+def devices(_args: argparse.Namespace) -> int:
+    for profile in device_profiles():
+        print(f"{profile['id']:<12} {profile['name']}")
+    return 0
+
+
 def preview(args: argparse.Namespace) -> int:
     loaded = []
     for path in (args.template, args.values):
@@ -144,6 +172,11 @@ def preview(args: argparse.Namespace) -> int:
             print(f"error: {_label(template, problem)}", file=sys.stderr)
         return 1
     image.save(args.output)
+    if args.devices:
+        screens = _screens(template, args.screen)
+        for screen in screens:
+            suffix = f", {screen} screen" if len(screens) > 1 else ""
+            warnings += [w + suffix for w in fit_warnings(template, image.size, args.devices, screen)]
     for warning in warnings:
         print(f"warning: {_label(template, warning)}", file=sys.stderr)
     print(f"wrote {args.output} ({image.width}x{image.height}, {len(warnings)} warnings)")
@@ -168,10 +201,20 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-o", "--output", required=True, help="PNG to write")
     p.add_argument("--assets", help="folder of <id>.png/.jpg assets (default: the template's folder)")
     p.add_argument("--stress", action="store_true",
-                   help="also render OUT-long.png and OUT-empty.png with every variable long, then empty")
-    p.add_argument("--strict", action="store_true", help="exit 3 if there are warnings")
+                   help="also render OUT-long, OUT-empty and one OUT-role-<key> per role variant: "
+                        "every variable long, then empty, then each role")
+    p.add_argument("--devices", type=_device_ids, metavar="IDS",
+                   help="also check crops and covered areas on these devices: comma-separated "
+                        "ids from `wallrender devices`, or all")
+    p.add_argument("--screen", choices=("lock", "home"),
+                   help="screen for --devices (default: the template's screen, else lock)")
+    p.add_argument("--strict", action="store_true",
+                   help="exit 3 if there are warnings, device warnings included")
+    p.set_defaults(run=preview)
+    d = commands.add_parser("devices", help="list the device ids that --devices takes")
+    d.set_defaults(run=devices)
     args = parser.parse_args(argv)
-    return preview(args)
+    return args.run(args)
 
 
 if __name__ == "__main__":

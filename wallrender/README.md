@@ -31,7 +31,7 @@ It renders the template with the sample values, writes the PNG, and prints warni
 
 It numbers layers from 1 and names each one as EWOK's layer list does, for example `layer 1 (text: {{device_name}})`. The library's own messages (`lint`, `fit_warnings`) number layers from 0.
 
-Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from `--assets DIR`. `--stress` also writes `OUT-long.png` and `OUT-empty.png`, with every variable the template uses set to a long, wide value and then to nothing. `--strict` exits 3 when there are warnings in any of them, for use in CI. Exit 1 means nothing was written, because the template, the values or an asset was unusable. `python -m wallrender` works too.
+Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from `--assets DIR`. `--stress` also writes `OUT-long.png` and `OUT-empty.png`, with every variable the template uses set to a long, wide value and then to nothing, and one `OUT-role-<key>.png` per role variant. `--devices iphone-6.7,ipad-12.9` (or `--devices all`) also checks which layers each device crops off or covers with its clock, controls or dock, as EWOK's device grid does; `wallrender devices` lists the ids. `--screen lock` or `--screen home` picks the screen; by default it is the template's `screen`, and `both` checks each. `--strict` exits 3 when there are warnings in any of them, device warnings included, for use in CI. Exit 1 means nothing was written, because the template, the values or an asset was unusable. `python -m wallrender` works too.
 
 ## Template format (schema v1)
 
