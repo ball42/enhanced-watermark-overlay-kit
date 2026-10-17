@@ -247,11 +247,39 @@
                         <h3 id="valuesHeading" class="tpl-heading"><i class="fas fa-tablet-alt" aria-hidden="true"></i> Sample device</h3>
                         <p class="tpl-hint">Pick the device above the preview. Edit its values here.</p>
                         <script type="application/json" id="sampleDevices">{{ sample_devices | tojson }}</script>
-                        <div class="control-group">
-                            <label for="sampleValues">Values (JSON)</label>
-                            <textarea id="sampleValues" rows="7" spellcheck="false"></textarea>
-                            <small id="sampleError" class="tpl-error" hidden></small>
+                        {% set field_labels = {'device_name': 'Device name', 'serial_number': 'Serial number',
+                                               'asset_tag': 'Asset tag', 'jss_id': 'Jamf ID',
+                                               'location.building': 'Building'} %}
+                        {% set person_labels = {'user.real_name': "User's name", 'user.username': 'Username',
+                                                'user.email': 'Email'} %}
+                        <div class="tpl-sample-fields">
+                        {% for name in variables %}
+                            <div class="control-group">
+                                <label for="sample-{{ name | replace('.', '-') }}">{{ field_labels.get(name, name) }}</label>
+                                <div class="tpl-sample-field">
+                                    <input type="text" id="sample-{{ name | replace('.', '-') }}" class="sample-field" data-value="{{ name }}" spellcheck="false">
+                                    <button type="button" class="tpl-icon-btn" data-empty="{{ name }}" aria-label="Empty {{ field_labels.get(name, name) }}">Empty</button>
+                                </div>
+                            </div>
+                        {% endfor %}
+                        {% for name, label in person_labels.items() %}
+                            <div class="control-group" data-person-field hidden>
+                                <label for="sample-{{ name | replace('.', '-') }}">{{ label }}</label>
+                                <div class="tpl-sample-field">
+                                    <input type="text" id="sample-{{ name | replace('.', '-') }}" class="sample-field" data-value="{{ name }}" spellcheck="false">
+                                    <button type="button" class="tpl-icon-btn" data-empty="{{ name }}" aria-label="Empty {{ label }}">Empty</button>
+                                </div>
+                            </div>
+                        {% endfor %}
                         </div>
+                        <details class="tpl-json-values">
+                            <summary>Edit as JSON</summary>
+                            <div class="control-group">
+                                <label for="sampleValues">Values (JSON), for nested or extra values</label>
+                                <textarea id="sampleValues" rows="7" spellcheck="false"></textarea>
+                            </div>
+                        </details>
+                        <small id="sampleError" class="tpl-error" hidden></small>
                     </section>
 
                     <div class="action-bar tpl-row">

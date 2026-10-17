@@ -1006,6 +1006,7 @@
       if (e.target.checked) state.template.person_fields = true;
       else delete state.template.person_fields;
       drawRoleOptions();
+      drawSampleFields();
       schedulePreview();
     });
   }
@@ -1057,22 +1058,76 @@
 
   // ── Sample values and export ───────────────────────
 
+  // A value by dotted path ("location.building"), or '' when absent.
+  function getPath(values, path) {
+    const v = path.split('.').reduce((node, k) => (node && typeof node === 'object' ? node[k] : undefined), values);
+    return v === undefined || v === null ? '' : String(v);
+  }
+
+  function setPath(values, path, value) {
+    const [leaf, ...parents] = path.split('.').reverse();
+    let node = values;
+    parents.reverse().forEach((k) => {
+      if (!node[k] || typeof node[k] !== 'object') node[k] = {};
+      node = node[k];
+    });
+    node[leaf] = value;
+  }
+
+  function showSampleError(message) {
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-circle-exclamation';
+    icon.setAttribute('aria-hidden', 'true');
+    $('#sampleError').replaceChildren(icon, ` ${message}`);
+    $('#sampleError').hidden = false;
+  }
+
+  // The labelled fields and the JSON view both show state.values.
+  function drawSampleFields() {
+    $$('.sample-field').forEach((input) => {
+      if (document.activeElement !== input) input.value = getPath(state.values, input.dataset.value);
+    });
+    $$('[data-person-field]').forEach((el) => { el.hidden = state.template.person_fields !== true; });
+  }
+
   function bindValues() {
     const area = $('#sampleValues');
     area.value = JSON.stringify(SAMPLE, null, 2);
+    drawSampleFields();
     $('#samplePreset').addEventListener('change', (e) => {
       if (e.target.value === 'custom') {
-        area.focus();
+        $('.sample-field').focus();
         return;
       }
       state.values = PRESETS[Number(e.target.value)].values;
       area.value = JSON.stringify(state.values, null, 2);
       $('#sampleError').hidden = true;
+      drawSampleFields();
       schedulePreview();
     });
     $('#stressToggle').addEventListener('change', (e) => {
       state.stress = e.target.checked;
       schedulePreview();
+    });
+    $$('.sample-field').forEach((input) => {
+      input.addEventListener('input', () => {
+        const values = JSON.parse(JSON.stringify(state.values));
+        // Jamf IDs are numbers in Brander's values.
+        const typed = input.dataset.value === 'jss_id' && /^\d+$/.test(input.value) ? Number(input.value) : input.value;
+        setPath(values, input.dataset.value, typed);
+        state.values = values;
+        $('#samplePreset').value = 'custom';
+        area.value = JSON.stringify(values, null, 2);
+        $('#sampleError').hidden = true;
+        schedulePreview();
+      });
+    });
+    $$('[data-empty]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const input = $(`.sample-field[data-value="${btn.dataset.empty}"]`);
+        input.value = '';
+        input.dispatchEvent(new Event('input'));
+      });
     });
     area.addEventListener('input', () => {
       $('#samplePreset').value = 'custom';
@@ -1081,10 +1136,10 @@
         if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Values must be a JSON object.');
         state.values = parsed;
         $('#sampleError').hidden = true;
+        drawSampleFields();
         schedulePreview();
       } catch (err) {
-        $('#sampleError').textContent = err.message;
-        $('#sampleError').hidden = false;
+        showSampleError(err.message);
       }
     });
   }
@@ -1126,6 +1181,7 @@
     else $('#bgColor').value = (t.background.color || '#000000').slice(0, 7).toLowerCase();
     state.roleLabels = {};
     $('#personFields').checked = t.person_fields === true;
+    drawSampleFields();
     $('#templateScreen').value = t.screen || '';
     applyTemplateScreen();
     drawVariants();

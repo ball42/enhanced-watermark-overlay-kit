@@ -523,3 +523,21 @@ input[type="color"] {
 .tpl-preview-pick .control-group {
   margin-bottom: 0;
 }
+
+/* Sample device values: one labelled field per variable. */
+.tpl-sample-field {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.tpl-sample-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tpl-json-values summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+}
