@@ -43,7 +43,7 @@
                             <label for="canvasPreset">Size</label>
                             <select id="canvasPreset">
                                 {% for name, size in canvases.items() %}
-                                <option value="{{ size[0] }}x{{ size[1] }}">{{ name }} — {{ size[0] }}×{{ size[1] }}</option>
+                                <option value="{{ size[0] }}x{{ size[1] }}" data-devices="{{ canvas_devices.get(name, []) | join(',') }}">{{ name }} — {{ size[0] }}×{{ size[1] }}</option>
                                 {% endfor %}
                                 <option value="custom">Custom…</option>
                             </select>
@@ -327,7 +327,7 @@
                         <legend class="visually-hidden">Devices to preview</legend>
                         <div class="tpl-device-picks">
                         {% for p in device_profiles %}
-                            <label class="tpl-inline"><input type="checkbox" class="device-pick" value="{{ p.id }}"{% if p.id in ('iphone-6.7', 'ipad-12.9') %} checked{% endif %}> {{ p.name }}</label>
+                            <label class="tpl-inline"><input type="checkbox" class="device-pick" value="{{ p.id }}"{% if p.id in default_devices %} checked{% endif %}> {{ p.name }}</label>
                         {% endfor %}
                         </div>
                     </fieldset>

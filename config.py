@@ -48,6 +48,15 @@ TEMPLATE_CANVASES = {
     'iPad Pro 12.9" (portrait)': (2048, 2732),
 }
 
+# The devices each canvas is meant for: the designer's "On devices" picks
+# start from these (wallrender device_profiles.json ids). A tall iPhone
+# canvas is always cropped on an iPad, so it does not check iPads.
+CANVAS_DEVICES = {
+    'iPhone (portrait)': ['iphone-6.7', 'iphone-6.1'],
+    'iPad (square, both orientations)': ['ipad-12.9', 'ipad-10.9'],
+    'iPad Pro 12.9" (portrait)': ['ipad-12.9', 'ipad-10.9'],
+}
+
 # Sample devices for the template preview: the shape Brander's
 # build_values() produces from a verified Jamf record (user.* only when
 # both the template and the admin allow personal fields).

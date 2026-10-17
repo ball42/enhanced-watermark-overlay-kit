@@ -120,3 +120,15 @@ def test_screen_choice_is_on_the_page(client):
 def test_new_template_button_is_on_the_page(client):
     body = client.get("/template").get_data(as_text=True)
     assert 'id="newTemplate"' in body and "New template" in body
+
+
+def test_default_device_picks_follow_the_default_canvas(client):
+    """ux-06: the iPhone canvas starts checked against iPhones only, and each
+    canvas preset names the devices it is meant for."""
+    import re
+
+    body = client.get("/template").get_data(as_text=True)
+    checked = re.findall(r'class="device-pick" value="([^"]+)" checked', body)
+    assert checked == ["iphone-6.7", "iphone-6.1"]
+    assert 'value="1290x2796" data-devices="iphone-6.7,iphone-6.1"' in body
+    assert 'value="2732x2732" data-devices="ipad-12.9,ipad-10.9"' in body

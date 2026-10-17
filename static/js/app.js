@@ -96,7 +96,12 @@
       if (result.success) {
         cancelPreview(); // a render of the previous image must not land on this one
         setLoading(processBtn, false);
+        // A replaced photo keeps the current settings, so render them on the new one.
+        const hadPhoto = currentFilename !== null;
         currentFilename = result.filename;
+        // The last result belongs to the previous photo: never show or download it.
+        processedFilename = null;
+        downloadSection.style.display = 'none';
         showStatus(
           `Image uploaded — ${result.dimensions.width}\u00d7${result.dimensions.height}`,
           'success'
@@ -104,6 +109,7 @@
         showControls();
         showPreview();
         processBtn.disabled = false;
+        if (hadPhoto) schedulePreview();
       } else {
         showStatus('Upload failed: ' + result.error, 'error');
       }

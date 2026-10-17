@@ -465,38 +465,35 @@ class TestUploadExpiry:
         monkeypatch.setattr(cleanup, "_last_cleanup", 0)
         cleanup.cleanup_old_files(folder)
 
-    def test_processing_keeps_an_upload_in_use(self, client, monkeypatch):
+    def test_processing_keeps_an_upload_in_use(self, app, client, monkeypatch):
         import time
-        from views import api
         filename = self._upload(client)
-        path = os.path.join(api.UPLOAD_FOLDER, filename)
+        path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
         self._age(path, 50)
         assert client.post("/api/process", json={"filename": filename}).status_code == 200
         assert time.time() - os.path.getmtime(path) < 60
-        self._cleanup(monkeypatch, api.UPLOAD_FOLDER)
+        self._cleanup(monkeypatch, app.config["UPLOAD_FOLDER"])
         assert os.path.exists(path)
 
-    def test_previews_and_overlays_count_as_use(self, client):
+    def test_previews_and_overlays_count_as_use(self, app, client):
         import time
-        from views import api
         filename = self._upload(client)
         logo = self._upload(client)
         for name in (filename, logo):
-            self._age(os.path.join(api.UPLOAD_FOLDER, name), 50)
+            self._age(os.path.join(app.config["UPLOAD_FOLDER"], name), 50)
         resp = client.post("/api/process", json={
             "filename": filename, "image_overlays": [{"filename": logo, "x": 0, "y": 0}]})
         processed = resp.get_json()["processed_filename"]
-        assert time.time() - os.path.getmtime(os.path.join(api.UPLOAD_FOLDER, logo)) < 60
-        out = os.path.join(api.TEMP_FOLDER, processed)
+        assert time.time() - os.path.getmtime(os.path.join(app.config["UPLOAD_FOLDER"], logo)) < 60
+        out = os.path.join(app.config["TEMP_FOLDER"], processed)
         self._age(out, 50)
         assert client.get(f"/api/preview/{processed}").status_code == 200
         assert time.time() - os.path.getmtime(out) < 60
 
-    def test_an_expired_upload_says_so(self, client, monkeypatch):
-        from views import api
+    def test_an_expired_upload_says_so(self, app, client, monkeypatch):
         filename = self._upload(client)
-        self._age(os.path.join(api.UPLOAD_FOLDER, filename), 61)
-        self._cleanup(monkeypatch, api.UPLOAD_FOLDER)
+        self._age(os.path.join(app.config["UPLOAD_FOLDER"], filename), 61)
+        self._cleanup(monkeypatch, app.config["UPLOAD_FOLDER"])
         resp = client.post("/api/process", json={"filename": filename})
         assert resp.status_code == 410
         assert "expired" in resp.get_json()["error"]
