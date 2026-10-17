@@ -38,6 +38,14 @@ def create_app(config_name=None):
     app.register_blueprint(api_bp)
     app.register_blueprint(template_bp)
 
+    # Every page reads errors as JSON; Flask's own 413 page is HTML.
+    from flask import jsonify
+
+    @app.errorhandler(413)
+    def too_large(_err):
+        mb = app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)
+        return jsonify(error=f"That file is larger than {mb} MB."), 413
+
     # Periodic cleanup of old temp files
     from utils.cleanup import cleanup_old_files
 

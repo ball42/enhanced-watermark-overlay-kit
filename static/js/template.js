@@ -116,6 +116,16 @@
     return t;
   }
 
+  // A response body as JSON. A body that is not JSON (an HTML error page,
+  // say) becomes an error object, so a handler can always show a message.
+  async function readJson(resp) {
+    try {
+      return await resp.json();
+    } catch (err) {
+      return { error: `EWOK answered ${resp.status}` };
+    }
+  }
+
   function previewable() {
     // Like exportable(), but an image layer with no asset yet becomes an
     // invisible panel instead of being dropped, so wallrender's layer
@@ -141,7 +151,7 @@
         }),
         signal: previewController.signal,
       });
-      const body = await resp.json();
+      const body = await readJson(resp);
       if (!resp.ok) {
         showWarnings(body.problems || [body.error || 'The preview failed.']);
         setStatus(resp.status === 400 ? 'Not rendered: the template has problems (listed below).'
@@ -276,7 +286,7 @@
 
   async function loadAssets() {
     const resp = await fetch('/api/template/assets');
-    state.assets = (await resp.json()).assets;
+    state.assets = (await readJson(resp)).assets || [];
     drawAssets();
   }
 
@@ -325,15 +335,19 @@
       if (!file) return;
       const form = new FormData();
       form.append('file', file);
-      const resp = await fetch('/api/template/assets', { method: 'POST', body: form });
-      const body = await resp.json();
       e.target.value = '';
-      if (!resp.ok) {
-        setStatus(`Upload failed: ${body.error}`);
-        return;
+      try {
+        const resp = await fetch('/api/template/assets', { method: 'POST', body: form });
+        const body = await readJson(resp);
+        if (!resp.ok) {
+          setStatus(`Upload failed: ${body.error}`);
+          return;
+        }
+        setStatus(`Uploaded asset ${body.id}.`);
+        await loadAssets();
+      } catch (err) {
+        setStatus('Upload failed: could not reach EWOK.');
       }
-      setStatus(`Uploaded asset ${body.id}.`);
-      await loadAssets();
     });
   }
 
@@ -1090,13 +1104,19 @@
       if (!file) return;
       const form = new FormData();
       form.append('file', file);
-      const resp = await fetch('/api/template/import', { method: 'POST', body: form });
-      const body = await resp.json();
-      if (!resp.ok) {
-        ioStatus(`Not opened: ${body.error}${body.problems ? ' ' + body.problems.join('; ') : ''}`);
+      let body;
+      try {
+        const resp = await fetch('/api/template/import', { method: 'POST', body: form });
+        body = await readJson(resp);
+        if (!resp.ok) {
+          ioStatus(`Not opened: ${body.error}${body.problems ? ' ' + body.problems.join('; ') : ''}`);
+          return;
+        }
+        await loadAssets();
+      } catch (err) {
+        ioStatus('Not opened: could not reach EWOK.');
         return;
       }
-      await loadAssets();
       loadTemplate(body.template);
       const added = body.assets.length ? ` Added assets: ${body.assets.join(', ')}.` : '';
       const replaced = body.replaced && body.replaced.length ? ` Replaced library assets: ${body.replaced.join(', ')}.` : '';
@@ -1111,7 +1131,7 @@
         body: JSON.stringify({ template: t }),
       });
       if (!resp.ok) {
-        const body = await resp.json();
+        const body = await readJson(resp);
         ioStatus(`Not exported: ${(body.problems || [body.error]).join('; ')}`);
         return;
       }
@@ -1127,7 +1147,7 @@
         body: JSON.stringify({ template: t }),
       });
       if (!resp.ok) {
-        const body = await resp.json();
+        const body = await readJson(resp);
         ioStatus(`Not exported: ${(body.problems || [body.error]).join('; ')}`);
         return;
       }

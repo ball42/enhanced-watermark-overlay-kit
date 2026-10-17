@@ -422,3 +422,12 @@ def test_preview_stress_renders_each_role_variant(client):
     assert resp.status_code == 200
     labels = [r["label"] for r in resp.get_json()["renders"]]
     assert labels == ["sample", "long", "empty", "role reception", "role ward3"]
+
+
+def test_an_oversized_upload_is_413_json(client):
+    big = b"\0" * (17 * 1024 * 1024)
+    resp = client.post("/api/template/assets", data={"file": (io.BytesIO(big), "huge.png")},
+                       content_type="multipart/form-data")
+    assert resp.status_code == 413
+    assert resp.is_json
+    assert resp.get_json() == {"error": "That file is larger than 16 MB."}
