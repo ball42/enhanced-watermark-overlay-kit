@@ -78,6 +78,9 @@
       if (e.target.files.length > 0) {
         handleFileUpload(e.target.files[0]);
       }
+      // Empty the input so choosing the same file again fires change,
+      // for example after "This upload expired".
+      fileInput.value = '';
     });
   }
 
