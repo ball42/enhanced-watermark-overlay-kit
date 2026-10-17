@@ -87,6 +87,19 @@ def upload_file():
     
     return jsonify({'error': 'Invalid file type'}), 400
 
+def remove_previous_result(previous, output_path):
+    """Delete the result a new render replaces: only a processed_ file in the temp folder."""
+    if not isinstance(previous, str) or not os.path.basename(previous).startswith('processed_'):
+        return
+    path = safe_filepath(previous, temp_folder())
+    if not path or path == os.path.realpath(output_path):
+        return
+    try:
+        os.remove(path)
+    except OSError:
+        pass  # already gone (cleanup, or a second tab)
+
+
 @api_bp.route('/process', methods=['POST'])
 def process_image():
     """Process image with applied effects"""
@@ -222,7 +235,8 @@ def process_image():
                 result_img.save(output_path, pil_format, quality=90)
             else:
                 result_img.save(output_path, pil_format)
-            
+            remove_previous_result(data.get('previous_filename'), output_path)
+
             return jsonify({
                 'success': True,
                 'processed_filename': output_filename,

@@ -10,6 +10,7 @@
   let imageOverlayCount = 0;
   let previewTimer = null;
   let previewAbort = null; // the in-flight render's AbortController
+  let previewDirty = false; // an edit arrived during that render
 
   // ── DOM refs ────────────────────────────────
   const $ = (sel) => document.querySelector(sel);
@@ -226,10 +227,12 @@
     previewTimer = setTimeout(processImage, PREVIEW_DELAY);
   }
 
+  // Only for a new photo or Reset: the server still finishes an aborted render.
   function cancelPreview() {
     clearTimeout(previewTimer);
     if (previewAbort) previewAbort.abort();
     previewAbort = null;
+    previewDirty = false;
   }
 
   function bindLivePreview() {
@@ -258,10 +261,17 @@
 
   async function processImage() {
     if (!currentFilename) return;
+    clearTimeout(previewTimer);
+    // One render at a time: an aborted fetch does not stop the server, so
+    // edits during a render ask for one more render when it ends.
+    if (previewAbort) {
+      previewDirty = true;
+      return;
+    }
 
-    cancelPreview();
     const controller = new AbortController();
     previewAbort = controller;
+    previewDirty = false;
     setLoading(processBtn, true);
     setStale(true);
     showStatus('Updating preview\u2026', 'info');
@@ -280,6 +290,8 @@
       background: getBackgroundConfig(),
       watermark: getWatermarkConfig(),
       output_format: $('#outputFormat').value,
+      // The server removes the result this render replaces.
+      previous_filename: processedFilename,
     };
 
     if ($('#wallpaperMode').checked) {
@@ -313,6 +325,7 @@
         // The upload was cleaned up: it cannot be processed again.
         currentFilename = null;
         previewAbort = null;
+        previewDirty = false;
         showStatus(result.error, 'error');
         showToast(result.error, 'error');
         setStale(false);
@@ -330,6 +343,10 @@
     }
 
     previewAbort = null;
+    if (previewDirty) {
+      processImage(); // the edits made while this render ran
+      return;
+    }
     setStale(false);
     setLoading(processBtn, false);
   }
