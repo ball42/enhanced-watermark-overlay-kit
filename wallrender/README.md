@@ -27,7 +27,9 @@ It renders the template with the sample values, writes the PNG, and prints warni
 - variables with no value;
 - characters the font cannot draw;
 - text that shrank below half its set size, or is cut off even at the minimum size;
+- text that shrank below 1.2% of the canvas height (34 px on a 2796 px iPhone canvas), too small to read on the device;
 - text whose contrast against what is behind it is below WCAG's 4.5:1, or 3:1 for large text.
+- QR codes whose box is too small to draw them, whose modules are under 3 px, or whose colors have a contrast below 3:1, any of which phones may fail to scan.
 
 It numbers layers from 1 and names each one as EWOK's layer list does, for example `layer 1 (text: {{device_name}})`. The library's own messages (`lint`, `fit_warnings`) number layers from 0.
 
@@ -42,9 +44,9 @@ Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from 
   "canvas": {"width": 1290, "height": 2796},
   "background": {"color": "#0B2545"},
   "layers": [
-    {"type": "text", "text": "{{device_name}}", "box": {"x": 0.08, "y": 0.6, "w": 0.84, "h": 0.05},
+    {"type": "text", "text": "{{device_name}}", "box": {"x": 0.08, "y": 0.54, "w": 0.84, "h": 0.05},
      "size": 0.028, "color": "#FFFFFF", "align": "center"},
-    {"type": "qr", "data": "jamf-device:{{jss_id}}", "box": {"x": 0.35, "y": 0.76, "w": 0.3, "h": 0.14}},
+    {"type": "qr", "data": "jamf-device:{{jss_id}}", "box": {"x": 0.35, "y": 0.7, "w": 0.3, "h": 0.14}},
     {"type": "image", "asset": "logo", "box": {"x": 0.4, "y": 0.1, "w": 0.2, "h": 0.1}}
   ]
 }

@@ -498,3 +498,45 @@ class TestUploadExpiry:
         assert resp.status_code == 410
         assert "expired" in resp.get_json()["error"]
         assert "Upload it again" in resp.get_json()["error"]
+
+
+# ── A new render replaces the previous result ──
+
+
+class TestPreviousResult:
+    def _upload(self, client):
+        resp = client.post(
+            "/api/upload",
+            data={"file": (make_test_image(), "live.png")},
+            content_type="multipart/form-data",
+        )
+        return resp.get_json()["filename"]
+
+    def _process(self, client, filename, **extra):
+        resp = client.post(
+            "/api/process",
+            data=json.dumps({"filename": filename, **extra}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200, resp.get_json()
+        return resp.get_json()["processed_filename"]
+
+    def test_process_removes_the_previous_processed_file(self, app, client):
+        temp = app.config["TEMP_FOLDER"]
+        filename = self._upload(client)
+        first = self._process(client, filename)
+        assert os.path.exists(os.path.join(temp, first))
+        second = self._process(client, filename, previous_filename=first)
+        assert not os.path.exists(os.path.join(temp, first))
+        assert os.path.exists(os.path.join(temp, second))
+
+    def test_previous_filename_never_removes_other_files(self, app, client):
+        filename = self._upload(client)
+        upload_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        outside = os.path.join(os.path.dirname(app.config["TEMP_FOLDER"]), "processed_keep.png")
+        with open(outside, "wb") as f:
+            f.write(b"x")
+        for previous in (filename, "../processed_keep.png", f"../uploads/{filename}", 42):
+            self._process(client, filename, previous_filename=previous)
+        assert os.path.exists(upload_path)
+        assert os.path.exists(outside)

@@ -159,6 +159,14 @@ class _TextFit:
         self.behind, self.color, self.shortened = behind, color, shortened
 
 
+class _QrFit:
+    """How one QR code came out, for lint: never affects the pixels."""
+
+    def __init__(self, index: int, side: int, modules: int,
+                 dark: tuple[int, int, int], light: tuple[int, int, int]):
+        self.index, self.side, self.modules, self.dark, self.light = index, side, modules, dark, light
+
+
 def _ellipsize(text: str, font, bw: int) -> str:
     """Longest prefix of text, plus an ellipsis, whose width fits bw (binary
     search: about log2(500) measurements, never one per character)."""
@@ -267,7 +275,8 @@ def _draw_text(img: Image.Image, session: _Session, layer: dict[str, Any],
 
 
 def _draw_qr(img: Image.Image, layer: dict[str, Any], values: dict[str, Any], missing: list[str],
-             index: int = 0, hidden: list[tuple[int, list[str]]] | None = None) -> None:
+             index: int = 0, hidden: list[tuple[int, list[str]]] | None = None,
+             qrs: list[_QrFit] | None = None) -> None:
     data = _layer_text(layer, "data", values, missing, hidden, index, None)
     if not data:
         return
@@ -286,6 +295,12 @@ def _draw_qr(img: Image.Image, layer: dict[str, Any], values: dict[str, Any], mi
     modules = len(matrix)
     bx, by, bw, bh = _box_px(layer["box"], img.size)
     side = min(bw, bh) // modules * modules  # whole pixels per module keeps edges crisp
+    if qrs is not None:
+        # The colours a scanner sees: light over what is behind the box, dark over light.
+        sample = img.crop((bx, by, bx + max(1, bw), by + max(1, bh))).resize((16, 16), Image.Resampling.BOX)
+        behind = tuple(round(c) for c in ImageStat.Stat(sample.convert("RGB")).mean)
+        seen_light = _over(light, behind)
+        qrs.append(_QrFit(index, side, modules, _over(dark, seen_light), seen_light))
     if side <= 0:
         return
     code = Image.new("RGBA", (modules, modules), light)
@@ -329,12 +344,13 @@ def render_with_report(template: dict[str, Any], values: dict[str, Any],
     """Render and also return the variable paths that had no printable value.
 
     Raises only TemplateError, whatever the template, values or assets contain."""
-    img, missing, _, _ = _render(template, values, assets)
+    img, missing, _, _, _ = _render(template, values, assets)
     return img, missing
 
 
 def _render(template: dict[str, Any], values: dict[str, Any], assets: AssetResolver,
-            fits: list[_TextFit] | None = None, hidden: list[tuple[int, list[str]]] | None = None):
+            fits: list[_TextFit] | None = None, hidden: list[tuple[int, list[str]]] | None = None,
+            qrs: list[_QrFit] | None = None):
     problems = validate(template)
     if problems:
         raise TemplateError(problems)
@@ -348,12 +364,12 @@ def _render(template: dict[str, Any], values: dict[str, Any], assets: AssetResol
             if kind == "text":
                 _draw_text(img, session, layer, values, missing, fits, index, hidden)
             elif kind == "qr":
-                _draw_qr(img, layer, values, missing, index, hidden)
+                _draw_qr(img, layer, values, missing, index, hidden, qrs)
             elif kind == "panel":
                 _draw_panel(img, layer)
             else:
                 _draw_image(img, session, layer)
-        return _flatten(img), missing, fits or [], hidden or []
+        return _flatten(img), missing, fits or [], hidden or [], qrs or []
     except TemplateError:
         raise
     except (ValueError, TypeError, OverflowError, UnicodeError, OSError, MemoryError, RecursionError) as e:
@@ -377,6 +393,11 @@ def _missing_glyphs(session: _Session, text: str, notdef: bytes) -> list[str]:
 
 
 SHRINK_WARNING = 0.5  # warn when text had to drop below half its set size
+# Of canvas height: text that shrinks below this cannot be read on the device
+# (34 px on a 2796 px iPhone canvas, about 11 pt at 3x).
+READABLE_MIN = 0.012
+QR_MIN_MODULE_PX = 3  # smaller modules are hard for a phone camera to resolve
+QR_MIN_CONTRAST = 3.0
 LARGE_TEXT = 0.03  # of canvas height: WCAG's large-text threshold applies
 
 
@@ -406,6 +427,9 @@ def _fit_warnings(fits: list[_TextFit], height: int) -> list[str]:
         where = f"layer {fit.index}"
         if fit.clipped:
             warnings.append(f"{where}: text does not fit its box even at {fit.used}px; it is cut off")
+        elif fit.used < fit.requested and fit.used < READABLE_MIN * height:
+            warnings.append(f"{where}: text shrank to {fit.used}px, too small to read on the device; "
+                            "set a smallest size or shorten the text")
         elif fit.shortened:
             warnings.append(f"{where}: text shortened with \u2026 to fit its box")
         elif fit.used < fit.requested * SHRINK_WARNING:
@@ -418,28 +442,46 @@ def _fit_warnings(fits: list[_TextFit], height: int) -> list[str]:
     return warnings
 
 
+def _qr_warnings(qrs: list[_QrFit]) -> list[str]:
+    warnings = []
+    for qr in qrs:
+        where = f"layer {qr.index}"
+        if qr.side <= 0:
+            warnings.append(f"{where}: the QR box is too small to draw the code")
+            continue
+        module = qr.side // qr.modules
+        if module < QR_MIN_MODULE_PX:
+            warnings.append(f"{where}: QR modules are only {module} px; phones may not scan it")
+        ratio = contrast_ratio(qr.dark, qr.light)
+        if ratio < QR_MIN_CONTRAST:
+            warnings.append(f"{where}: QR colors have low contrast {ratio:.1f}:1; "
+                            f"phones need at least {QR_MIN_CONTRAST:g}:1 to scan it")
+    return warnings
+
+
 def render_with_lint(template: dict[str, Any], values: dict[str, Any],
                      assets: AssetResolver) -> tuple[Image.Image, list[str]]:
     """The rendered image and lint's warnings from one render, for callers
     that want both (raises TemplateError like render)."""
-    img, missing, fits, hidden = _render(template, values, assets, fits=[], hidden=[])
-    return img, _lint_warnings(template, values, assets, img, missing, fits, hidden)
+    img, missing, fits, hidden, qrs = _render(template, values, assets, fits=[], hidden=[], qrs=[])
+    return img, _lint_warnings(template, values, assets, img, missing, fits, hidden, qrs)
 
 
 def lint(template: dict[str, Any], values: dict[str, Any], assets: AssetResolver) -> list[str]:
     """Warnings a designer should see: invalid template, missing values, missing
-    glyphs, text that shrank or is cut off, and low text contrast (WCAG)."""
+    glyphs, text that shrank or is cut off, low text contrast (WCAG), and QR
+    codes that are missing or hard to scan."""
     problems = validate(template)
     if problems:
         return problems
     try:
-        img, missing, fits, hidden = _render(template, values, assets, fits=[], hidden=[])
+        img, missing, fits, hidden, qrs = _render(template, values, assets, fits=[], hidden=[], qrs=[])
     except TemplateError as e:
         return e.problems
-    return _lint_warnings(template, values, assets, img, missing, fits, hidden)
+    return _lint_warnings(template, values, assets, img, missing, fits, hidden, qrs)
 
 
-def _lint_warnings(template, values, assets, img, missing, fits, hidden) -> list[str]:
+def _lint_warnings(template, values, assets, img, missing, fits, hidden, qrs) -> list[str]:
     warnings: list[str] = []
     if "roles" in template:
         variant, _ = choose(template, values)
@@ -455,6 +497,7 @@ def _lint_warnings(template, values, assets, img, missing, fits, hidden) -> list
     for path in sorted(set(missing) - hidden_paths):
         warnings.append(f"no value for {{{{{path}}}}}; it renders empty")
     warnings.extend(_fit_warnings(fits, img.height))
+    warnings.extend(_qr_warnings(qrs))
     session = _Session(assets)
     notdef_img = Image.new("L", (96, 96), 0)
     ImageDraw.Draw(notdef_img).text((16, 16), "\U0010FFFD", font=session.font(48), fill=255)
