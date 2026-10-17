@@ -172,10 +172,23 @@
       };
       showWarnings(render.device_warnings, $('#deviceWarnings'),
         pickedDevices().length ? 'Fits every selected device.' : 'No devices selected.');
-      setStatus(`Rendered ${state.template.canvas ? state.template.canvas.width + '×' + state.template.canvas.height : ''} with the sample device.`);
+      const size = state.template.canvas ? `${state.template.canvas.width}×${state.template.canvas.height} ` : '';
+      setStatus(`Rendered ${size}with ${previewSubject()}.`);
     } catch (err) {
       if (err.name !== 'AbortError') setStatus('Not rendered: could not reach EWOK.');
     }
+  }
+
+  // What the preview shows: the picked sample device and role, in words.
+  function previewSubject() {
+    const pick = $('#samplePreset').value;
+    const preset = pick === 'custom' ? null : PRESETS[Number(pick)];
+    let text = preset ? `${preset.name} (${preset.values.device_name || 'no device name'})` : 'custom values';
+    if (state.template.roles && state.previewRole !== null) {
+      text += state.previewRole === '' ? ', no role set'
+        : `, as ${$('#previewRole').selectedOptions[0].textContent}`;
+    }
+    return text;
   }
 
   function setStatus(text) {
@@ -887,6 +900,7 @@
     const roles = state.template.roles;
     $('#rolesOn').checked = Boolean(roles);
     $('#rolesBody').hidden = !roles;
+    $('#previewRoleGroup').hidden = !roles;
     const list = $('#variantList');
     list.replaceChildren();
     if (!roles) {

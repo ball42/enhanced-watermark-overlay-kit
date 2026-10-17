@@ -514,3 +514,12 @@ input[type="color"] {
 .tpl-variant-list .tpl-icon-btn {
   margin-top: var(--space-sm);
 }
+
+/* Sample device and role pickers, above the preview they change. */
+.tpl-preview-pick {
+  margin-bottom: var(--space-xs);
+}
+
+.tpl-preview-pick .control-group {
+  margin-bottom: 0;
+}
