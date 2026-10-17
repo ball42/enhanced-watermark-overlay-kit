@@ -27,6 +27,7 @@ It renders the template with the sample values, writes the PNG, and prints warni
 - variables with no value;
 - characters the font cannot draw;
 - text that shrank below half its set size, or is cut off even at the minimum size;
+- text that shrank below 1.2% of the canvas height (34 px on a 2796 px iPhone canvas), too small to read on the device;
 - text whose contrast against what is behind it is below WCAG's 4.5:1, or 3:1 for large text.
 - QR codes whose box is too small to draw them, whose modules are under 3 px, or whose colors have a contrast below 3:1, any of which phones may fail to scan.
 

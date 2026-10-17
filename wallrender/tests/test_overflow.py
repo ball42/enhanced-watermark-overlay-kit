@@ -139,3 +139,46 @@ def test_stress_renders_long_and_empty_variants(tmp_path, capsys):
             assert img.size == (400, 800)
     text = capsys.readouterr()
     assert "[long]" in text.err and "[empty]" in text.err
+
+
+# --- lint: text too small to read --------------------------------------------
+
+
+def test_text_shrunk_below_the_readable_size_says_so():
+    # 1.2% of an 800 px canvas is 9.6 px; 40 W's in a 320 px box shrink below it.
+    warnings = lint(tpl(text_layer("{{n}}")), {"n": "W" * 40}, no_assets)
+    small = [w for w in warnings if "too small to read" in w]
+    assert len(small) == 1, warnings
+    assert small[0].startswith("layer 0: text shrank to ")
+    assert small[0].endswith("px, too small to read on the device; "
+                             "set a smallest size or shorten the text")
+    assert not any("shrank from" in w for w in warnings), warnings
+
+
+def test_text_shrunk_but_still_readable_keeps_the_size_message():
+    warnings = lint(tpl(text_layer("{{n}}")), {"n": "W" * 25}, no_assets)
+    assert any("text shrank from 40px to" in w for w in warnings), warnings
+    assert not any("too small to read" in w for w in warnings), warnings
+
+
+def test_stress_names_text_too_small_to_read(tmp_path, capsys):
+    phone = {"canvas": {"width": 1290, "height": 2796}}
+    layer = text_layer("{{device_name}}", box=(0.08, 0.54, 0.84, 0.05), size=0.028)
+    t = tmp_path / "t.json"
+    t.write_text(json.dumps(tpl(layer, **phone)))
+    v = tmp_path / "v.json"
+    v.write_text(json.dumps({"device_name": "Front Desk iPhone"}))
+    assert main(["preview", str(t), str(v), "-o", str(tmp_path / "o.png"), "--stress"]) == 0
+    err = capsys.readouterr().err
+    assert "[long] warning: layer 1 (text: {{device_name}}): text shrank to" in err, err
+    assert "too small to read on the device" in err, err
+
+
+def test_the_shipped_example_stress_has_no_unreadable_text(tmp_path, capsys):
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent / "examples"
+    main(["preview", str(root / "brander-basic.json"), str(root / "sample-device.json"),
+          "-o", str(tmp_path / "x.png"), "--stress"])
+    # Its text layers set min_size 0.016-0.018 (45-50 px), above 34 px.
+    assert "too small to read" not in capsys.readouterr().err

@@ -393,6 +393,9 @@ def _missing_glyphs(session: _Session, text: str, notdef: bytes) -> list[str]:
 
 
 SHRINK_WARNING = 0.5  # warn when text had to drop below half its set size
+# Of canvas height: text that shrinks below this cannot be read on the device
+# (34 px on a 2796 px iPhone canvas, about 11 pt at 3x).
+READABLE_MIN = 0.012
 QR_MIN_MODULE_PX = 3  # smaller modules are hard for a phone camera to resolve
 QR_MIN_CONTRAST = 3.0
 LARGE_TEXT = 0.03  # of canvas height: WCAG's large-text threshold applies
@@ -424,6 +427,9 @@ def _fit_warnings(fits: list[_TextFit], height: int) -> list[str]:
         where = f"layer {fit.index}"
         if fit.clipped:
             warnings.append(f"{where}: text does not fit its box even at {fit.used}px; it is cut off")
+        elif fit.used < fit.requested and fit.used < READABLE_MIN * height:
+            warnings.append(f"{where}: text shrank to {fit.used}px, too small to read on the device; "
+                            "set a smallest size or shorten the text")
         elif fit.shortened:
             warnings.append(f"{where}: text shortened with \u2026 to fit its box")
         elif fit.used < fit.requested * SHRINK_WARNING:
