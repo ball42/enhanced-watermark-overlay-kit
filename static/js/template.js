@@ -224,9 +224,38 @@
     list.forEach((w) => {
       const li = document.createElement('li');
       // wallrender counts layers from 0; this page numbers them from 1.
-      li.textContent = w.replace(/\blayer (\d+)/g, (m, n) => `layer ${Number(n) + 1}`);
+      // Each "layer N" becomes a button that selects that layer's box.
+      let at = 0;
+      w.replace(/\blayer (\d+)/g, (m, n, offset) => {
+        li.append(w.slice(at, offset));
+        const i = Number(n);
+        const layer = state.template.layers[i];
+        li.append(layer ? warnLayerButton(i, layer) : `layer ${i + 1}`);
+        at = offset + m.length;
+        return m;
+      });
+      li.append(w.slice(at));
       ul.append(li);
     });
+  }
+
+  function warnLayerButton(i, layer) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tpl-warn-layer';
+    b.textContent = `Layer ${i + 1} (${describe(layer)})`;
+    b.addEventListener('click', () => focusLayer(i));
+    return b;
+  }
+
+  // Select a layer and give its box on the preview keyboard focus, so the
+  // arrow keys move it straight away.
+  function focusLayer(i) {
+    if (!state.template.layers[i]) return;
+    select(i);
+    const frame = $(`#overlay .tpl-boxframe[data-index="${i}"]`);
+    $('#stage').scrollIntoView({ block: 'nearest' });
+    if (frame) frame.focus({ preventScroll: true });
   }
 
   // ── Canvas and background ──────────────────────────

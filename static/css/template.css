@@ -198,6 +198,22 @@
   font-weight: 600;
 }
 
+/* "Layer 2 (...)" in a warning: selects that layer's box. */
+.tpl-warn-layer {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.tpl-warn-layer:hover {
+  color: var(--color-primary-hover);
+}
+
 .tpl-warnings li.ok {
   border-left-color: var(--color-success);
   background: var(--color-success-bg);

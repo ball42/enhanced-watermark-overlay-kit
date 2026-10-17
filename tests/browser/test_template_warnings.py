@@ -33,3 +33,24 @@ def test_a_blank_image_layer_above_text_keeps_the_layer_number(page):
     wait_for_warning(page, "hidden because")
     text = page.inner_text("#warningList")
     assert "ayer 2" in text and "ayer 1" not in text
+
+
+def test_a_layer_in_a_warning_selects_and_focuses_its_box(page):
+    open_with_draft(page, BLANK_IMAGE_FIRST)
+    page.select_option("#samplePreset", "2")
+    wait_for_warning(page, "hidden because")
+    button = page.locator("#warningList .tpl-warn-layer")
+    assert button.inner_text() == "Layer 2 (Text: {{asset_tag}})"
+    button.click()
+    assert page.evaluate("document.activeElement.dataset.index") == "1"
+    assert page.get_attribute("#layerList > li:nth-child(2) .layer-select", "aria-pressed") == "true"
+
+
+def test_device_warning_layers_are_buttons_too(page):
+    page.goto("/template")
+    page.wait_for_selector("#previewImage:not([hidden])")
+    page.check('.device-pick[value="iphone-se"]')  # the default QR sits under its controls
+    page.wait_for_function(
+        "document.querySelector('#deviceWarnings').textContent.includes('iPhone SE')")
+    page.locator("#deviceWarnings .tpl-warn-layer").first.click()
+    assert page.evaluate("document.activeElement.dataset.index") == "1"
