@@ -174,6 +174,13 @@
 
   const STRESS_CAPTIONS = { long: 'Every value long', empty: 'Every value empty' };
 
+  function stressCaption(label) {
+    if (STRESS_CAPTIONS[label]) return STRESS_CAPTIONS[label];
+    // "role <key>": a role variant with the sample device's values.
+    const key = label.startsWith('role ') ? label.slice(5) : null;
+    return key === null ? label : `Role: ${state.roleLabels[key] || key}`;
+  }
+
   function showStress(renders) {
     const box = $('#stressRenders');
     box.hidden = !renders.length;
@@ -181,10 +188,11 @@
     renders.forEach((r) => {
       const fig = document.createElement('figure');
       const cap = document.createElement('figcaption');
-      cap.textContent = STRESS_CAPTIONS[r.label] || r.label;
+      cap.textContent = stressCaption(r.label);
       const img = document.createElement('img');
       img.src = r.image;
-      img.alt = `Preview with ${(STRESS_CAPTIONS[r.label] || r.label).toLowerCase()}`;
+      img.alt = STRESS_CAPTIONS[r.label] ? `Preview with ${STRESS_CAPTIONS[r.label].toLowerCase()}`
+        : `Preview as ${stressCaption(r.label)}`;
       const ul = document.createElement('ul');
       ul.className = 'tpl-warnings';
       fig.append(cap, img, ul);

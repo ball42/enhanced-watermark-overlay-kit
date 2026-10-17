@@ -18,7 +18,7 @@ from PIL import Image, UnidentifiedImageError
 
 import config
 from wallrender import TemplateError, render_with_lint, validate
-from wallrender.cli import folder_assets, stress_values
+from wallrender.cli import folder_assets, role_keys, stress_values
 from wallrender.devices import fit_warnings
 from wallrender.schema import ASSET_ID, MAX_PIXELS, MAX_SIDE
 
@@ -79,6 +79,8 @@ def preview():
     variants = [("sample", values)]
     if body.get("stress"):
         variants += [("long", stress_values(template)), ("empty", {})]
+        # Each role variant with the sample device, as `wallrender preview --stress` does.
+        variants += [(f"role {key}", dict(values, role=key)) for key in role_keys(template)]
     try:
         renders = [_render_one(template, v, assets, label, devices if label == "sample" else (), screen)
                    for label, v in variants]

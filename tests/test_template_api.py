@@ -412,3 +412,13 @@ def test_an_invisible_panel_keeps_layer_numbers_and_draws_nothing(client):
         "template": dict(TEMPLATE, layers=[text]), "values": values}).get_json()["renders"][0]
     assert any(w.startswith("layer 1: hidden") for w in with_blank["warnings"])
     assert without["image"] == with_blank["image"]
+
+
+def test_preview_stress_renders_each_role_variant(client):
+    roles = {"variants": {"reception": {"values": {"title": "Reception"}},
+                          "ward3": {"values": {"title": "Ward 3"}}}}
+    resp = client.post("/api/template/preview", json={
+        "template": dict(TEMPLATE, roles=roles), "values": {"device_name": "iPad"}, "stress": True})
+    assert resp.status_code == 200
+    labels = [r["label"] for r in resp.get_json()["renders"]]
+    assert labels == ["sample", "long", "empty", "role reception", "role ward3"]
