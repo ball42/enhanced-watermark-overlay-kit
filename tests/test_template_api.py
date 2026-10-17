@@ -394,3 +394,21 @@ def test_a_panel_exports_in_the_package(client):
     package = json.loads(resp.get_data())
     assert package["template"]["layers"][0]["type"] == "panel"
     assert package["assets"] == {}
+
+
+# --- a blank image layer keeps its place in the preview ----------------------
+
+
+def test_an_invisible_panel_keeps_layer_numbers_and_draws_nothing(client):
+    """The designer previews an image layer with no asset as an opacity-0
+    panel, so warnings count the layers the page lists."""
+    text = {"type": "text", "text": "{{asset_tag}}", "box": {"x": 0.1, "y": 0.4, "w": 0.8, "h": 0.1},
+            "size": 0.04, "color": "#FFFFFF", "hide_if_empty": True}
+    blank = {"type": "panel", "box": {"x": 0.35, "y": 0.3, "w": 0.3, "h": 0.14}, "opacity": 0}
+    values = {"asset_tag": ""}
+    with_blank = client.post("/api/template/preview", json={
+        "template": dict(TEMPLATE, layers=[blank, text]), "values": values}).get_json()["renders"][0]
+    without = client.post("/api/template/preview", json={
+        "template": dict(TEMPLATE, layers=[text]), "values": values}).get_json()["renders"][0]
+    assert any(w.startswith("layer 1: hidden") for w in with_blank["warnings"])
+    assert without["image"] == with_blank["image"]

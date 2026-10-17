@@ -116,6 +116,17 @@
     return t;
   }
 
+  function previewable() {
+    // Like exportable(), but an image layer with no asset yet becomes an
+    // invisible panel instead of being dropped, so wallrender's layer
+    // numbers in warnings match this page's layer list.
+    const t = exportable();
+    t.layers = state.template.layers.map((l) => (l.type === 'image' && !l.asset
+      ? { type: 'panel', box: { ...l.box }, opacity: 0 }
+      : JSON.parse(JSON.stringify(l))));
+    return t;
+  }
+
   async function renderPreview() {
     if (previewController) previewController.abort();
     previewController = new AbortController();
@@ -125,7 +136,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          template: exportable(), values: previewValues(), stress: state.stress,
+          template: previewable(), values: previewValues(), stress: state.stress,
           devices: pickedDevices(), screen: state.guide.screen,
         }),
         signal: previewController.signal,
