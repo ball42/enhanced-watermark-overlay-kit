@@ -42,9 +42,9 @@ Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from 
   "canvas": {"width": 1290, "height": 2796},
   "background": {"color": "#0B2545"},
   "layers": [
-    {"type": "text", "text": "{{device_name}}", "box": {"x": 0.08, "y": 0.6, "w": 0.84, "h": 0.05},
+    {"type": "text", "text": "{{device_name}}", "box": {"x": 0.08, "y": 0.54, "w": 0.84, "h": 0.05},
      "size": 0.028, "color": "#FFFFFF", "align": "center"},
-    {"type": "qr", "data": "jamf-device:{{jss_id}}", "box": {"x": 0.35, "y": 0.76, "w": 0.3, "h": 0.14}},
+    {"type": "qr", "data": "jamf-device:{{jss_id}}", "box": {"x": 0.35, "y": 0.7, "w": 0.3, "h": 0.14}},
     {"type": "image", "asset": "logo", "box": {"x": 0.4, "y": 0.1, "w": 0.2, "h": 0.1}}
   ]
 }
