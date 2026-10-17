@@ -5,7 +5,7 @@ import json
 import pytest
 from PIL import Image
 
-from wallrender import lint
+from wallrender import lint, render_with_lint
 from wallrender.cli import main
 from wallrender.render import contrast_ratio
 
@@ -61,6 +61,39 @@ def test_contrast_is_measured_against_what_is_behind_the_box():
 
 def test_good_contrast_is_quiet():
     assert not any("contrast" in w for w in lint(tpl(text_layer("Hi")), {}, no_assets))
+
+
+# --- lint: QR codes ----------------------------------------------------------
+
+PHONE = {"canvas": {"width": 1290, "height": 2796}}
+
+
+def qr_layer(box, **kw):
+    x, y, w, h = box
+    return {"type": "qr", "data": "jamf-device:42", "box": {"x": x, "y": y, "w": w, "h": h}, **kw}
+
+
+def test_a_qr_box_too_small_to_draw_is_reported():
+    img, warnings = render_with_lint(tpl(qr_layer((0.4, 0.5, 0.015, 0.01)), **PHONE), {}, no_assets)
+    assert len(img.getcolors()) == 1  # nothing drawn
+    assert "layer 0: the QR box is too small to draw the code" in warnings, warnings
+
+
+def test_qr_modules_of_2px_are_reported():
+    # "jamf-device:42" is a version-1 code: 21 modules plus a 2-module quiet
+    # zone on each side, so 25. A 55 px box gives 2 px per module.
+    warnings = lint(tpl(qr_layer((0.4, 0.5, 55 / 1290, 0.03)), **PHONE), {}, no_assets)
+    assert "layer 0: QR modules are only 2 px; phones may not scan it" in warnings, warnings
+
+
+def test_grey_on_grey_qr_colors_are_reported():
+    grey = qr_layer((0.35, 0.7, 0.3, 0.14), color="#777777", background="#888888")
+    warnings = lint(tpl(grey, **PHONE), {}, no_assets)
+    assert any(w.startswith("layer 0: QR colors have low contrast 1.") for w in warnings), warnings
+
+
+def test_a_default_black_on_white_qr_is_quiet():
+    assert lint(tpl(qr_layer((0.35, 0.7, 0.3, 0.14)), **PHONE), {}, no_assets) == []
 
 
 # --- the CLI -----------------------------------------------------------------
