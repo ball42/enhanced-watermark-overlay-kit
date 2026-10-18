@@ -198,6 +198,22 @@
   font-weight: 600;
 }
 
+/* "Layer 2 (...)" in a warning: selects that layer's box. */
+.tpl-warn-layer {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.tpl-warn-layer:hover {
+  color: var(--color-primary-hover);
+}
+
 .tpl-warnings li.ok {
   border-left-color: var(--color-success);
   background: var(--color-success-bg);
@@ -497,4 +513,31 @@ input[type="color"] {
 
 .tpl-variant-list .tpl-icon-btn {
   margin-top: var(--space-sm);
+}
+
+/* Sample device and role pickers, above the preview they change. */
+.tpl-preview-pick {
+  margin-bottom: var(--space-xs);
+}
+
+.tpl-preview-pick .control-group {
+  margin-bottom: 0;
+}
+
+/* Sample device values: one labelled field per variable. */
+.tpl-sample-field {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.tpl-sample-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tpl-json-values summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
 }

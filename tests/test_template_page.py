@@ -132,3 +132,14 @@ def test_default_device_picks_follow_the_default_canvas(client):
     assert checked == ["iphone-6.7", "iphone-6.1"]
     assert 'value="1290x2796" data-devices="iphone-6.7,iphone-6.1"' in body
     assert 'value="2732x2732" data-devices="ipad-12.9,ipad-10.9"' in body
+
+
+def test_sample_device_and_role_pickers_sit_in_the_preview_panel(client):
+    """ux-03: the pickers are next to the image they change."""
+    import re
+
+    body = client.get("/template").get_data(as_text=True)
+    aside = re.search(r'<aside class="preview-panel tpl-preview".*?</aside>', body, re.S).group(0)
+    assert 'id="samplePreset"' in aside
+    assert 'id="previewRole"' in aside
+    assert aside.index('id="samplePreset"') < aside.index('id="previewStatus"')

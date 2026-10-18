@@ -116,6 +116,27 @@
     return t;
   }
 
+  // A response body as JSON. A body that is not JSON (an HTML error page,
+  // say) becomes an error object, so a handler can always show a message.
+  async function readJson(resp) {
+    try {
+      return await resp.json();
+    } catch (err) {
+      return { error: `EWOK answered ${resp.status}` };
+    }
+  }
+
+  function previewable() {
+    // Like exportable(), but an image layer with no asset yet becomes an
+    // invisible panel instead of being dropped, so wallrender's layer
+    // numbers in warnings match this page's layer list.
+    const t = exportable();
+    t.layers = state.template.layers.map((l) => (l.type === 'image' && !l.asset
+      ? { type: 'panel', box: { ...l.box }, opacity: 0 }
+      : JSON.parse(JSON.stringify(l))));
+    return t;
+  }
+
   async function renderPreview() {
     if (previewController) previewController.abort();
     previewController = new AbortController();
@@ -125,12 +146,12 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          template: exportable(), values: previewValues(), stress: state.stress,
+          template: previewable(), values: previewValues(), stress: state.stress,
           devices: pickedDevices(), screen: state.guide.screen,
         }),
         signal: previewController.signal,
       });
-      const body = await resp.json();
+      const body = await readJson(resp);
       if (!resp.ok) {
         showWarnings(body.problems || [body.error || 'The preview failed.']);
         setStatus(resp.status === 400 ? 'Not rendered: the template has problems (listed below).'
@@ -151,10 +172,23 @@
       };
       showWarnings(render.device_warnings, $('#deviceWarnings'),
         pickedDevices().length ? 'Fits every selected device.' : 'No devices selected.');
-      setStatus(`Rendered ${state.template.canvas ? state.template.canvas.width + '×' + state.template.canvas.height : ''} with the sample device.`);
+      const size = state.template.canvas ? `${state.template.canvas.width}×${state.template.canvas.height} ` : '';
+      setStatus(`Rendered ${size}with ${previewSubject()}.`);
     } catch (err) {
       if (err.name !== 'AbortError') setStatus('Not rendered: could not reach EWOK.');
     }
+  }
+
+  // What the preview shows: the picked sample device and role, in words.
+  function previewSubject() {
+    const pick = $('#samplePreset').value;
+    const preset = pick === 'custom' ? null : PRESETS[Number(pick)];
+    let text = preset ? `${preset.name} (${preset.values.device_name || 'no device name'})` : 'custom values';
+    if (state.template.roles && state.previewRole !== null) {
+      text += state.previewRole === '' ? ', no role set'
+        : `, as ${$('#previewRole').selectedOptions[0].textContent}`;
+    }
+    return text;
   }
 
   function setStatus(text) {
@@ -163,6 +197,13 @@
 
   const STRESS_CAPTIONS = { long: 'Every value long', empty: 'Every value empty' };
 
+  function stressCaption(label) {
+    if (STRESS_CAPTIONS[label]) return STRESS_CAPTIONS[label];
+    // "role <key>": a role variant with the sample device's values.
+    const key = label.startsWith('role ') ? label.slice(5) : null;
+    return key === null ? label : `Role: ${state.roleLabels[key] || key}`;
+  }
+
   function showStress(renders) {
     const box = $('#stressRenders');
     box.hidden = !renders.length;
@@ -170,10 +211,11 @@
     renders.forEach((r) => {
       const fig = document.createElement('figure');
       const cap = document.createElement('figcaption');
-      cap.textContent = STRESS_CAPTIONS[r.label] || r.label;
+      cap.textContent = stressCaption(r.label);
       const img = document.createElement('img');
       img.src = r.image;
-      img.alt = `Preview with ${(STRESS_CAPTIONS[r.label] || r.label).toLowerCase()}`;
+      img.alt = STRESS_CAPTIONS[r.label] ? `Preview with ${STRESS_CAPTIONS[r.label].toLowerCase()}`
+        : `Preview as ${stressCaption(r.label)}`;
       const ul = document.createElement('ul');
       ul.className = 'tpl-warnings';
       fig.append(cap, img, ul);
@@ -195,9 +237,38 @@
     list.forEach((w) => {
       const li = document.createElement('li');
       // wallrender counts layers from 0; this page numbers them from 1.
-      li.textContent = w.replace(/\blayer (\d+)/g, (m, n) => `layer ${Number(n) + 1}`);
+      // Each "layer N" becomes a button that selects that layer's box.
+      let at = 0;
+      w.replace(/\blayer (\d+)/g, (m, n, offset) => {
+        li.append(w.slice(at, offset));
+        const i = Number(n);
+        const layer = state.template.layers[i];
+        li.append(layer ? warnLayerButton(i, layer) : `layer ${i + 1}`);
+        at = offset + m.length;
+        return m;
+      });
+      li.append(w.slice(at));
       ul.append(li);
     });
+  }
+
+  function warnLayerButton(i, layer) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tpl-warn-layer';
+    b.textContent = `Layer ${i + 1} (${describe(layer)})`;
+    b.addEventListener('click', () => focusLayer(i));
+    return b;
+  }
+
+  // Select a layer and give its box on the preview keyboard focus, so the
+  // arrow keys move it straight away.
+  function focusLayer(i) {
+    if (!state.template.layers[i]) return;
+    select(i);
+    const frame = $(`#overlay .tpl-boxframe[data-index="${i}"]`);
+    $('#stage').scrollIntoView({ block: 'nearest' });
+    if (frame) frame.focus({ preventScroll: true });
   }
 
   // ── Canvas and background ──────────────────────────
@@ -257,7 +328,7 @@
 
   async function loadAssets() {
     const resp = await fetch('/api/template/assets');
-    state.assets = (await resp.json()).assets;
+    state.assets = (await readJson(resp)).assets || [];
     drawAssets();
   }
 
@@ -306,15 +377,19 @@
       if (!file) return;
       const form = new FormData();
       form.append('file', file);
-      const resp = await fetch('/api/template/assets', { method: 'POST', body: form });
-      const body = await resp.json();
       e.target.value = '';
-      if (!resp.ok) {
-        setStatus(`Upload failed: ${body.error}`);
-        return;
+      try {
+        const resp = await fetch('/api/template/assets', { method: 'POST', body: form });
+        const body = await readJson(resp);
+        if (!resp.ok) {
+          setStatus(`Upload failed: ${body.error}`);
+          return;
+        }
+        setStatus(`Uploaded asset ${body.id}.`);
+        await loadAssets();
+      } catch (err) {
+        setStatus('Upload failed: could not reach EWOK.');
       }
-      setStatus(`Uploaded asset ${body.id}.`);
-      await loadAssets();
     });
   }
 
@@ -825,6 +900,7 @@
     const roles = state.template.roles;
     $('#rolesOn').checked = Boolean(roles);
     $('#rolesBody').hidden = !roles;
+    $('#previewRoleGroup').hidden = !roles;
     const list = $('#variantList');
     list.replaceChildren();
     if (!roles) {
@@ -930,6 +1006,7 @@
       if (e.target.checked) state.template.person_fields = true;
       else delete state.template.person_fields;
       drawRoleOptions();
+      drawSampleFields();
       schedulePreview();
     });
   }
@@ -981,22 +1058,76 @@
 
   // ── Sample values and export ───────────────────────
 
+  // A value by dotted path ("location.building"), or '' when absent.
+  function getPath(values, path) {
+    const v = path.split('.').reduce((node, k) => (node && typeof node === 'object' ? node[k] : undefined), values);
+    return v === undefined || v === null ? '' : String(v);
+  }
+
+  function setPath(values, path, value) {
+    const [leaf, ...parents] = path.split('.').reverse();
+    let node = values;
+    parents.reverse().forEach((k) => {
+      if (!node[k] || typeof node[k] !== 'object') node[k] = {};
+      node = node[k];
+    });
+    node[leaf] = value;
+  }
+
+  function showSampleError(message) {
+    const icon = document.createElement('i');
+    icon.className = 'fas fa-circle-exclamation';
+    icon.setAttribute('aria-hidden', 'true');
+    $('#sampleError').replaceChildren(icon, ` ${message}`);
+    $('#sampleError').hidden = false;
+  }
+
+  // The labelled fields and the JSON view both show state.values.
+  function drawSampleFields() {
+    $$('.sample-field').forEach((input) => {
+      if (document.activeElement !== input) input.value = getPath(state.values, input.dataset.value);
+    });
+    $$('[data-person-field]').forEach((el) => { el.hidden = state.template.person_fields !== true; });
+  }
+
   function bindValues() {
     const area = $('#sampleValues');
     area.value = JSON.stringify(SAMPLE, null, 2);
+    drawSampleFields();
     $('#samplePreset').addEventListener('change', (e) => {
       if (e.target.value === 'custom') {
-        area.focus();
+        $('.sample-field').focus();
         return;
       }
       state.values = PRESETS[Number(e.target.value)].values;
       area.value = JSON.stringify(state.values, null, 2);
       $('#sampleError').hidden = true;
+      drawSampleFields();
       schedulePreview();
     });
     $('#stressToggle').addEventListener('change', (e) => {
       state.stress = e.target.checked;
       schedulePreview();
+    });
+    $$('.sample-field').forEach((input) => {
+      input.addEventListener('input', () => {
+        const values = JSON.parse(JSON.stringify(state.values));
+        // Jamf IDs are numbers in Brander's values.
+        const typed = input.dataset.value === 'jss_id' && /^\d+$/.test(input.value) ? Number(input.value) : input.value;
+        setPath(values, input.dataset.value, typed);
+        state.values = values;
+        $('#samplePreset').value = 'custom';
+        area.value = JSON.stringify(values, null, 2);
+        $('#sampleError').hidden = true;
+        schedulePreview();
+      });
+    });
+    $$('[data-empty]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const input = $(`.sample-field[data-value="${btn.dataset.empty}"]`);
+        input.value = '';
+        input.dispatchEvent(new Event('input'));
+      });
     });
     area.addEventListener('input', () => {
       $('#samplePreset').value = 'custom';
@@ -1005,10 +1136,10 @@
         if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Values must be a JSON object.');
         state.values = parsed;
         $('#sampleError').hidden = true;
+        drawSampleFields();
         schedulePreview();
       } catch (err) {
-        $('#sampleError').textContent = err.message;
-        $('#sampleError').hidden = false;
+        showSampleError(err.message);
       }
     });
   }
@@ -1050,6 +1181,7 @@
     else $('#bgColor').value = (t.background.color || '#000000').slice(0, 7).toLowerCase();
     state.roleLabels = {};
     $('#personFields').checked = t.person_fields === true;
+    drawSampleFields();
     $('#templateScreen').value = t.screen || '';
     applyTemplateScreen();
     drawVariants();
@@ -1071,13 +1203,19 @@
       if (!file) return;
       const form = new FormData();
       form.append('file', file);
-      const resp = await fetch('/api/template/import', { method: 'POST', body: form });
-      const body = await resp.json();
-      if (!resp.ok) {
-        ioStatus(`Not opened: ${body.error}${body.problems ? ' ' + body.problems.join('; ') : ''}`);
+      let body;
+      try {
+        const resp = await fetch('/api/template/import', { method: 'POST', body: form });
+        body = await readJson(resp);
+        if (!resp.ok) {
+          ioStatus(`Not opened: ${body.error}${body.problems ? ' ' + body.problems.join('; ') : ''}`);
+          return;
+        }
+        await loadAssets();
+      } catch (err) {
+        ioStatus('Not opened: could not reach EWOK.');
         return;
       }
-      await loadAssets();
       loadTemplate(body.template);
       const added = body.assets.length ? ` Added assets: ${body.assets.join(', ')}.` : '';
       const replaced = body.replaced && body.replaced.length ? ` Replaced library assets: ${body.replaced.join(', ')}.` : '';
@@ -1092,7 +1230,7 @@
         body: JSON.stringify({ template: t }),
       });
       if (!resp.ok) {
-        const body = await resp.json();
+        const body = await readJson(resp);
         ioStatus(`Not exported: ${(body.problems || [body.error]).join('; ')}`);
         return;
       }
@@ -1108,7 +1246,7 @@
         body: JSON.stringify({ template: t }),
       });
       if (!resp.ok) {
-        const body = await resp.json();
+        const body = await readJson(resp);
         ioStatus(`Not exported: ${(body.problems || [body.error]).join('; ')}`);
         return;
       }

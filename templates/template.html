@@ -239,30 +239,47 @@
                             </div>
                             <ol id="variantList" class="tpl-variant-list"></ol>
                             <button type="button" class="btn btn-secondary" id="addVariant"><i class="fas fa-plus" aria-hidden="true"></i> Add role</button>
-                            <div class="control-group">
-                                <label for="previewRole">Preview as</label>
-                                <select id="previewRole"></select>
-                            </div>
+                            <p class="tpl-hint">Pick the role to preview as above the preview.</p>
                         </div>
                     </section>
 
                     <section class="section-container" aria-labelledby="valuesHeading">
                         <h3 id="valuesHeading" class="tpl-heading"><i class="fas fa-tablet-alt" aria-hidden="true"></i> Sample device</h3>
-                        <div class="control-group">
-                            <label for="samplePreset">Device</label>
-                            <select id="samplePreset">
-                                {% for device in sample_devices %}
-                                <option value="{{ loop.index0 }}">{{ device.name }}</option>
-                                {% endfor %}
-                                <option value="custom">Custom (edit the values below)</option>
-                            </select>
-                        </div>
+                        <p class="tpl-hint">Pick the device above the preview. Edit its values here.</p>
                         <script type="application/json" id="sampleDevices">{{ sample_devices | tojson }}</script>
-                        <div class="control-group">
-                            <label for="sampleValues">Values (JSON)</label>
-                            <textarea id="sampleValues" rows="7" spellcheck="false"></textarea>
-                            <small id="sampleError" class="tpl-error" hidden></small>
+                        {% set field_labels = {'device_name': 'Device name', 'serial_number': 'Serial number',
+                                               'asset_tag': 'Asset tag', 'jss_id': 'Jamf ID',
+                                               'location.building': 'Building'} %}
+                        {% set person_labels = {'user.real_name': "User's name", 'user.username': 'Username',
+                                                'user.email': 'Email'} %}
+                        <div class="tpl-sample-fields">
+                        {% for name in variables %}
+                            <div class="control-group">
+                                <label for="sample-{{ name | replace('.', '-') }}">{{ field_labels.get(name, name) }}</label>
+                                <div class="tpl-sample-field">
+                                    <input type="text" id="sample-{{ name | replace('.', '-') }}" class="sample-field" data-value="{{ name }}" spellcheck="false">
+                                    <button type="button" class="tpl-icon-btn" data-empty="{{ name }}" aria-label="Empty {{ field_labels.get(name, name) }}">Empty</button>
+                                </div>
+                            </div>
+                        {% endfor %}
+                        {% for name, label in person_labels.items() %}
+                            <div class="control-group" data-person-field hidden>
+                                <label for="sample-{{ name | replace('.', '-') }}">{{ label }}</label>
+                                <div class="tpl-sample-field">
+                                    <input type="text" id="sample-{{ name | replace('.', '-') }}" class="sample-field" data-value="{{ name }}" spellcheck="false">
+                                    <button type="button" class="tpl-icon-btn" data-empty="{{ name }}" aria-label="Empty {{ label }}">Empty</button>
+                                </div>
+                            </div>
+                        {% endfor %}
                         </div>
+                        <details class="tpl-json-values">
+                            <summary>Edit as JSON</summary>
+                            <div class="control-group">
+                                <label for="sampleValues">Values (JSON), for nested or extra values</label>
+                                <textarea id="sampleValues" rows="7" spellcheck="false"></textarea>
+                            </div>
+                        </details>
+                        <small id="sampleError" class="tpl-error" hidden></small>
                     </section>
 
                     <div class="action-bar tpl-row">
@@ -280,6 +297,21 @@
 
                 <aside class="preview-panel tpl-preview" aria-labelledby="previewHeading">
                     <h3 id="previewHeading"><i class="fas fa-eye" aria-hidden="true"></i> Preview</h3>
+                    <div class="tpl-row tpl-preview-pick">
+                        <div class="control-group">
+                            <label for="samplePreset">Preview with</label>
+                            <select id="samplePreset">
+                                {% for device in sample_devices %}
+                                <option value="{{ loop.index0 }}">{{ device.name }}</option>
+                                {% endfor %}
+                                <option value="custom">Custom (edit the values under Sample device)</option>
+                            </select>
+                        </div>
+                        <div class="control-group" id="previewRoleGroup" hidden>
+                            <label for="previewRole">as</label>
+                            <select id="previewRole"></select>
+                        </div>
+                    </div>
                     <p id="previewStatus" class="tpl-status" aria-live="polite">Waiting for the first render…</p>
                     <fieldset class="tpl-fieldset tpl-guides">
                         <legend>Safe areas on the preview</legend>
