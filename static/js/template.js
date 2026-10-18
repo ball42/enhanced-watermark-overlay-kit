@@ -16,7 +16,7 @@
   const NEW_LAYERS = {
     text: () => ({ type: 'text', text: '{{device_name}}', box: { x: 0.1, y: 0.6, w: 0.8, h: 0.05 },
       size: 0.028, color: '#FFFFFF', align: 'center' }),
-    qr: () => ({ type: 'qr', data: 'jamf-device:{{jss_id}}', box: { x: 0.35, y: 0.72, w: 0.3, h: 0.14 } }),
+    qr: () => ({ type: 'qr', data: 'jamf-device:{{jss_id}}', box: { x: 0.35, y: 0.66, w: 0.3, h: 0.14 } }),
     image: () => ({ type: 'image', asset: '', box: { x: 0.35, y: 0.3, w: 0.3, h: 0.14 } }),
     panel: () => ({ type: 'panel', box: { x: 0.05, y: 0.45, w: 0.9, h: 0.2 },
       color: '#0B2545', opacity: 0.6, radius: 0.12 }),

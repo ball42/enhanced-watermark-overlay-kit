@@ -46,10 +46,20 @@ def test_a_layer_in_a_warning_selects_and_focuses_its_box(page):
     assert page.get_attribute("#layerList > li:nth-child(2) .layer-select", "aria-pressed") == "true"
 
 
+QR_LOW = {
+    "schema_version": 1, "name": "QR low", "canvas": {"width": 1290, "height": 2796},
+    "background": {"color": "#0B2545"},
+    "layers": [
+        {"type": "text", "text": "{{device_name}}", "box": {"x": 0.1, "y": 0.6, "w": 0.8, "h": 0.05},
+         "size": 0.028, "color": "#FFFFFF", "align": "center"},
+        {"type": "qr", "data": "jamf-device:{{jss_id}}", "box": {"x": 0.35, "y": 0.72, "w": 0.3, "h": 0.14}},
+    ],
+}
+
+
 def test_device_warning_layers_are_buttons_too(page):
-    page.goto("/template")
-    page.wait_for_selector("#previewImage:not([hidden])")
-    page.check('.device-pick[value="iphone-se"]')  # the default QR sits under its controls
+    open_with_draft(page, QR_LOW)
+    page.check('.device-pick[value="iphone-se"]')  # this QR sits under its controls
     page.wait_for_function(
         "document.querySelector('#deviceWarnings').textContent.includes('iPhone SE')")
     page.locator("#deviceWarnings .tpl-warn-layer").first.click()
