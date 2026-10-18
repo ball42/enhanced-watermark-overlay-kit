@@ -234,6 +234,7 @@
       });
       const body = await readJson(resp);
       if (!resp.ok) {
+        $('#downloadPreview').disabled = true; // the image shown is out of date
         showWarnings(body.problems || [body.error || 'The preview failed.']);
         setStatus(resp.status === 400 ? 'Not rendered: the template has problems (listed below).'
           : 'Not rendered: an asset or value could not be used (listed below).');
@@ -247,6 +248,7 @@
       showWarnings(render.warnings);
       showStress(body.renders.slice(1));
       state.lastImage = render.image;
+      $('#downloadPreview').disabled = false;
       img.onload = () => {
         drawSafeAreas();
         drawDeviceGrid();
@@ -256,7 +258,10 @@
       const size = state.template.canvas ? `${state.template.canvas.width}×${state.template.canvas.height} ` : '';
       setStatus(`Rendered ${size}with ${previewSubject()}.`);
     } catch (err) {
-      if (err.name !== 'AbortError') setStatus('Not rendered: could not reach EWOK.');
+      if (err.name !== 'AbortError') {
+        $('#downloadPreview').disabled = true;
+        setStatus('Not rendered: could not reach EWOK.');
+      }
     }
   }
 
@@ -1322,6 +1327,12 @@
   }
 
   function bindExport() {
+    // The full-size render, without the boxes and safe areas drawn over it.
+    $('#downloadPreview').addEventListener('click', async () => {
+      if (!state.lastImage || $('#downloadPreview').disabled) return;
+      const blob = await (await fetch(state.lastImage)).blob();
+      saveBlob(blob, `${slug(state.template.name)}-${slug(state.values.device_name || 'sample')}.png`);
+    });
     $('#newTemplate').addEventListener('click', () => {
       if (!confirm('Start a new template? The current design is not saved unless you downloaded it.')) return;
       loadTemplate(newTemplate());
