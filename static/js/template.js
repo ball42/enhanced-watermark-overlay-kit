@@ -733,6 +733,7 @@
       left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%`,
     });
     frame.classList.toggle('selected', i === state.selected);
+    frame.classList.toggle('tag-inside', b.y < 0.02); // no room for the tag above the box
     frame.querySelector('.tpl-boxlabel').textContent = String(i + 1);
     frame.setAttribute('aria-label', `Layer ${i + 1} box (${layer.type}): x ${b.x}, y ${b.y}, `
       + `width ${b.w}, height ${b.h}${i === state.selected ? ', editing' : ''}`);
