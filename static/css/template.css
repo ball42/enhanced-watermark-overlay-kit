@@ -88,6 +88,7 @@
 
 .tpl-layer-list li {
   display: flex;
+  flex-wrap: wrap; /* on a narrow screen the buttons go under the name */
   align-items: center;
   gap: var(--space-xs);
   border: 1px solid var(--color-border);
@@ -97,7 +98,8 @@
 }
 
 .tpl-layer-list .layer-select {
-  flex: 1;
+  flex: 1 1 10rem;
+  min-width: 0;
   text-align: left;
   background: none;
   border: 0;

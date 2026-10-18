@@ -44,3 +44,14 @@ def test_a_copy_at_the_bottom_stays_inside_the_canvas(page):
     page.click('[aria-label="Copy layer 2"]')
     page.wait_for_function("document.querySelectorAll('#layerList > li').length === 3")
     assert draft(page)["layers"][2]["box"]["y"] == 0.96
+
+
+def test_layer_rows_fit_a_phone_screen(page):
+    """Four buttons per row: on a 390 px screen they wrap under the name
+    instead of widening the page."""
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto("/template")
+    page.wait_for_selector("#previewImage:not([hidden])")
+    assert page.evaluate("document.documentElement.scrollWidth") <= 390
+    row = page.locator("#layerList > li").first.bounding_box()
+    assert row["x"] + row["width"] <= 390
