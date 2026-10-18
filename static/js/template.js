@@ -353,11 +353,7 @@
       del.className = 'tpl-icon-btn';
       del.textContent = 'Delete';
       del.setAttribute('aria-label', `Delete asset ${a.id}`);
-      del.addEventListener('click', async () => {
-        await fetch(`/api/template/assets/${a.id}`, { method: 'DELETE' });
-        await loadAssets();
-        schedulePreview();
-      });
+      del.addEventListener('click', () => deleteAsset(a.id));
       li.append(img, name, del);
       ul.append(li);
     });
@@ -369,6 +365,46 @@
     });
     drawProperties();
     if (state.template.roles) drawVariants();
+  }
+
+  // Where the open template uses an asset, in words: the same places as
+  // asset_ids() in views/template_api.py.
+  function assetUses(id) {
+    const t = state.template;
+    const uses = [];
+    if (t.background && t.background.asset === id) uses.push('the background');
+    t.layers.forEach((l, i) => {
+      if (l.type === 'image' && l.asset === id) uses.push(`layer ${i + 1}`);
+    });
+    const roles = t.roles || {};
+    Object.entries(roles.variants || {}).forEach(([key, v]) => {
+      if (v.background && v.background.asset === id) uses.push(`the ${state.roleLabels[key] || key} role background`);
+    });
+    [['empty', 'No role set'], ['default', 'Any other role']].forEach(([k, card]) => {
+      const bg = (roles[k] || {}).background;
+      if (bg && bg.asset === id) uses.push(`the background for "${card}"`);
+    });
+    return uses;
+  }
+
+  const inWords = (items) => (items.length < 2 ? items.join('')
+    : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
+
+  async function deleteAsset(id) {
+    const uses = assetUses(id);
+    if (uses.length && !confirm(`${id} is used by ${inWords(uses)}. Delete it anyway?`)) return;
+    try {
+      const resp = await fetch(`/api/template/assets/${id}`, { method: 'DELETE' });
+      if (!resp.ok) {
+        setStatus(`Not deleted: ${(await readJson(resp)).error}`);
+        return;
+      }
+      setStatus(`Deleted asset ${id}.`);
+      await loadAssets();
+      schedulePreview();
+    } catch (err) {
+      setStatus('Not deleted: could not reach EWOK.');
+    }
   }
 
   function bindAssets() {
