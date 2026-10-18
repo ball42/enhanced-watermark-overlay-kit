@@ -22,7 +22,7 @@
       color: '#0B2545', opacity: 0.6, radius: 0.12 }),
   };
   // What the renderer assumes when a property is absent.
-  const PROP_DEFAULTS = { overflow: 'shrink', align: 'center', opacity: 1, radius: 0 };
+  const PROP_DEFAULTS = { overflow: 'shrink', align: 'center', opacity: 1, radius: 0, weight: 'regular' };
   const PANEL_MARGIN = 0.015; // of the canvas, around the layer a new panel sits behind
 
   // The template a first visit and "New template" start from.
@@ -538,6 +538,9 @@
           else return;
         } else if (input.type === 'color') {
           layer[key] = input.value.toUpperCase();
+        } else if (key === 'weight' && input.value === PROP_DEFAULTS.weight) {
+          // Regular is the default: leave it out, so older wallrender renders it the same.
+          delete layer[key];
         } else {
           layer[key] = input.value;
         }

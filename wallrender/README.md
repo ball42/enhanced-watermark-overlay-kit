@@ -57,7 +57,7 @@ Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from 
 | `canvas` | Whole pixels, at most 8192 per side and 40 MP in total. It may be omitted when the background is an asset, in which case the asset's size is used. |
 | `background` | Either `{"color": "#RRGGBB"}` or `{"asset": "<id>"}`. An asset is scaled to cover the canvas and center-cropped. |
 | `box` | `x`, `y`, `w`, `h` as fractions of the canvas (0–1), entirely inside the canvas. Fractions let one layout scale across screen sizes. |
-| `text` | At most 500 characters, with `{{variables}}`. `size` is a fraction of canvas height (for example 0.028). `align` is `left`, `center` or `right`, and applies to every line of multi-line text; the text block is centered vertically in its box. Text that does not fit is handled by the layer's overflow policy (below). Font: `noto-sans` (bundled). |
+| `text` | At most 500 characters, with `{{variables}}`. `size` is a fraction of canvas height (for example 0.028). `align` is `left`, `center` or `right`, and applies to every line of multi-line text; the text block is centered vertically in its box. Text that does not fit is handled by the layer's overflow policy (below). Font: `noto-sans` (bundled). `weight` is `regular` (the default), `medium`, `semibold` or `bold`. |
 | `qr` | `data` of at most 512 characters, with `{{variables}}`. Drawn square, centered in its box, with a quiet zone so it scans. `color` and `background` are optional. `hide_if_empty` works as for text. |
 | `image` | `asset` id matching `^[a-z0-9_-]{1,64}$`, contained (never stretched) and centered in its box. |
 | `panel` | A filled rectangle that fills its box: a backdrop that keeps text readable over a photo. `color` (default black), `opacity` from 0 to 1 (default 1, multiplied with any alpha in the color) and `radius`, the corner radius as a fraction of the shorter side from 0 to 0.5 (default 0). Put it before the layers it sits behind; lint's contrast check sees it. |
@@ -80,8 +80,10 @@ Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from 
 
 **Output** is an RGB image. Transparent areas render black.
 
-- **Deterministic:** for a given Pillow version, the same template, values and assets always give the same pixels. Text uses Pillow's BASIC layout engine, the Regular instance of the bundled font, and whole-pixel positions.
+- **Deterministic:** for a given Pillow version, the same template, values and assets always give the same pixels. Text uses Pillow's BASIC layout engine, the named instance of the bundled font that the layer's `weight` picks (Regular by default), and whole-pixel positions.
 - **Pinning:** pin Pillow exactly where byte-identical output across hosts matters.
+
+**Weight needs wallrender 0.12.0 or later.** Older versions do not check unknown layer fields, so they render a `weight` layer as Regular with no warning. Vendor 0.12.0 into JAWA before templates that use `weight` go to devices.
 
 ## Which screen
 
