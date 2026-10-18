@@ -102,6 +102,11 @@
                         <h3 id="layersHeading" class="tpl-heading"><i class="fas fa-layer-group" aria-hidden="true"></i> Layers</h3>
                         <p class="tpl-hint">Drawn top to bottom: later layers sit on top.</p>
                         <ol id="layerList" class="tpl-layer-list"></ol>
+                        <div class="tpl-row tpl-history">
+                            <button type="button" class="btn btn-secondary" id="undoButton" aria-keyshortcuts="Control+Z Meta+Z" disabled><i class="fas fa-rotate-left" aria-hidden="true"></i> Undo</button>
+                            <button type="button" class="btn btn-secondary" id="redoButton" aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z" disabled><i class="fas fa-rotate-right" aria-hidden="true"></i> Redo</button>
+                            <span class="tpl-hint">Cmd or Ctrl+Z undoes a change; add Shift to redo it.</span>
+                        </div>
                         <div class="tpl-row">
                             <button type="button" class="btn btn-secondary" data-add="text"><i class="fas fa-font" aria-hidden="true"></i> Add text</button>
                             <button type="button" class="btn btn-secondary" data-add="qr"><i class="fas fa-qrcode" aria-hidden="true"></i> Add QR</button>

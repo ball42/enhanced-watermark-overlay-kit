@@ -84,11 +84,92 @@
       ioStatus('Your last draft could not be opened, so this is a new template.');
     }
     dirty = false; // it is kept in this browser; nothing new to lose yet
+    resetHistory();
   }
 
   function markEdited() {
     dirty = true;
     saveDraft();
+    scheduleHistory();
+  }
+
+  // ── Undo and redo ──────────────────────────────────
+  // Snapshots of the template, taken 300 ms after the last change, so one
+  // drag or one burst of typing is one step.
+
+  const HISTORY_LIMIT = 50;
+  const history = [];
+  const future = [];
+  let shown = null; // the snapshot the form shows now
+  let historyTimer = null;
+
+  function snapshot() {
+    return JSON.stringify(state.template);
+  }
+
+  function recordHistory() {
+    clearTimeout(historyTimer);
+    historyTimer = null;
+    const now = snapshot();
+    if (now === shown) return;
+    if (shown !== null) {
+      history.push(shown);
+      if (history.length > HISTORY_LIMIT) history.shift();
+    }
+    future.length = 0;
+    shown = now;
+    drawHistoryButtons();
+  }
+
+  function scheduleHistory() {
+    clearTimeout(historyTimer);
+    historyTimer = setTimeout(recordHistory, 300);
+  }
+
+  // Start a fresh history from what the form shows (first load, draft).
+  function resetHistory() {
+    clearTimeout(historyTimer);
+    historyTimer = null;
+    history.length = 0;
+    future.length = 0;
+    shown = snapshot();
+    drawHistoryButtons();
+  }
+
+  function stepHistory(from, to) {
+    if (historyTimer) recordHistory(); // a change still waiting is a step of its own
+    if (!from.length) return;
+    to.push(shown);
+    shown = from.pop();
+    const selected = state.selected;
+    loadTemplate(JSON.parse(shown));
+    clearTimeout(historyTimer); // loadTemplate's own change is this step
+    historyTimer = null;
+    state.selected = Math.min(Math.max(selected, 0), state.template.layers.length - 1);
+    drawLayers();
+    drawProperties();
+    drawHistoryButtons();
+  }
+
+  const undo = () => stepHistory(history, future);
+  const redo = () => stepHistory(future, history);
+
+  function drawHistoryButtons() {
+    $('#undoButton').disabled = !history.length;
+    $('#redoButton').disabled = !future.length;
+  }
+
+  function bindHistory() {
+    $('#undoButton').addEventListener('click', undo);
+    $('#redoButton').addEventListener('click', redo);
+    document.addEventListener('keydown', (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.key.toLowerCase() !== 'z') return;
+      // In a field, Cmd/Ctrl+Z is the browser's own undo of the typing.
+      const el = e.target;
+      if (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+    });
   }
 
   window.addEventListener('beforeunload', (e) => {
@@ -1314,6 +1395,7 @@
     bindEaNames();
     bindPersonFields();
     bindTemplateScreen();
+    bindHistory();
     drawVariants();
     drawLayers();
     drawProperties();
@@ -1322,6 +1404,7 @@
       // Assets first, so a background or image asset shows in its select.
       loadAssets().catch(() => {}).finally(() => restoreDraft(draft));
     } else {
+      resetHistory();
       loadAssets();
       renderPreview();
     }
