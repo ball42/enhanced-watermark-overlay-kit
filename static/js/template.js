@@ -534,6 +534,7 @@
       li.append(pick,
         iconButton('Up', `Move layer ${i + 1} up`, i === 0, () => move(i, -1)),
         iconButton('Down', `Move layer ${i + 1} down`, i === state.template.layers.length - 1, () => move(i, 1)),
+        iconButton('Copy', `Copy layer ${i + 1}`, false, () => copy(i)),
         iconButton('Delete', `Delete layer ${i + 1}`, false, () => remove(i)));
       ol.append(li);
     });
@@ -564,6 +565,16 @@
     state.selected = i + delta;
     drawLayers();
     drawProperties();
+    schedulePreview();
+  }
+
+  // A matching layer right after the original, placed just below it.
+  function copy(i) {
+    const layer = JSON.parse(JSON.stringify(state.template.layers[i]));
+    const b = layer.box;
+    layer.box = clampBox({ ...b, y: b.y + b.h + 0.02 });
+    state.template.layers.splice(i + 1, 0, layer);
+    select(i + 1);
     schedulePreview();
   }
 
