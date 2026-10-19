@@ -16,13 +16,13 @@
   const NEW_LAYERS = {
     text: () => ({ type: 'text', text: '{{device_name}}', box: { x: 0.1, y: 0.6, w: 0.8, h: 0.05 },
       size: 0.028, color: '#FFFFFF', align: 'center' }),
-    qr: () => ({ type: 'qr', data: 'jamf-device:{{jss_id}}', box: { x: 0.35, y: 0.72, w: 0.3, h: 0.14 } }),
+    qr: () => ({ type: 'qr', data: 'jamf-device:{{jss_id}}', box: { x: 0.35, y: 0.66, w: 0.3, h: 0.14 } }),
     image: () => ({ type: 'image', asset: '', box: { x: 0.35, y: 0.3, w: 0.3, h: 0.14 } }),
     panel: () => ({ type: 'panel', box: { x: 0.05, y: 0.45, w: 0.9, h: 0.2 },
       color: '#0B2545', opacity: 0.6, radius: 0.12 }),
   };
   // What the renderer assumes when a property is absent.
-  const PROP_DEFAULTS = { overflow: 'shrink', align: 'center', opacity: 1, radius: 0 };
+  const PROP_DEFAULTS = { overflow: 'shrink', align: 'center', opacity: 1, radius: 0, weight: 'regular' };
   const PANEL_MARGIN = 0.015; // of the canvas, around the layer a new panel sits behind
 
   // The template a first visit and "New template" start from.
@@ -84,11 +84,92 @@
       ioStatus('Your last draft could not be opened, so this is a new template.');
     }
     dirty = false; // it is kept in this browser; nothing new to lose yet
+    resetHistory();
   }
 
   function markEdited() {
     dirty = true;
     saveDraft();
+    scheduleHistory();
+  }
+
+  // ── Undo and redo ──────────────────────────────────
+  // Snapshots of the template, taken 300 ms after the last change, so one
+  // drag or one burst of typing is one step.
+
+  const HISTORY_LIMIT = 50;
+  const history = [];
+  const future = [];
+  let shown = null; // the snapshot the form shows now
+  let historyTimer = null;
+
+  function snapshot() {
+    return JSON.stringify(state.template);
+  }
+
+  function recordHistory() {
+    clearTimeout(historyTimer);
+    historyTimer = null;
+    const now = snapshot();
+    if (now === shown) return;
+    if (shown !== null) {
+      history.push(shown);
+      if (history.length > HISTORY_LIMIT) history.shift();
+    }
+    future.length = 0;
+    shown = now;
+    drawHistoryButtons();
+  }
+
+  function scheduleHistory() {
+    clearTimeout(historyTimer);
+    historyTimer = setTimeout(recordHistory, 300);
+  }
+
+  // Start a fresh history from what the form shows (first load, draft).
+  function resetHistory() {
+    clearTimeout(historyTimer);
+    historyTimer = null;
+    history.length = 0;
+    future.length = 0;
+    shown = snapshot();
+    drawHistoryButtons();
+  }
+
+  function stepHistory(from, to) {
+    if (historyTimer) recordHistory(); // a change still waiting is a step of its own
+    if (!from.length) return;
+    to.push(shown);
+    shown = from.pop();
+    const selected = state.selected;
+    loadTemplate(JSON.parse(shown));
+    clearTimeout(historyTimer); // loadTemplate's own change is this step
+    historyTimer = null;
+    state.selected = Math.min(Math.max(selected, 0), state.template.layers.length - 1);
+    drawLayers();
+    drawProperties();
+    drawHistoryButtons();
+  }
+
+  const undo = () => stepHistory(history, future);
+  const redo = () => stepHistory(future, history);
+
+  function drawHistoryButtons() {
+    $('#undoButton').disabled = !history.length;
+    $('#redoButton').disabled = !future.length;
+  }
+
+  function bindHistory() {
+    $('#undoButton').addEventListener('click', undo);
+    $('#redoButton').addEventListener('click', redo);
+    document.addEventListener('keydown', (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.key.toLowerCase() !== 'z') return;
+      // In a field, Cmd/Ctrl+Z is the browser's own undo of the typing.
+      const el = e.target;
+      if (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+    });
   }
 
   window.addEventListener('beforeunload', (e) => {
@@ -153,6 +234,7 @@
       });
       const body = await readJson(resp);
       if (!resp.ok) {
+        $('#downloadPreview').disabled = true; // the image shown is out of date
         showWarnings(body.problems || [body.error || 'The preview failed.']);
         setStatus(resp.status === 400 ? 'Not rendered: the template has problems (listed below).'
           : 'Not rendered: an asset or value could not be used (listed below).');
@@ -166,6 +248,7 @@
       showWarnings(render.warnings);
       showStress(body.renders.slice(1));
       state.lastImage = render.image;
+      $('#downloadPreview').disabled = false;
       img.onload = () => {
         drawSafeAreas();
         drawDeviceGrid();
@@ -175,7 +258,10 @@
       const size = state.template.canvas ? `${state.template.canvas.width}×${state.template.canvas.height} ` : '';
       setStatus(`Rendered ${size}with ${previewSubject()}.`);
     } catch (err) {
-      if (err.name !== 'AbortError') setStatus('Not rendered: could not reach EWOK.');
+      if (err.name !== 'AbortError') {
+        $('#downloadPreview').disabled = true;
+        setStatus('Not rendered: could not reach EWOK.');
+      }
     }
   }
 
@@ -353,11 +439,7 @@
       del.className = 'tpl-icon-btn';
       del.textContent = 'Delete';
       del.setAttribute('aria-label', `Delete asset ${a.id}`);
-      del.addEventListener('click', async () => {
-        await fetch(`/api/template/assets/${a.id}`, { method: 'DELETE' });
-        await loadAssets();
-        schedulePreview();
-      });
+      del.addEventListener('click', () => deleteAsset(a.id));
       li.append(img, name, del);
       ul.append(li);
     });
@@ -369,6 +451,46 @@
     });
     drawProperties();
     if (state.template.roles) drawVariants();
+  }
+
+  // Where the open template uses an asset, in words: the same places as
+  // asset_ids() in views/template_api.py.
+  function assetUses(id) {
+    const t = state.template;
+    const uses = [];
+    if (t.background && t.background.asset === id) uses.push('the background');
+    t.layers.forEach((l, i) => {
+      if (l.type === 'image' && l.asset === id) uses.push(`layer ${i + 1}`);
+    });
+    const roles = t.roles || {};
+    Object.entries(roles.variants || {}).forEach(([key, v]) => {
+      if (v.background && v.background.asset === id) uses.push(`the ${state.roleLabels[key] || key} role background`);
+    });
+    [['empty', 'No role set'], ['default', 'Any other role']].forEach(([k, card]) => {
+      const bg = (roles[k] || {}).background;
+      if (bg && bg.asset === id) uses.push(`the background for "${card}"`);
+    });
+    return uses;
+  }
+
+  const inWords = (items) => (items.length < 2 ? items.join('')
+    : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
+
+  async function deleteAsset(id) {
+    const uses = assetUses(id);
+    if (uses.length && !confirm(`${id} is used by ${inWords(uses)}. Delete it anyway?`)) return;
+    try {
+      const resp = await fetch(`/api/template/assets/${id}`, { method: 'DELETE' });
+      if (!resp.ok) {
+        setStatus(`Not deleted: ${(await readJson(resp)).error}`);
+        return;
+      }
+      setStatus(`Deleted asset ${id}.`);
+      await loadAssets();
+      schedulePreview();
+    } catch (err) {
+      setStatus('Not deleted: could not reach EWOK.');
+    }
   }
 
   function bindAssets() {
@@ -417,6 +539,7 @@
       li.append(pick,
         iconButton('Up', `Move layer ${i + 1} up`, i === 0, () => move(i, -1)),
         iconButton('Down', `Move layer ${i + 1} down`, i === state.template.layers.length - 1, () => move(i, 1)),
+        iconButton('Copy', `Copy layer ${i + 1}`, false, () => copy(i)),
         iconButton('Delete', `Delete layer ${i + 1}`, false, () => remove(i)));
       ol.append(li);
     });
@@ -447,6 +570,16 @@
     state.selected = i + delta;
     drawLayers();
     drawProperties();
+    schedulePreview();
+  }
+
+  // A matching layer right after the original, placed just below it.
+  function copy(i) {
+    const layer = JSON.parse(JSON.stringify(state.template.layers[i]));
+    const b = layer.box;
+    layer.box = clampBox({ ...b, y: b.y + b.h + 0.02 });
+    state.template.layers.splice(i + 1, 0, layer);
+    select(i + 1);
     schedulePreview();
   }
 
@@ -538,6 +671,9 @@
           else return;
         } else if (input.type === 'color') {
           layer[key] = input.value.toUpperCase();
+        } else if (key === 'weight' && input.value === PROP_DEFAULTS.weight) {
+          // Regular is the default: leave it out, so older wallrender renders it the same.
+          delete layer[key];
         } else {
           layer[key] = input.value;
         }
@@ -597,6 +733,7 @@
       left: `${b.x * 100}%`, top: `${b.y * 100}%`, width: `${b.w * 100}%`, height: `${b.h * 100}%`,
     });
     frame.classList.toggle('selected', i === state.selected);
+    frame.classList.toggle('tag-inside', b.y < 0.02); // no room for the tag above the box
     frame.querySelector('.tpl-boxlabel').textContent = String(i + 1);
     frame.setAttribute('aria-label', `Layer ${i + 1} box (${layer.type}): x ${b.x}, y ${b.y}, `
       + `width ${b.w}, height ${b.h}${i === state.selected ? ', editing' : ''}`);
@@ -1191,6 +1328,12 @@
   }
 
   function bindExport() {
+    // The full-size render, without the boxes and safe areas drawn over it.
+    $('#downloadPreview').addEventListener('click', async () => {
+      if (!state.lastImage || $('#downloadPreview').disabled) return;
+      const blob = await (await fetch(state.lastImage)).blob();
+      saveBlob(blob, `${slug(state.template.name)}-${slug(state.values.device_name || 'sample')}.png`);
+    });
     $('#newTemplate').addEventListener('click', () => {
       if (!confirm('Start a new template? The current design is not saved unless you downloaded it.')) return;
       loadTemplate(newTemplate());
@@ -1275,6 +1418,7 @@
     bindEaNames();
     bindPersonFields();
     bindTemplateScreen();
+    bindHistory();
     drawVariants();
     drawLayers();
     drawProperties();
@@ -1283,6 +1427,7 @@
       // Assets first, so a background or image asset shows in its select.
       loadAssets().catch(() => {}).finally(() => restoreDraft(draft));
     } else {
+      resetHistory();
       loadAssets();
       renderPreview();
     }

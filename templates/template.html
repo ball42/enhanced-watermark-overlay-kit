@@ -102,6 +102,11 @@
                         <h3 id="layersHeading" class="tpl-heading"><i class="fas fa-layer-group" aria-hidden="true"></i> Layers</h3>
                         <p class="tpl-hint">Drawn top to bottom: later layers sit on top.</p>
                         <ol id="layerList" class="tpl-layer-list"></ol>
+                        <div class="tpl-row tpl-history">
+                            <button type="button" class="btn btn-secondary" id="undoButton" aria-keyshortcuts="Control+Z Meta+Z" disabled><i class="fas fa-rotate-left" aria-hidden="true"></i> Undo</button>
+                            <button type="button" class="btn btn-secondary" id="redoButton" aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z" disabled><i class="fas fa-rotate-right" aria-hidden="true"></i> Redo</button>
+                            <span class="tpl-hint">Cmd or Ctrl+Z undoes a change; add Shift to redo it.</span>
+                        </div>
                         <div class="tpl-row">
                             <button type="button" class="btn btn-secondary" data-add="text"><i class="fas fa-font" aria-hidden="true"></i> Add text</button>
                             <button type="button" class="btn btn-secondary" data-add="qr"><i class="fas fa-qrcode" aria-hidden="true"></i> Add QR</button>
@@ -160,6 +165,15 @@
                                     <select id="propOverflow" data-prop="overflow">
                                         <option value="shrink">Shrink to fit</option>
                                         <option value="ellipsis">Shorten with …</option>
+                                    </select>
+                                </div>
+                                <div class="control-group">
+                                    <label for="propWeight">Weight</label>
+                                    <select id="propWeight" data-prop="weight">
+                                        <option value="regular">Regular</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="semibold">Semibold</option>
+                                        <option value="bold">Bold</option>
                                     </select>
                                 </div>
                                 <div class="control-group">
@@ -350,6 +364,9 @@
                                 <div class="tpl-guide tpl-guide-h" hidden><span>center</span></div>
                             </div>
                         </div>
+                    </div>
+                    <div class="tpl-row tpl-preview-actions">
+                        <button type="button" class="btn btn-secondary" id="downloadPreview" disabled><i class="fas fa-file-image" aria-hidden="true"></i> Download preview PNG</button>
                     </div>
                     <h4 class="tpl-subheading">Warnings</h4>
                     <ul id="warningList" class="tpl-warnings" aria-live="polite"></ul>

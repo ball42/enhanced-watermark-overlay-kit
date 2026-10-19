@@ -18,6 +18,7 @@ MAX_VALUE_CHARS = 200  # each substituted value
 MAX_QR = 512
 MAX_TEXT_SIZE = 0.5  # font size as a fraction of canvas height
 FONTS = {"noto-sans"}
+WEIGHTS = ("regular", "medium", "semibold", "bold")  # instances of the bundled variable font
 ALIGNS = {"left", "center", "right"}
 SCREENS = {"lock", "home", "both"}  # which screen a template is designed for
 OVERFLOWS = {"shrink", "ellipsis"}  # what a text layer does when its text is too long
@@ -219,6 +220,8 @@ def validate(template: Any) -> list[str]:
                 problems.append(f"{where}: align must be one of {sorted(ALIGNS)}")
             if not (isinstance(layer.get("font", "noto-sans"), str) and layer.get("font", "noto-sans") in FONTS):
                 problems.append(f"{where}: font must be one of {sorted(FONTS)}")
+            if "weight" in layer and not (isinstance(layer["weight"], str) and layer["weight"] in WEIGHTS):
+                problems.append(f"{where}: weight must be one of {list(WEIGHTS)}")
             overflow = layer.get("overflow", "shrink")
             if not (isinstance(overflow, str) and overflow in OVERFLOWS):
                 problems.append(f"{where}: overflow must be one of {sorted(OVERFLOWS)}")

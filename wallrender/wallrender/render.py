@@ -39,26 +39,30 @@ def _font_bytes() -> bytes:
 _FONT_BYTES = _font_bytes()  # read-only and shared; FreeTypeFont objects are per render
 
 
+# schema.WEIGHTS -> the bundled font's named instances.
+_VARIATIONS = {"regular": "Regular", "medium": "Medium", "semibold": "SemiBold", "bold": "Bold"}
+
+
 class _Session:
     """Per-render caches: fonts (FreeTypeFont is not documented as thread-safe)
     and decoded assets (so a logo used in several layers is decoded once)."""
 
     def __init__(self, assets: AssetResolver):
         self._resolve = assets
-        self._fonts: dict[int, ImageFont.FreeTypeFont] = {}
+        self._fonts: dict[tuple[int, str], ImageFont.FreeTypeFont] = {}
         self._assets: dict[str, Image.Image] = {}
 
-    def font(self, px: int) -> ImageFont.FreeTypeFont:
-        if px not in self._fonts:
+    def font(self, px: int, weight: str = "regular") -> ImageFont.FreeTypeFont:
+        if (px, weight) not in self._fonts:
             # BASIC layout keeps output identical across hosts (no Raqm);
-            # the variable font is pinned to its Regular instance.
+            # the variable font is pinned to a named instance (Regular by default).
             f = ImageFont.truetype(io.BytesIO(_FONT_BYTES), px, layout_engine=ImageFont.Layout.BASIC)
             try:
-                f.set_variation_by_name("Regular")
+                f.set_variation_by_name(_VARIATIONS[weight])
             except (OSError, ValueError):
                 pass
-            self._fonts[px] = f
-        return self._fonts[px]
+            self._fonts[(px, weight)] = f
+        return self._fonts[(px, weight)]
 
     def asset(self, asset_id: str) -> Image.Image:
         if asset_id not in self._assets:
@@ -129,19 +133,19 @@ def _canvas(template: dict[str, Any], session: _Session) -> Image.Image:
 
 
 def _fit_font(session: _Session, text: str, px: int, bw: int, bh: int, floor: int = MIN_FONT_PX,
-              align: str = "left"):
+              align: str = "left", weight: str = "regular"):
     """Largest size in [floor, px] whose text fits the box: one measurement plus
     a few checks, never a pixel-by-pixel walk down from a huge size."""
     probe = ImageDraw.Draw(Image.new("L", (1, 1)))
     for _ in range(4):
-        f = session.font(px)
+        f = session.font(px, weight)
         left, top, right, bottom = probe.textbbox((0, 0), text, font=f, align=align)
         width, height = right - left, bottom - top
         if (width <= bw and height <= bh) or px <= floor:
             return f, (left, top, width, height)
         scale = min(bw / max(width, 1), bh / max(height, 1))
         px = max(floor, min(px - 1, math.floor(px * scale)))
-    f = session.font(px)
+    f = session.font(px, weight)
     left, top, right, bottom = probe.textbbox((0, 0), text, font=f, align=align)
     return f, (left, top, right - left, bottom - top)
 
@@ -249,7 +253,8 @@ def _draw_text(img: Image.Image, session: _Session, layer: dict[str, Any],
     px = max(MIN_FONT_PX, round(layer["size"] * img.height))
     align = layer.get("align", "center")
     f, (left, top, width, height) = _fit_font(session, text, px, bw, bh,
-                                              _floor_px(layer, px, img.height), align)
+                                              _floor_px(layer, px, img.height), align,
+                                              layer.get("weight", "regular"))
     shortened = False
     if layer.get("overflow") == "ellipsis" and (width > bw or height > bh):
         text, shortened = _ellipsize_block(text, f, bw, bh, align), True

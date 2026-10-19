@@ -143,3 +143,30 @@ def test_sample_device_and_role_pickers_sit_in_the_preview_panel(client):
     assert 'id="samplePreset"' in aside
     assert 'id="previewRole"' in aside
     assert aside.index('id="samplePreset"') < aside.index('id="previewStatus"')
+
+
+IPHONES = ["iphone-6.7", "iphone-6.1", "iphone-se"]
+
+
+def _default_layer_boxes():
+    """The text and QR boxes newTemplate() starts from, read from template.js."""
+    import re
+    from pathlib import Path
+
+    js = (Path(__file__).resolve().parent.parent / "static" / "js" / "template.js").read_text()
+    boxes = {}
+    for kind in ("text", "qr"):
+        m = re.search(rf"^\s+{kind}: \(\) => \(\{{.*?box: \{{ ([^}}]*) \}}", js, re.M | re.S)
+        boxes[kind] = {k: float(v) for k, v in re.findall(r"(\w): ([\d.]+)", m.group(1))}
+    return boxes
+
+
+def test_the_default_layers_clear_every_iphone_lock_zone():
+    """nr-01: a new template's QR code is clear of the iPhone SE controls too."""
+    from wallrender.devices import fit_warnings
+
+    boxes = _default_layer_boxes()
+    template = {"layers": [{"type": "text", "box": boxes["text"]}, {"type": "qr", "box": boxes["qr"]}]}
+    assert fit_warnings(template, (1290, 2796), IPHONES, "lock") == []
+    # The text stays above the QR code.
+    assert boxes["text"]["y"] + boxes["text"]["h"] <= boxes["qr"]["y"]

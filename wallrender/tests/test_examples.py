@@ -12,10 +12,10 @@ def _load(name):
     return json.loads((EXAMPLES / name).read_text())
 
 
-def test_brander_basic_clears_iphone_67_lock_zones():
+def test_brander_basic_clears_every_iphone_lock_zone():
     template = _load("brander-basic.json")
     canvas = (template["canvas"]["width"], template["canvas"]["height"])
-    assert fit_warnings(template, canvas, ["iphone-6.7"], "lock") == []
+    assert fit_warnings(template, canvas, ["iphone-6.7", "iphone-6.1", "iphone-se"], "lock") == []
 
 
 def test_brander_basic_previews_strict_on_iphone_67(tmp_path, capsys):

@@ -88,6 +88,7 @@
 
 .tpl-layer-list li {
   display: flex;
+  flex-wrap: wrap; /* on a narrow screen the buttons go under the name */
   align-items: center;
   gap: var(--space-xs);
   border: 1px solid var(--color-border);
@@ -97,7 +98,8 @@
 }
 
 .tpl-layer-list .layer-select {
-  flex: 1;
+  flex: 1 1 10rem;
+  min-width: 0;
   text-align: left;
   background: none;
   border: 0;
@@ -286,10 +288,13 @@ input[type="color"] {
   line-height: 1.2;
 }
 
+/* The tag sits above the box, so it covers none of the text being placed;
+   a box at the top edge of the canvas keeps it inside. */
 .tpl-boxframe .tpl-boxlabel {
   position: absolute;
-  top: -1px;
+  bottom: 100%;
   left: -1px;
+  white-space: nowrap;
   font-size: 11px;
   font-weight: 700;
   padding: 1px 5px;
@@ -303,6 +308,11 @@ input[type="color"] {
   border: 3px solid var(--color-primary);
   outline: 1px solid white;
   z-index: 2;
+}
+
+.tpl-boxframe.tag-inside .tpl-boxlabel {
+  bottom: auto;
+  top: -1px;
 }
 
 .tpl-boxframe.selected .tpl-boxlabel {
