@@ -294,6 +294,17 @@
                             </div>
                         </details>
                         <small id="sampleError" class="tpl-error" hidden></small>
+                        <h4 class="tpl-subheading">Your devices</h4>
+                        <p class="tpl-hint">Check the template against a device list, such as a Jamf Pro inventory export. The header row names the values (<code>device_name</code>, <code>asset_tag</code>, <code>location.building</code>). Up to 200 rows; EWOK keeps nothing from the file.</p>
+                        <div class="tpl-row">
+                            <label class="btn btn-secondary tpl-file-btn">
+                                <i class="fas fa-file-csv" aria-hidden="true"></i> Load devices from CSV
+                                <input type="file" id="fleetFile" accept=".csv,text/csv">
+                            </label>
+                            <button type="button" class="btn btn-secondary" id="fleetRecheck" hidden><i class="fas fa-rotate" aria-hidden="true"></i> Check again</button>
+                        </div>
+                        <p id="fleetStatus" class="tpl-status" aria-live="polite"></p>
+                        <ol id="fleetSheet" class="tpl-fleet"></ol>
                     </section>
 
                     <div class="action-bar tpl-row">

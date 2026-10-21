@@ -91,6 +91,39 @@ def preview():
     return jsonify({"renders": renders})
 
 
+MAX_BATCH = 200
+THUMB_WIDTH = 240
+
+
+@template_bp.route("/preview-batch", methods=["POST"])
+def preview_batch():
+    """Render one template for many devices (a CSV the designer loaded in the
+    browser) and return a small thumbnail and the warnings for each. The
+    values are used for this request only and never stored."""
+    body = _json_body()
+    devices = body.get("devices") if isinstance(body, dict) else None
+    if not isinstance(devices, list) or "template" not in body \
+            or not all(isinstance(d, dict) for d in devices):
+        return jsonify({"error": "Send JSON with a template and a devices list of value objects."}), 400
+    if len(devices) > MAX_BATCH:
+        return jsonify({"error": f"At most {MAX_BATCH} devices at a time."}), 400
+    template = body["template"]
+    problems = validate(template)
+    if problems:
+        return jsonify({"problems": problems}), 400
+    assets = folder_assets(_folder())
+    results = []
+    try:
+        for n, values in enumerate(devices, 1):
+            image, warnings = render_with_lint(template, values, assets)
+            image.thumbnail((THUMB_WIDTH, THUMB_WIDTH * 8))
+            label = values.get("device_name") or values.get("serial_number") or f"Device {n}"
+            results.append({"label": str(label), "warnings": warnings, "thumb": _png_data_url(image)})
+    except TemplateError as err:
+        return jsonify({"problems": err.problems}), 422
+    return jsonify({"results": results})
+
+
 def _asset_path(asset_id):
     """The stored file for an id, or None. Ids are checked, never joined raw."""
     if not ASSET_ID.fullmatch(asset_id or ""):

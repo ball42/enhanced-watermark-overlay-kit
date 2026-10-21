@@ -1285,6 +1285,138 @@
     });
   }
 
+  // ── Devices from a CSV ─────────────────────────────
+  // The file is parsed here; its rows go to /api/template/preview-batch for
+  // this check only. Devices with warnings are listed first.
+
+  const FLEET_MAX = 200;
+  let fleet = [];
+  let fleetNote = ''; // said before each result, such as rows left out
+
+  // Rows of fields; quoted fields may hold commas, quotes ("") and newlines.
+  function parseCsv(text) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let quoted = false;
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text[i];
+      if (quoted) {
+        if (ch === '"' && text[i + 1] === '"') { field += '"'; i += 1; } else if (ch === '"') quoted = false;
+        else field += ch;
+      } else if (ch === '"') quoted = true;
+      else if (ch === ',') { row.push(field); field = ''; } else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && text[i + 1] === '\n') i += 1;
+        row.push(field); rows.push(row); row = []; field = '';
+      } else field += ch;
+    }
+    if (field || row.length) { row.push(field); rows.push(row); }
+    return rows.filter((r) => r.some((f) => f.trim()));
+  }
+
+  // Value objects from CSV text: the header row gives the keys, and a dotted
+  // key ("location.building") becomes a nested value.
+  function csvDevices(text) {
+    const [header, ...rows] = parseCsv(text.replace(/^﻿/, ''));
+    const keys = (header || []).map((k) => k.trim());
+    return rows.map((r) => {
+      const values = {};
+      keys.forEach((k, i) => {
+        if (!k) return;
+        const v = (r[i] || '').trim();
+        setPath(values, k, k === 'jss_id' && /^\d+$/.test(v) ? Number(v) : v);
+      });
+      return values;
+    });
+  }
+
+  function fleetStatus(text) {
+    $('#fleetStatus').textContent = text;
+  }
+
+  async function checkFleet() {
+    if (!fleet.length) return;
+    fleetStatus(`Checking ${fleet.length} devices…`);
+    let body;
+    try {
+      const resp = await fetch('/api/template/preview-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template: previewable(), devices: fleet }),
+      });
+      body = await readJson(resp);
+      if (!resp.ok) {
+        fleetStatus(`Not checked: ${(body.problems || [body.error]).join('; ')}`);
+        return;
+      }
+    } catch (err) {
+      fleetStatus('Not checked: could not reach EWOK.');
+      return;
+    }
+    const results = body.results.map((r, i) => ({ ...r, values: fleet[i] }));
+    // Stable sort: the most warnings first, otherwise in file order.
+    results.sort((a, b) => b.warnings.length - a.warnings.length);
+    const warned = results.filter((r) => r.warnings.length).length;
+    fleetStatus(`${fleetNote}Checked ${results.length} devices: ${warned ? `${warned} with warnings, listed first` : 'no warnings'}.`
+      + ' Pick a device to preview it.');
+    $('#fleetSheet').replaceChildren(...results.map(fleetItem));
+  }
+
+  function fleetItem(r) {
+    const li = document.createElement('li');
+    const pick = document.createElement('button');
+    pick.type = 'button';
+    pick.className = 'tpl-fleet-pick';
+    const img = document.createElement('img');
+    img.src = r.thumb;
+    img.alt = '';
+    const name = document.createElement('span');
+    name.className = 'tpl-fleet-name';
+    name.textContent = r.label;
+    const count = document.createElement('span');
+    count.className = r.warnings.length ? 'tpl-fleet-count warn' : 'tpl-fleet-count';
+    count.textContent = r.warnings.length
+      ? `${r.warnings.length} warning${r.warnings.length > 1 ? 's' : ''}` : 'No warnings';
+    pick.append(img, name, count);
+    pick.addEventListener('click', () => {
+      $$('.tpl-fleet-pick[aria-current]').forEach((b) => b.removeAttribute('aria-current'));
+      pick.setAttribute('aria-current', 'true');
+      state.values = JSON.parse(JSON.stringify(r.values));
+      $('#samplePreset').value = 'custom';
+      $('#sampleValues').value = JSON.stringify(state.values, null, 2);
+      $('#sampleError').hidden = true;
+      drawSampleFields();
+      schedulePreview();
+    });
+    li.append(pick);
+    if (r.warnings.length) {
+      const ul = document.createElement('ul');
+      ul.className = 'tpl-warnings';
+      li.append(ul);
+      showWarnings(r.warnings, ul);
+    }
+    return li;
+  }
+
+  function bindFleet() {
+    $('#fleetFile').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      const devices = csvDevices(await file.text());
+      if (!devices.length) {
+        fleetStatus(`Not loaded: ${file.name} has no device rows under its header row.`);
+        return;
+      }
+      fleet = devices.slice(0, FLEET_MAX);
+      $('#fleetRecheck').hidden = false;
+      fleetNote = devices.length > FLEET_MAX
+        ? `${file.name} has ${devices.length} devices; only the first ${FLEET_MAX} are used. ` : '';
+      await checkFleet();
+    });
+    $('#fleetRecheck').addEventListener('click', checkFleet);
+  }
+
   function slug(name) {
     return (name || 'template').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'template';
   }
@@ -1424,6 +1556,7 @@
     bindPersonFields();
     bindTemplateScreen();
     bindHistory();
+    bindFleet();
     drawVariants();
     drawLayers();
     drawProperties();

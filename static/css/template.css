@@ -551,3 +551,60 @@ input[type="color"] {
   font-weight: 600;
   margin-bottom: var(--space-sm);
 }
+
+/* ── Devices from a CSV: a contact sheet ─────── */
+
+.tpl-fleet {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-sm);
+}
+
+.tpl-fleet-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-xs);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.tpl-fleet-pick[aria-current] {
+  border: 2px solid var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.tpl-fleet-pick img {
+  max-width: 100%;
+  max-height: 160px;
+}
+
+.tpl-fleet-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.tpl-fleet-count.warn {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.tpl-fleet-count.warn::before {
+  content: "\26A0  ";
+}
+
+.tpl-fleet .tpl-warnings li {
+  font-size: 0.75rem;
+}

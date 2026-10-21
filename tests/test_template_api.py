@@ -468,3 +468,38 @@ def test_the_preview_does_not_warn_when_the_target_is_new_enough(client, monkeyp
     warnings = client.post("/api/template/preview", json={"template": template, "values": {}}) \
         .get_json()["renders"][0]["warnings"]
     assert not any("needs wallrender" in w for w in warnings)
+
+
+# --- preview-batch: a contact sheet of many devices ---------------------------
+
+
+def test_preview_batch_returns_one_result_per_device_in_order(client):
+    devices = [{"device_name": "iPad"}, {"device_name": "W" * 30}, {"device_name": "Front Desk"}]
+    resp = client.post("/api/template/preview-batch", json={"template": TEMPLATE, "devices": devices})
+    assert resp.status_code == 200
+    results = resp.get_json()["results"]
+    assert [r["label"] for r in results] == ["iPad", "W" * 30, "Front Desk"]
+    assert any("shrank" in w for w in results[1]["warnings"])
+    assert not any("shrank" in w for w in results[0]["warnings"])
+    with decode(results[0]["thumb"]) as img:
+        assert img.width <= 240
+
+
+def test_preview_batch_over_200_devices_is_400(client):
+    resp = client.post("/api/template/preview-batch",
+                       json={"template": TEMPLATE, "devices": [{"device_name": "x"}] * 201})
+    assert resp.status_code == 400
+
+
+@pytest.mark.parametrize("body", [None, {"template": TEMPLATE}, {"template": TEMPLATE, "devices": {}},
+                                  {"template": TEMPLATE, "devices": ["iPad"]}])
+def test_preview_batch_malformed_request_is_400(client, body):
+    resp = client.post("/api/template/preview-batch", json=body)
+    assert resp.status_code == 400
+
+
+def test_preview_batch_invalid_template_returns_its_problems(client):
+    resp = client.post("/api/template/preview-batch",
+                       json={"template": {"schema_version": 9}, "devices": [{}]})
+    assert resp.status_code == 400
+    assert resp.get_json()["problems"]
