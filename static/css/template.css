@@ -608,3 +608,139 @@ input[type="color"] {
 .tpl-fleet .tpl-warnings li {
   font-size: 0.75rem;
 }
+
+/* ── Action bar: name and export, always in reach ── */
+
+.tpl-actionbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+  margin: calc(-1 * var(--space-md)) 0 var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.tpl-actionbar .tpl-actionbar-name {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.tpl-actionbar-name label {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+#templateEditor .tpl-actionbar-name input {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.tpl-actionbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.tpl-actionbar .btn {
+  margin: 0;
+}
+
+.btn.btn-outline {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-hover);
+}
+
+.btn.btn-outline:hover {
+  background: var(--color-surface-raised);
+}
+
+.tpl-actionbar #ioStatus {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.tpl-actionbar #ioStatus:empty {
+  display: none;
+}
+
+.tpl-more {
+  position: relative;
+}
+
+.tpl-more > summary {
+  list-style: none;
+}
+
+.tpl-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.tpl-more-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--space-xs));
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 260px;
+  padding: var(--space-xs);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.tpl-more-menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.tpl-more-menu button:hover {
+  background: var(--color-primary-light);
+}
+
+@media (max-width: 600px) {
+  .tpl-actionbar {
+    margin-top: 0;
+    border-radius: 0;
+  }
+
+  .tpl-actionbar .btn {
+    padding: 8px 12px;
+  }
+
+  .tpl-more-menu {
+    right: auto;
+    left: 0;
+  }
+}

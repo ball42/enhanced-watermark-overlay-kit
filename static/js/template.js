@@ -1465,6 +1465,17 @@
   }
 
   function bindExport() {
+    // The More menu closes once an item is picked, or on Escape.
+    const more = $('#moreActions');
+    more.querySelectorAll('.tpl-more-menu button').forEach((b) => b.addEventListener('click', () => {
+      more.open = false;
+    }));
+    more.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && more.open) {
+        more.open = false;
+        more.querySelector('summary').focus();
+      }
+    });
     // The full-size render, without the boxes and safe areas drawn over it.
     $('#downloadPreview').addEventListener('click', async () => {
       if (!state.lastImage || $('#downloadPreview').disabled) return;

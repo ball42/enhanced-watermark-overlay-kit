@@ -30,15 +30,33 @@
         </div>
 
         <main class="main-content" id="templateEditor">
+            <div class="tpl-actionbar" role="region" aria-label="Template name and export">
+                <div class="control-group tpl-actionbar-name">
+                    <label for="tplName">Template</label>
+                    <input type="text" id="tplName" value="Untitled template">
+                </div>
+                <div class="tpl-actionbar-actions">
+                    <label class="btn btn-outline tpl-file-btn">
+                        <i class="fas fa-folder-open" aria-hidden="true"></i> Open
+                        <input type="file" id="openTemplate" aria-label="Open template (.json or .zip)" accept=".json,.zip,.brander.json,application/json,application/zip">
+                    </label>
+                    <details class="tpl-more" id="moreActions">
+                        <summary class="btn btn-outline"><i class="fas fa-ellipsis" aria-hidden="true"></i> More</summary>
+                        <div class="tpl-more-menu">
+                            <button type="button" id="newTemplate"><i class="fas fa-file" aria-hidden="true"></i> New template</button>
+                            <button type="button" id="downloadBundle"><i class="fas fa-file-archive" aria-hidden="true"></i> Download for Brander's assets folder (.zip)</button>
+                            <button type="button" id="downloadJson"><i class="fas fa-download" aria-hidden="true"></i> Template JSON only</button>
+                        </div>
+                    </details>
+                    <button type="button" class="btn" id="downloadPackage"><i class="fas fa-file-export" aria-hidden="true"></i> Download for JAWA's template store</button>
+                </div>
+                <p id="ioStatus" class="tpl-status" aria-live="polite"></p>
+            </div>
             <div class="tpl-grid">
                 <div class="tpl-controls">
 
                     <section class="section-container" aria-labelledby="canvasHeading">
                         <h3 id="canvasHeading" class="tpl-heading"><i class="fas fa-mobile-alt" aria-hidden="true"></i> Canvas</h3>
-                        <div class="control-group">
-                            <label for="tplName">Template name</label>
-                            <input type="text" id="tplName" value="Untitled template">
-                        </div>
                         <div class="control-group">
                             <label for="canvasPreset">Size</label>
                             <select id="canvasPreset">
@@ -307,17 +325,6 @@
                         <ol id="fleetSheet" class="tpl-fleet"></ol>
                     </section>
 
-                    <div class="action-bar tpl-row">
-                        <button type="button" class="btn btn-secondary" id="newTemplate"><i class="fas fa-file" aria-hidden="true"></i> New template</button>
-                        <label class="btn btn-secondary tpl-file-btn">
-                            <i class="fas fa-folder-open" aria-hidden="true"></i> Open template (.json or .zip)
-                            <input type="file" id="openTemplate" accept=".json,.zip,.brander.json,application/json,application/zip">
-                        </label>
-                        <button type="button" class="btn" id="downloadPackage"><i class="fas fa-file-export" aria-hidden="true"></i> Download for JAWA's template store</button>
-                        <button type="button" class="btn btn-secondary" id="downloadBundle"><i class="fas fa-file-archive" aria-hidden="true"></i> Download for Brander's assets folder (.zip)</button>
-                        <button type="button" class="btn btn-secondary" id="downloadJson"><i class="fas fa-download" aria-hidden="true"></i> Template JSON only</button>
-                    </div>
-                    <p id="ioStatus" class="tpl-status" aria-live="polite"></p>
                 </div>
 
                 <aside class="preview-panel tpl-preview" aria-labelledby="previewHeading">
