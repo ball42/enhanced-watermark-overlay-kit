@@ -11,7 +11,7 @@ def designer(page):
 
 
 def layers(page):
-    return page.evaluate("JSON.parse(localStorage.getItem('ewok-template-draft') || 'null')")["layers"]
+    return page.evaluate("JSON.parse(localStorage.getItem('ewok-template-draft') || 'null')")["template"]["layers"]
 
 
 def wait_layers(page, n):
@@ -59,7 +59,7 @@ def test_undo_puts_a_dragged_box_back(designer):
 
     page.click("#undoButton")
     page.wait_for_function(
-        "y => JSON.parse(localStorage.getItem('ewok-template-draft')).layers[0].box.y === y", arg=start["y"])
+        "y => JSON.parse(localStorage.getItem('ewok-template-draft')).template.layers[0].box.y === y", arg=start["y"])
     assert layers(page)[0]["box"] == start
     # One drag is one step: nothing older to undo.
     assert page.is_disabled("#undoButton")
@@ -79,3 +79,31 @@ def test_ctrl_z_in_the_text_field_undoes_only_the_typing(designer):
     assert not page.input_value("#propText").endswith("XY")
     assert page.locator("#layerList > li").count() == 1
     assert page.is_disabled("#redoButton")
+
+
+def test_a_role_name_keeps_its_spelling_after_undo_and_reload(designer):
+    page = designer
+    roles = "document.querySelectorAll('#variantList input[type=text]').length"
+    title = "#variantList > li:first-child h4"
+    page.check("#rolesOn")
+    page.click("#addVariant")
+    page.wait_for_function(f"{roles} === 1")
+    role = page.locator("#variantList input[type=text]").first
+    role.fill("Video Conferencing")
+    role.dispatch_event("change")
+    page.wait_for_function(f"document.querySelector('{title}').textContent === 'Role: Video Conferencing'")
+    page.wait_for_timeout(400)  # edits 300 ms apart are separate undo steps
+
+    page.click("#addVariant")
+    page.wait_for_function(f"{roles} === 2")
+    page.wait_for_function("!document.querySelector('#undoButton').disabled")
+    page.click("#undoButton")
+    page.wait_for_function(f"{roles} === 1")
+    assert page.inner_text(title) == "Role: Video Conferencing"
+    assert page.locator("#variantList input[type=text]").first.input_value() == "Video Conferencing"
+
+    page.reload()
+    page.wait_for_selector("#previewImage:not([hidden])")
+    page.wait_for_function(f"{roles} === 1")
+    assert page.inner_text(title) == "Role: Video Conferencing"
+    assert "Video Conferencing" in page.locator("#previewRole option").all_inner_texts()
