@@ -55,8 +55,8 @@
             <div class="tpl-grid">
                 <div class="tpl-controls">
 
-                    <section class="section-container" aria-labelledby="canvasHeading">
-                        <h3 id="canvasHeading" class="tpl-heading"><i class="fas fa-mobile-alt" aria-hidden="true"></i> Canvas</h3>
+                    <details class="section-container tpl-section" id="canvasSection" open>
+                        <summary><h3 id="canvasHeading" class="tpl-heading"><i class="fas fa-mobile-alt" aria-hidden="true"></i> Canvas</h3></summary>
                         <div class="control-group">
                             <label for="canvasPreset">Size</label>
                             <select id="canvasPreset">
@@ -104,17 +104,17 @@
                             <label class="tpl-inline"><input type="checkbox" id="personFields"> This template may show the device user's name, username and email</label>
                             <small>Off by default. JAWA prints them only if the admin also allows personal fields when enabling Brander, and never in a QR code.</small>
                         </div>
-                    </section>
+                    </details>
 
-                    <section class="section-container" aria-labelledby="assetsHeading">
-                        <h3 id="assetsHeading" class="tpl-heading"><i class="fas fa-images" aria-hidden="true"></i> Assets</h3>
+                    <details class="section-container tpl-section" id="assetsSection">
+                        <summary><h3 id="assetsHeading" class="tpl-heading"><i class="fas fa-images" aria-hidden="true"></i> Assets</h3></summary>
                         <p class="tpl-hint">PNG or JPEG backgrounds and logos. Brander loads them by id from its assets folder.</p>
                         <ul id="assetList" class="tpl-asset-list"></ul>
                         <label class="btn btn-secondary tpl-file-btn">
                             <i class="fas fa-upload" aria-hidden="true"></i> Upload asset
                             <input type="file" id="assetFile" accept="image/png,image/jpeg">
                         </label>
-                    </section>
+                    </details>
 
                     <section class="section-container" aria-labelledby="layersHeading">
                         <h3 id="layersHeading" class="tpl-heading"><i class="fas fa-layer-group" aria-hidden="true"></i> Layers</h3>
@@ -134,6 +134,7 @@
                         <p class="tpl-hint">A panel is a backdrop that keeps text readable over a photo. It goes behind the selected layer; stretch it to cover more.</p>
                     </section>
 
+                    <div id="propsHome" hidden>
                     <section class="section-container" aria-labelledby="propsHeading" id="propsSection" hidden>
                         <h3 id="propsHeading" class="tpl-heading"><i class="fas fa-sliders-h" aria-hidden="true"></i> <span id="propsTitle">Layer</span></h3>
 
@@ -253,9 +254,10 @@
                             <small>Corner radius is a fraction of the panel's shorter side; 0.5 makes the ends fully round.</small>
                         </div>
                     </section>
+                    </div>
 
-                    <section class="section-container" aria-labelledby="rolesHeading">
-                        <h3 id="rolesHeading" class="tpl-heading"><i class="fas fa-user-tag" aria-hidden="true"></i> Roles</h3>
+                    <details class="section-container tpl-section" id="rolesSection">
+                        <summary><h3 id="rolesHeading" class="tpl-heading"><i class="fas fa-user-tag" aria-hidden="true"></i> Roles</h3></summary>
                         <p class="tpl-hint">Change the background and wording by the device's role, read from a Jamf extension attribute. A role's text prints through variables such as <code>{{ '{{' }}role.title{{ '}}' }}</code>; <code>{{ '{{' }}role.name{{ '}}' }}</code> is the role itself.</p>
                         <label class="tpl-inline"><input type="checkbox" id="rolesOn"> Use role variants</label>
                         <div id="rolesBody" hidden>
@@ -273,10 +275,10 @@
                             <button type="button" class="btn btn-secondary" id="addVariant"><i class="fas fa-plus" aria-hidden="true"></i> Add role</button>
                             <p class="tpl-hint">Pick the role to preview as above the preview.</p>
                         </div>
-                    </section>
+                    </details>
 
-                    <section class="section-container" aria-labelledby="valuesHeading">
-                        <h3 id="valuesHeading" class="tpl-heading"><i class="fas fa-tablet-alt" aria-hidden="true"></i> Sample device</h3>
+                    <details class="section-container tpl-section" id="valuesSection" open>
+                        <summary><h3 id="valuesHeading" class="tpl-heading"><i class="fas fa-tablet-alt" aria-hidden="true"></i> Sample device</h3></summary>
                         <p class="tpl-hint">Pick the device above the preview. Edit its values here.</p>
                         <script type="application/json" id="sampleDevices">{{ sample_devices | tojson }}</script>
                         {% set field_labels = {'device_name': 'Device name', 'serial_number': 'Serial number',
@@ -323,12 +325,16 @@
                         </div>
                         <p id="fleetStatus" class="tpl-status" aria-live="polite"></p>
                         <ol id="fleetSheet" class="tpl-fleet"></ol>
-                    </section>
+                    </details>
 
                 </div>
 
                 <aside class="preview-panel tpl-preview" aria-labelledby="previewHeading">
-                    <h3 id="previewHeading"><i class="fas fa-eye" aria-hidden="true"></i> Preview</h3>
+                    <div class="tpl-preview-head">
+                        <h3 id="previewHeading"><i class="fas fa-eye" aria-hidden="true"></i> Preview</h3>
+                        <span id="warningCount" class="tpl-warn-count" aria-live="polite"></span>
+                        <button type="button" class="btn btn-outline" id="downloadPreview" disabled><i class="fas fa-file-image" aria-hidden="true"></i> Download preview PNG</button>
+                    </div>
                     <div class="tpl-row tpl-preview-pick">
                         <div class="control-group">
                             <label for="samplePreset">Preview with</label>
@@ -345,34 +351,6 @@
                         </div>
                     </div>
                     <p id="previewStatus" class="tpl-status" aria-live="polite">Waiting for the first render…</p>
-                    <fieldset class="tpl-fieldset tpl-guides">
-                        <legend>Safe areas on the preview</legend>
-                        <div class="tpl-row">
-                            <div class="control-group">
-                                <label for="guideDevice">Device</label>
-                                <select id="guideDevice">
-                                    <option value="">None</option>
-                                    {% for p in device_profiles %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
-                                </select>
-                            </div>
-                            <div class="control-group">
-                                <label for="guideOrientation">Orientation</label>
-                                <select id="guideOrientation">
-                                    <option value="portrait">Portrait</option>
-                                    <option value="landscape">Landscape</option>
-                                </select>
-                            </div>
-                            <div class="control-group">
-                                <label for="guideScreen">Screen</label>
-                                <select id="guideScreen">
-                                    <option value="lock">Lock screen</option>
-                                    <option value="home">Home screen</option>
-                                </select>
-                            </div>
-                        </div>
-                    </fieldset>
-                    <script type="application/json" id="deviceProfiles">{{ device_profiles | tojson }}</script>
-                    <p class="tpl-hint" id="boxHelp">Drag a box to move it, or its corner to resize it. With a box focused, arrow keys move it and Alt with arrow keys resizes it; hold Shift for bigger steps. Boxes snap to the center lines.</p>
                     <div class="tpl-preview-frame">
                         <div class="tpl-stage" id="stage">
                             <img id="previewImage" alt="Rendered wallpaper preview" hidden>
@@ -383,27 +361,61 @@
                             </div>
                         </div>
                     </div>
-                    <div class="tpl-row tpl-preview-actions">
-                        <button type="button" class="btn btn-secondary" id="downloadPreview" disabled><i class="fas fa-file-image" aria-hidden="true"></i> Download preview PNG</button>
+                    <div class="tpl-tabs" role="tablist" aria-label="About this preview">
+                        <button type="button" role="tab" id="tabWarnings" aria-controls="panelWarnings" aria-selected="true">Warnings</button>
+                        <button type="button" role="tab" id="tabDevices" aria-controls="panelDevices" aria-selected="false" tabindex="-1">Devices and safe areas</button>
+                        <button type="button" role="tab" id="tabStress" aria-controls="panelStress" aria-selected="false" tabindex="-1">Long, empty and roles</button>
                     </div>
-                    <h4 class="tpl-subheading">Warnings</h4>
-                    <ul id="warningList" class="tpl-warnings" aria-live="polite"></ul>
-                    <h4 class="tpl-subheading">On devices</h4>
-                    <p class="tpl-hint">iOS scales the wallpaper to fill each screen and crops the rest. Hatched areas are covered by the clock, controls or dock.</p>
-                    <fieldset class="tpl-fieldset">
-                        <legend class="visually-hidden">Devices to preview</legend>
-                        <div class="tpl-device-picks">
-                        {% for p in device_profiles %}
-                            <label class="tpl-inline"><input type="checkbox" class="device-pick" value="{{ p.id }}"{% if p.id in default_devices %} checked{% endif %}> {{ p.name }}</label>
-                        {% endfor %}
-                        </div>
-                    </fieldset>
-                    <div id="deviceGrid" class="tpl-device-grid"></div>
-                    <ul id="deviceWarnings" class="tpl-warnings" aria-live="polite"></ul>
-                    <label class="tpl-inline tpl-stress-toggle">
-                        <input type="checkbox" id="stressToggle"> Also show every value long, and every value empty
-                    </label>
-                    <div id="stressRenders" class="tpl-stress" hidden></div>
+                    <div role="tabpanel" id="panelWarnings" class="tpl-tabpanel" aria-labelledby="tabWarnings">
+                        <ul id="warningList" class="tpl-warnings" aria-live="polite"></ul>
+                        <p class="tpl-hint" id="boxHelp">Drag a box to move it, or its corner to resize it. With a box focused, arrow keys move it and Alt with arrow keys resizes it; hold Shift for bigger steps. Boxes snap to the center lines.</p>
+                    </div>
+                    <div role="tabpanel" id="panelDevices" class="tpl-tabpanel" aria-labelledby="tabDevices" hidden>
+                        <fieldset class="tpl-fieldset tpl-guides">
+                            <legend>Safe areas on the preview</legend>
+                            <div class="tpl-row">
+                                <div class="control-group">
+                                    <label for="guideDevice">Device</label>
+                                    <select id="guideDevice">
+                                        <option value="">None</option>
+                                        {% for p in device_profiles %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                                <div class="control-group">
+                                    <label for="guideOrientation">Orientation</label>
+                                    <select id="guideOrientation">
+                                        <option value="portrait">Portrait</option>
+                                        <option value="landscape">Landscape</option>
+                                    </select>
+                                </div>
+                                <div class="control-group">
+                                    <label for="guideScreen">Screen</label>
+                                    <select id="guideScreen">
+                                        <option value="lock">Lock screen</option>
+                                        <option value="home">Home screen</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </fieldset>
+                        <script type="application/json" id="deviceProfiles">{{ device_profiles | tojson }}</script>
+                        <p class="tpl-hint">iOS scales the wallpaper to fill each screen and crops the rest. Hatched areas are covered by the clock, controls or dock.</p>
+                        <fieldset class="tpl-fieldset">
+                            <legend class="visually-hidden">Devices to preview</legend>
+                            <div class="tpl-device-picks">
+                            {% for p in device_profiles %}
+                                <label class="tpl-inline"><input type="checkbox" class="device-pick" value="{{ p.id }}"{% if p.id in default_devices %} checked{% endif %}> {{ p.name }}</label>
+                            {% endfor %}
+                            </div>
+                        </fieldset>
+                        <div id="deviceGrid" class="tpl-device-grid"></div>
+                        <ul id="deviceWarnings" class="tpl-warnings" aria-live="polite"></ul>
+                    </div>
+                    <div role="tabpanel" id="panelStress" class="tpl-tabpanel" aria-labelledby="tabStress" hidden>
+                        <label class="tpl-inline tpl-stress-toggle">
+                            <input type="checkbox" id="stressToggle"> Also show every value long, and every value empty
+                        </label>
+                        <div id="stressRenders" class="tpl-stress" hidden></div>
+                    </div>
                 </aside>
             </div>
         </main>

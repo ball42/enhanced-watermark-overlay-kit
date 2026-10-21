@@ -85,6 +85,7 @@ def test_a_role_name_keeps_its_spelling_after_undo_and_reload(designer):
     page = designer
     roles = "document.querySelectorAll('#variantList input[type=text]').length"
     title = "#variantList > li:first-child h4"
+    page.click("#rolesSection > summary")  # the Roles section starts collapsed
     page.check("#rolesOn")
     page.click("#addVariant")
     page.wait_for_function(f"{roles} === 1")

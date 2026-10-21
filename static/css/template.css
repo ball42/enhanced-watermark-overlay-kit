@@ -164,9 +164,14 @@
   outline-offset: 2px;
 }
 
+/* The preview stays under the action bar while the controls scroll; what
+   does not fit under the stage scrolls inside the panel. */
 .tpl-preview {
   position: sticky;
-  top: var(--space-md);
+  top: calc(var(--tpl-bar-h, 64px) + var(--space-sm));
+  max-height: calc(100vh - var(--tpl-bar-h, 64px) - var(--space-md));
+  overflow-y: auto;
+  text-align: start;
 }
 
 .tpl-preview-frame {
@@ -179,7 +184,7 @@
 
 .tpl-preview-frame img {
   max-width: 100%;
-  max-height: 70vh;
+  max-height: max(240px, calc(100vh - var(--tpl-bar-h, 64px) - 290px));
   box-shadow: var(--shadow-lg);
 }
 
@@ -241,6 +246,12 @@
 
   .tpl-preview {
     position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .tpl-preview-frame img {
+    max-height: 70vh;
   }
 }
 
@@ -743,4 +754,105 @@ input[type="color"] {
     right: auto;
     left: 0;
   }
+}
+
+/* ── Collapsible sections ──────────────────── */
+
+.tpl-section > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+}
+
+.tpl-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.tpl-section > summary .tpl-heading {
+  margin: 0;
+}
+
+.tpl-section > summary::after {
+  content: "Show";
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.tpl-section[open] > summary::after {
+  content: "Hide";
+}
+
+.tpl-section[open] > summary {
+  margin-bottom: var(--space-md);
+}
+
+/* The selected layer's properties, right under its row. */
+.tpl-layer-list li > #propsSection {
+  flex-basis: 100%;
+  margin: var(--space-sm) 0 var(--space-xs);
+  padding: var(--space-md);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Preview head, warning count and tabs ──── */
+
+.tpl-preview-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.tpl-preview-head h3 {
+  margin: 0;
+}
+
+.tpl-preview-head .btn {
+  margin: 0 0 0 auto;
+  padding: 6px 12px;
+}
+
+.tpl-warn-count {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-success);
+}
+
+.tpl-warn-count.warn {
+  color: var(--color-warning);
+}
+
+.tpl-preview .tpl-preview-pick .control-group,
+.tpl-preview .tpl-status {
+  margin-bottom: var(--space-xs);
+}
+
+.tpl-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin: var(--space-md) 0 var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tpl-tabs [role="tab"] {
+  padding: var(--space-sm) var(--space-md);
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.tpl-tabs [role="tab"][aria-selected="true"] {
+  color: var(--color-text);
+  border-bottom-color: var(--color-primary);
 }

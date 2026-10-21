@@ -59,6 +59,7 @@ QR_LOW = {
 
 def test_device_warning_layers_are_buttons_too(page):
     open_with_draft(page, QR_LOW)
+    page.click("#tabDevices")
     page.check('.device-pick[value="iphone-se"]')  # this QR sits under its controls
     page.wait_for_function(
         "document.querySelector('#deviceWarnings').textContent.includes('iPhone SE')")

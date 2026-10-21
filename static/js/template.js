@@ -240,6 +240,7 @@
       if (!resp.ok) {
         $('#downloadPreview').disabled = true; // the image shown is out of date
         showWarnings(body.problems || [body.error || 'The preview failed.']);
+        setWarningCount(1, 'Not rendered');
         setStatus(resp.status === 400 ? 'Not rendered: the template has problems (listed below).'
           : 'Not rendered: an asset or value could not be used (listed below).');
         return;
@@ -259,6 +260,9 @@
       };
       showWarnings(render.device_warnings, $('#deviceWarnings'),
         pickedDevices().length ? 'Fits every selected device.' : 'No devices selected.');
+      setWarningCount(render.warnings.length);
+      const nd = render.device_warnings.length;
+      $('#tabDevices').textContent = nd ? `Devices and safe areas (${nd})` : 'Devices and safe areas';
       const size = state.template.canvas ? `${state.template.canvas.width}×${state.template.canvas.height} ` : '';
       setStatus(`Rendered ${size}with ${previewSubject()}.`);
     } catch (err) {
@@ -283,6 +287,17 @@
 
   function setStatus(text) {
     $('#previewStatus').textContent = text;
+  }
+
+  // "2 warnings" beside the Preview heading, with an icon; never color alone.
+  function setWarningCount(n, text) {
+    const icon = document.createElement('i');
+    icon.className = n ? 'fas fa-triangle-exclamation' : 'fas fa-circle-check';
+    icon.setAttribute('aria-hidden', 'true');
+    const el = $('#warningCount');
+    el.classList.toggle('warn', n > 0);
+    el.replaceChildren(icon, ` ${text || (n ? `${n} warning${n > 1 ? 's' : ''}` : 'No warnings')}`);
+    $('#tabWarnings').textContent = n ? `Warnings (${n})` : 'Warnings';
   }
 
   const STRESS_CAPTIONS = { long: 'Every value long', empty: 'Every value empty' };
@@ -528,8 +543,22 @@
     return `Image: ${layer.asset || '(choose an asset)'}`;
   }
 
+  // The selected layer's properties sit right under it in the list. When
+  // only the names changed (typing in a field), the rows are updated in
+  // place, so the field being typed in keeps its focus.
   function drawLayers() {
     const ol = $('#layerList');
+    const props = $('#propsSection');
+    const rows = Array.from(ol.children);
+    const layers = state.template.layers;
+    if (rows.length === layers.length && props.parentElement === rows[state.selected]) {
+      rows.forEach((li, i) => {
+        li.querySelector('.layer-select').textContent = `${i + 1}. ${describe(layers[i])}`;
+      });
+      drawOverlay();
+      return;
+    }
+    $('#propsHome').append(props); // out of the rows before they are replaced
     ol.replaceChildren();
     state.template.layers.forEach((layer, i) => {
       const li = document.createElement('li');
@@ -547,6 +576,7 @@
         iconButton('Delete', `Delete layer ${i + 1}`, false, () => remove(i)));
       ol.append(li);
     });
+    if (ol.children[state.selected]) ol.children[state.selected].append(props);
     drawOverlay();
   }
 
@@ -563,6 +593,7 @@
 
   function select(i) {
     state.selected = i;
+    $('#propsHome').append($('#propsSection'));
     drawLayers();
     drawProperties();
   }
@@ -1237,6 +1268,7 @@
     drawSampleFields();
     $('#samplePreset').addEventListener('change', (e) => {
       if (e.target.value === 'custom') {
+        $('#valuesSection').open = true;
         $('.sample-field').focus();
         return;
       }
@@ -1458,6 +1490,7 @@
     drawSampleFields();
     $('#templateScreen').value = t.screen || '';
     applyTemplateScreen();
+    if (t.roles) $('#rolesSection').open = true;
     drawVariants();
     drawLayers();
     drawProperties();
@@ -1552,6 +1585,39 @@
     });
   }
 
+  // ── Preview tabs and layout ─────────────────────────
+
+  function bindTabs() {
+    const tabs = $$('.tpl-tabs [role="tab"]');
+    const show = (tab) => {
+      tabs.forEach((t) => {
+        const on = t === tab;
+        t.setAttribute('aria-selected', String(on));
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+      });
+    };
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => show(tab));
+      tab.addEventListener('keydown', (e) => {
+        const step = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
+        if (!step) return;
+        e.preventDefault();
+        const next = tabs[(i + step + tabs.length) % tabs.length];
+        show(next);
+        next.focus();
+      });
+    });
+  }
+
+  // The sticky preview sits just under the sticky action bar, whatever its height.
+  function trackBarHeight() {
+    const bar = $('.tpl-actionbar');
+    const set = () => document.documentElement.style.setProperty('--tpl-bar-h', `${bar.offsetHeight}px`);
+    set();
+    if (window.ResizeObserver) new ResizeObserver(set).observe(bar);
+  }
+
   // ── Start ──────────────────────────────────────────
 
   function init() {
@@ -1568,6 +1634,8 @@
     bindTemplateScreen();
     bindHistory();
     bindFleet();
+    bindTabs();
+    trackBarHeight();
     drawVariants();
     drawLayers();
     drawProperties();
