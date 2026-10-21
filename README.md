@@ -27,6 +27,7 @@ Both modes preview through `wallrender/`, or Pillow for the photo editor. `wallr
 - **Role variants** — one template with a background and wording per device role, read from a Jamf extension attribute.
 - **Asset library** — PNG and JPEG images that backgrounds and image layers use.
 - **Export** — a `.brander.json` package for JAWA's template store, or a `.zip` bundle for Brander's assets folder. Both open again in EWOK.
+- **Renderer version** — a package records the wallrender it was made with (`wallrender`) and the lowest release that renders every feature it uses (`requires_wallrender`). The preview warns when a feature is newer than the release JAWA runs.
 - **Draft** — the template is kept in the browser, so a reload does not lose it.
 
 ## Photo editor (`/`)
@@ -53,6 +54,12 @@ uv run ewok
 ```
 
 Open `http://127.0.0.1:5055/template` in your browser. EWOK listens on localhost only and has no login, so don't expose it to a network. `--port` (or `EWOK_PORT`) changes the port, and `EWOK_DEBUG=1` turns on Flask's debug mode.
+
+### JAWA's wallrender version
+
+JAWA vendors its own copy of `wallrender`. An older copy renders a feature it does not know as if it were absent: text with a `weight` of Medium, Semibold or Bold shows as Regular on devices. **JAWA must vendor wallrender 0.12.0 or later before you use `weight`.**
+
+`EWOK_WALLRENDER_TARGET` is the release JAWA runs (default `0.9.0`). The preview warns for each feature that needs a newer release. Set it to the release JAWA vendors, for example `EWOK_WALLRENDER_TARGET=0.13.0 uv run ewok`.
 
 ## Testing
 

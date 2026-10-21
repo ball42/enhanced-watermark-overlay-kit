@@ -17,10 +17,11 @@ from flask import Blueprint, abort, jsonify, request, send_file
 from PIL import Image, UnidentifiedImageError
 
 import config
-from wallrender import TemplateError, render_with_lint, validate
+import wallrender
+from wallrender import TemplateError, render_with_lint, required_version, validate
 from wallrender.cli import folder_assets, role_keys, stress_values
 from wallrender.devices import fit_warnings
-from wallrender.schema import ASSET_ID, MAX_PIXELS, MAX_SIDE
+from wallrender.schema import ASSET_ID, MAX_PIXELS, MAX_SIDE, newer_than
 
 template_bp = Blueprint("template_api", __name__, url_prefix="/api/template")
 
@@ -86,6 +87,7 @@ def preview():
                    for label, v in variants]
     except TemplateError as err:
         return jsonify({"problems": err.problems}), 422
+    renders[0]["warnings"] = newer_than(template, config.WALLRENDER_TARGET) + renders[0]["warnings"]
     return jsonify({"renders": renders})
 
 
@@ -240,7 +242,9 @@ def export_package():
         with open(_asset_path(asset_id), "rb") as handle:
             assets[asset_id] = base64.b64encode(handle.read()).decode("ascii")
     name = template.get("name") or "Untitled template"
+    # The store can refuse a template its vendored wallrender cannot render.
     package = {"kind": "brander-template", "format": 1, "name": name,
+               "wallrender": wallrender.__version__, "requires_wallrender": required_version(template),
                "template": template, "assets": assets}
     data = io.BytesIO((json.dumps(package, indent=1) + "\n").encode())
     return send_file(data, mimetype="application/json", as_attachment=True,

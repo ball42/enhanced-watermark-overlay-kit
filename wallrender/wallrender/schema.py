@@ -23,6 +23,16 @@ ALIGNS = {"left", "center", "right"}
 SCREENS = {"lock", "home", "both"}  # which screen a template is designed for
 OVERFLOWS = {"shrink", "ellipsis"}  # what a text layer does when its text is too long
 LAYER_TYPES = ("text", "qr", "image", "panel")
+# The fields each layer type may carry. Anything else is a problem, so a
+# template made for a newer wallrender fails loudly here instead of
+# rendering without the feature.
+LAYER_FIELDS = {
+    "text": {"type", "box", "text", "size", "color", "align", "font", "weight", "overflow", "min_size",
+             "hide_if_empty"},
+    "qr": {"type", "box", "data", "color", "background", "hide_if_empty"},
+    "image": {"type", "box", "asset"},
+    "panel": {"type", "box", "color", "opacity", "radius"},
+}
 MAX_RADIUS = 0.5  # a panel's corner radius, as a fraction of its shorter side
 
 ASSET_ID = re.compile(r"[a-z0-9_-]{1,64}")  # always used with fullmatch
@@ -202,6 +212,9 @@ def validate(template: Any) -> list[str]:
         if kind not in LAYER_TYPES:
             problems.append(f"{where}: unknown layer type {kind!r}")
             continue
+        unknown = set(layer) - LAYER_FIELDS[kind]
+        if unknown:
+            problems.append(f"{where}: unknown fields {sorted(map(str, unknown))}")
         _check_box(where, layer.get("box"), problems)
         if kind == "text":
             text = layer.get("text")
@@ -254,3 +267,48 @@ def validate(template: Any) -> list[str]:
             if not (_number(radius) and 0 <= radius <= MAX_RADIUS):
                 problems.append(f"{where}: radius must be a fraction of the shorter side from 0 to {MAX_RADIUS}")
     return problems
+
+
+# --- The wallrender release a template needs -----------------------------------
+# An older copy (JAWA vendors its own) skips what it does not know, so a
+# template records the lowest release that renders all of it.
+
+FIRST_RELEASE = "0.1.0"
+
+
+def _release(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))
+
+
+def features_used(template: dict) -> list[tuple[str, str]]:
+    """(release, where) for each feature newer than the first release.
+    Call it on a template that validate() accepted."""
+    found = []
+    if "roles" in template:
+        found.append(("0.5.0", "roles"))
+    if template.get("person_fields") is True:
+        found.append(("0.6.0", "person_fields"))
+    if "screen" in template:
+        found.append(("0.8.0", "screen"))
+    for i, layer in enumerate(template.get("layers", [])):
+        where = f"layer {i}"
+        if layer["type"] == "panel":
+            found.append(("0.9.0", f"{where}: panel layer"))
+        for key in ("overflow", "min_size", "hide_if_empty"):
+            if key in layer:
+                found.append(("0.3.0", f"{where}: {key}"))
+        if layer.get("weight", "regular") != "regular":
+            found.append(("0.12.0", f"{where}: weight {layer['weight']!r}"))
+    return found
+
+
+def required_version(template: dict) -> str:
+    """The lowest wallrender release that renders every feature the template uses."""
+    return max([FIRST_RELEASE] + [release for release, _ in features_used(template)], key=_release)
+
+
+def newer_than(template: dict, target: str) -> list[str]:
+    """A warning for each feature the target release does not render."""
+    return [f"{where} needs wallrender {release}; the target renderer is {target}, "
+            "so devices will not show it as previewed"
+            for release, where in features_used(template) if _release(release) > _release(target)]

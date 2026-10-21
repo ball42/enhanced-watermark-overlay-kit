@@ -79,6 +79,9 @@ SAMPLE_DEVICES = [
 DEBUG = os.environ.get('EWOK_DEBUG', '').lower() in ('1', 'true', 'yes')
 HOST = '127.0.0.1'
 PORT = int(os.environ.get('EWOK_PORT', '5055'))  # 5000 is macOS AirPlay
+# The wallrender release JAWA's Brander runs. The designer warns when a
+# template uses a feature newer than this, since devices would not show it.
+WALLRENDER_TARGET = os.environ.get('EWOK_WALLRENDER_TARGET', '0.9.0')
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
     SECRET_KEY = secrets.token_hex(32)
