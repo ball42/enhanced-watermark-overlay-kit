@@ -7,6 +7,8 @@ import io
 import pytest
 from PIL import Image
 
+import config
+import wallrender
 from tests.conftest import make_test_image
 
 TEMPLATE = {
@@ -431,3 +433,38 @@ def test_an_oversized_upload_is_413_json(client):
     assert resp.status_code == 413
     assert resp.is_json
     assert resp.get_json() == {"error": "That file is larger than 16 MB."}
+
+
+# --- the wallrender release a package needs ---------------------------------------
+
+
+def test_a_bold_package_asks_for_wallrender_0_12_0(client):
+    template = json.loads(json.dumps(TEMPLATE))
+    template["layers"][0]["weight"] = "bold"
+    package = json.loads(client.post("/api/template/package", json={"template": template}).data)
+    assert package["requires_wallrender"] == "0.12.0"
+    assert package["wallrender"] == wallrender.__version__
+
+
+def test_a_regular_package_asks_for_the_first_release(client):
+    package = json.loads(client.post("/api/template/package", json={"template": TEMPLATE}).data)
+    assert package["requires_wallrender"] == "0.1.0"
+
+
+def test_the_preview_warns_when_a_feature_is_newer_than_the_target(client, monkeypatch):
+    monkeypatch.setattr(config, "WALLRENDER_TARGET", "0.9.0")
+    template = json.loads(json.dumps(TEMPLATE))
+    template["layers"][0]["weight"] = "semibold"
+    warnings = client.post("/api/template/preview", json={"template": template, "values": {}}) \
+        .get_json()["renders"][0]["warnings"]
+    assert any(w.startswith("layer 0: weight 'semibold' needs wallrender 0.12.0") and "0.9.0" in w
+               for w in warnings)
+
+
+def test_the_preview_does_not_warn_when_the_target_is_new_enough(client, monkeypatch):
+    monkeypatch.setattr(config, "WALLRENDER_TARGET", "0.12.0")
+    template = json.loads(json.dumps(TEMPLATE))
+    template["layers"][0]["weight"] = "bold"
+    warnings = client.post("/api/template/preview", json={"template": template, "values": {}}) \
+        .get_json()["renders"][0]["warnings"]
+    assert not any("needs wallrender" in w for w in warnings)

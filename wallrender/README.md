@@ -83,7 +83,9 @@ Assets load from the template's folder (`<id>.png`, `.jpg` or `.jpeg`), or from 
 - **Deterministic:** for a given Pillow version, the same template, values and assets always give the same pixels. Text uses Pillow's BASIC layout engine, the named instance of the bundled font that the layer's `weight` picks (Regular by default), and whole-pixel positions.
 - **Pinning:** pin Pillow exactly where byte-identical output across hosts matters.
 
-**Weight needs wallrender 0.12.0 or later.** Older versions do not check unknown layer fields, so they render a `weight` layer as Regular with no warning. Vendor 0.12.0 into JAWA before templates that use `weight` go to devices.
+**Weight needs wallrender 0.12.0 or later.** Versions before 0.13.0 do not check unknown layer fields, so they render a `weight` layer as Regular with no warning. Vendor 0.12.0 or later into JAWA before templates that use `weight` go to devices.
+
+**Version checks.** From 0.13.0, `validate()` reports a field that a layer's type does not have (`layer 0: unknown fields ['shadow']`), so a template made for a newer release fails in an older copy instead of rendering without the feature. `required_version(template)` returns the lowest release that renders every feature the template uses: `overflow`, `min_size` and `hide_if_empty` 0.3.0, roles 0.5.0, `person_fields` 0.6.0, `screen` 0.8.0, panel layers 0.9.0, a `weight` other than `regular` 0.12.0. EWOK writes it to a package as `requires_wallrender`.
 
 ## Which screen
 
