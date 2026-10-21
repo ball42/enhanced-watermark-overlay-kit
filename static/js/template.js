@@ -62,14 +62,18 @@
 
   function saveDraft() {
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(state.template));
+      // Role labels ride with the draft, not the template: wallrender has no field for them.
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ template: state.template, roleLabels: state.roleLabels }));
     } catch (err) { /* storage full or blocked: the tab still works */ }
   }
 
   function readDraft() {
     try {
-      const draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
-      return draft && typeof draft === 'object' && Array.isArray(draft.layers) ? draft : null;
+      let draft = JSON.parse(localStorage.getItem(DRAFT_KEY));
+      if (draft && Array.isArray(draft.layers)) draft = { template: draft, roleLabels: {} }; // the old shape
+      if (!draft || typeof draft !== 'object' || !draft.template || !Array.isArray(draft.template.layers)) return null;
+      const labels = draft.roleLabels;
+      return { template: draft.template, roleLabels: labels && typeof labels === 'object' ? labels : {} };
     } catch (err) {
       return null;
     }
@@ -77,7 +81,7 @@
 
   function restoreDraft(draft) {
     try {
-      loadTemplate(draft);
+      loadTemplate(draft.template, draft.roleLabels);
       ioStatus('Restored your last draft.');
     } catch (err) {
       loadTemplate(newTemplate());
@@ -142,7 +146,7 @@
     to.push(shown);
     shown = from.pop();
     const selected = state.selected;
-    loadTemplate(JSON.parse(shown));
+    loadTemplate(JSON.parse(shown), state.roleLabels); // labels are not in the snapshot; keep them
     clearTimeout(historyTimer); // loadTemplate's own change is this step
     historyTimer = null;
     state.selected = Math.min(Math.max(selected, 0), state.template.layers.length - 1);
@@ -1298,7 +1302,8 @@
   }
 
   // Put a loaded template into the form: name, canvas, background, layers.
-  function loadTemplate(t) {
+  // roleLabels: the roles as typed, keyed by variant key (none for a new or opened template).
+  function loadTemplate(t, roleLabels = {}) {
     state.template = t;
     state.selected = t.layers.length ? 0 : -1;
     $('#tplName').value = t.name || '';
@@ -1316,7 +1321,7 @@
     $('#bgAssetRow').hidden = !isAsset;
     if (isAsset) $('#bgAsset').value = t.background.asset;
     else $('#bgColor').value = (t.background.color || '#000000').slice(0, 7).toLowerCase();
-    state.roleLabels = {};
+    state.roleLabels = roleLabels;
     $('#personFields').checked = t.person_fields === true;
     drawSampleFields();
     $('#templateScreen').value = t.screen || '';

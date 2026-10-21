@@ -14,7 +14,7 @@ STYLED = {
 
 
 def draft(page):
-    return json.loads(page.evaluate("localStorage.getItem('ewok-template-draft')"))
+    return json.loads(page.evaluate("localStorage.getItem('ewok-template-draft')"))["template"]
 
 
 def test_copy_adds_the_same_layer_below_it_and_selects_it(page):

@@ -13,7 +13,7 @@ def ink(data_url):
 
 
 def draft_layer(page, i):
-    return json.loads(page.evaluate("localStorage.getItem('ewok-template-draft')"))["layers"][i]
+    return json.loads(page.evaluate("localStorage.getItem('ewok-template-draft')"))["template"]["layers"][i]
 
 
 def test_choosing_bold_makes_the_preview_text_bold(page):
