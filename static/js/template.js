@@ -240,6 +240,7 @@
       if (!resp.ok) {
         $('#downloadPreview').disabled = true; // the image shown is out of date
         showWarnings(body.problems || [body.error || 'The preview failed.']);
+        setWarningCount(1, 'Not rendered');
         setStatus(resp.status === 400 ? 'Not rendered: the template has problems (listed below).'
           : 'Not rendered: an asset or value could not be used (listed below).');
         return;
@@ -259,6 +260,9 @@
       };
       showWarnings(render.device_warnings, $('#deviceWarnings'),
         pickedDevices().length ? 'Fits every selected device.' : 'No devices selected.');
+      setWarningCount(render.warnings.length);
+      const nd = render.device_warnings.length;
+      $('#tabDevices').textContent = nd ? `Devices and safe areas (${nd})` : 'Devices and safe areas';
       const size = state.template.canvas ? `${state.template.canvas.width}×${state.template.canvas.height} ` : '';
       setStatus(`Rendered ${size}with ${previewSubject()}.`);
     } catch (err) {
@@ -283,6 +287,17 @@
 
   function setStatus(text) {
     $('#previewStatus').textContent = text;
+  }
+
+  // "2 warnings" beside the Preview heading, with an icon; never color alone.
+  function setWarningCount(n, text) {
+    const icon = document.createElement('i');
+    icon.className = n ? 'fas fa-triangle-exclamation' : 'fas fa-circle-check';
+    icon.setAttribute('aria-hidden', 'true');
+    const el = $('#warningCount');
+    el.classList.toggle('warn', n > 0);
+    el.replaceChildren(icon, ` ${text || (n ? `${n} warning${n > 1 ? 's' : ''}` : 'No warnings')}`);
+    $('#tabWarnings').textContent = n ? `Warnings (${n})` : 'Warnings';
   }
 
   const STRESS_CAPTIONS = { long: 'Every value long', empty: 'Every value empty' };
@@ -528,8 +543,22 @@
     return `Image: ${layer.asset || '(choose an asset)'}`;
   }
 
+  // The selected layer's properties sit right under it in the list. When
+  // only the names changed (typing in a field), the rows are updated in
+  // place, so the field being typed in keeps its focus.
   function drawLayers() {
     const ol = $('#layerList');
+    const props = $('#propsSection');
+    const rows = Array.from(ol.children);
+    const layers = state.template.layers;
+    if (rows.length === layers.length && props.parentElement === rows[state.selected]) {
+      rows.forEach((li, i) => {
+        li.querySelector('.layer-select').textContent = `${i + 1}. ${describe(layers[i])}`;
+      });
+      drawOverlay();
+      return;
+    }
+    $('#propsHome').append(props); // out of the rows before they are replaced
     ol.replaceChildren();
     state.template.layers.forEach((layer, i) => {
       const li = document.createElement('li');
@@ -547,6 +576,7 @@
         iconButton('Delete', `Delete layer ${i + 1}`, false, () => remove(i)));
       ol.append(li);
     });
+    if (ol.children[state.selected]) ol.children[state.selected].append(props);
     drawOverlay();
   }
 
@@ -563,6 +593,7 @@
 
   function select(i) {
     state.selected = i;
+    $('#propsHome').append($('#propsSection'));
     drawLayers();
     drawProperties();
   }
@@ -1237,6 +1268,7 @@
     drawSampleFields();
     $('#samplePreset').addEventListener('change', (e) => {
       if (e.target.value === 'custom') {
+        $('#valuesSection').open = true;
         $('.sample-field').focus();
         return;
       }
@@ -1285,6 +1317,138 @@
     });
   }
 
+  // ── Devices from a CSV ─────────────────────────────
+  // The file is parsed here; its rows go to /api/template/preview-batch for
+  // this check only. Devices with warnings are listed first.
+
+  const FLEET_MAX = 200;
+  let fleet = [];
+  let fleetNote = ''; // said before each result, such as rows left out
+
+  // Rows of fields; quoted fields may hold commas, quotes ("") and newlines.
+  function parseCsv(text) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let quoted = false;
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text[i];
+      if (quoted) {
+        if (ch === '"' && text[i + 1] === '"') { field += '"'; i += 1; } else if (ch === '"') quoted = false;
+        else field += ch;
+      } else if (ch === '"') quoted = true;
+      else if (ch === ',') { row.push(field); field = ''; } else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && text[i + 1] === '\n') i += 1;
+        row.push(field); rows.push(row); row = []; field = '';
+      } else field += ch;
+    }
+    if (field || row.length) { row.push(field); rows.push(row); }
+    return rows.filter((r) => r.some((f) => f.trim()));
+  }
+
+  // Value objects from CSV text: the header row gives the keys, and a dotted
+  // key ("location.building") becomes a nested value.
+  function csvDevices(text) {
+    const [header, ...rows] = parseCsv(text.replace(/^﻿/, ''));
+    const keys = (header || []).map((k) => k.trim());
+    return rows.map((r) => {
+      const values = {};
+      keys.forEach((k, i) => {
+        if (!k) return;
+        const v = (r[i] || '').trim();
+        setPath(values, k, k === 'jss_id' && /^\d+$/.test(v) ? Number(v) : v);
+      });
+      return values;
+    });
+  }
+
+  function fleetStatus(text) {
+    $('#fleetStatus').textContent = text;
+  }
+
+  async function checkFleet() {
+    if (!fleet.length) return;
+    fleetStatus(`Checking ${fleet.length} devices…`);
+    let body;
+    try {
+      const resp = await fetch('/api/template/preview-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template: previewable(), devices: fleet }),
+      });
+      body = await readJson(resp);
+      if (!resp.ok) {
+        fleetStatus(`Not checked: ${(body.problems || [body.error]).join('; ')}`);
+        return;
+      }
+    } catch (err) {
+      fleetStatus('Not checked: could not reach EWOK.');
+      return;
+    }
+    const results = body.results.map((r, i) => ({ ...r, values: fleet[i] }));
+    // Stable sort: the most warnings first, otherwise in file order.
+    results.sort((a, b) => b.warnings.length - a.warnings.length);
+    const warned = results.filter((r) => r.warnings.length).length;
+    fleetStatus(`${fleetNote}Checked ${results.length} devices: ${warned ? `${warned} with warnings, listed first` : 'no warnings'}.`
+      + ' Pick a device to preview it.');
+    $('#fleetSheet').replaceChildren(...results.map(fleetItem));
+  }
+
+  function fleetItem(r) {
+    const li = document.createElement('li');
+    const pick = document.createElement('button');
+    pick.type = 'button';
+    pick.className = 'tpl-fleet-pick';
+    const img = document.createElement('img');
+    img.src = r.thumb;
+    img.alt = '';
+    const name = document.createElement('span');
+    name.className = 'tpl-fleet-name';
+    name.textContent = r.label;
+    const count = document.createElement('span');
+    count.className = r.warnings.length ? 'tpl-fleet-count warn' : 'tpl-fleet-count';
+    count.textContent = r.warnings.length
+      ? `${r.warnings.length} warning${r.warnings.length > 1 ? 's' : ''}` : 'No warnings';
+    pick.append(img, name, count);
+    pick.addEventListener('click', () => {
+      $$('.tpl-fleet-pick[aria-current]').forEach((b) => b.removeAttribute('aria-current'));
+      pick.setAttribute('aria-current', 'true');
+      state.values = JSON.parse(JSON.stringify(r.values));
+      $('#samplePreset').value = 'custom';
+      $('#sampleValues').value = JSON.stringify(state.values, null, 2);
+      $('#sampleError').hidden = true;
+      drawSampleFields();
+      schedulePreview();
+    });
+    li.append(pick);
+    if (r.warnings.length) {
+      const ul = document.createElement('ul');
+      ul.className = 'tpl-warnings';
+      li.append(ul);
+      showWarnings(r.warnings, ul);
+    }
+    return li;
+  }
+
+  function bindFleet() {
+    $('#fleetFile').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      const devices = csvDevices(await file.text());
+      if (!devices.length) {
+        fleetStatus(`Not loaded: ${file.name} has no device rows under its header row.`);
+        return;
+      }
+      fleet = devices.slice(0, FLEET_MAX);
+      $('#fleetRecheck').hidden = false;
+      fleetNote = devices.length > FLEET_MAX
+        ? `${file.name} has ${devices.length} devices; only the first ${FLEET_MAX} are used. ` : '';
+      await checkFleet();
+    });
+    $('#fleetRecheck').addEventListener('click', checkFleet);
+  }
+
   function slug(name) {
     return (name || 'template').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'template';
   }
@@ -1326,6 +1490,7 @@
     drawSampleFields();
     $('#templateScreen').value = t.screen || '';
     applyTemplateScreen();
+    if (t.roles) $('#rolesSection').open = true;
     drawVariants();
     drawLayers();
     drawProperties();
@@ -1333,6 +1498,17 @@
   }
 
   function bindExport() {
+    // The More menu closes once an item is picked, or on Escape.
+    const more = $('#moreActions');
+    more.querySelectorAll('.tpl-more-menu button').forEach((b) => b.addEventListener('click', () => {
+      more.open = false;
+    }));
+    more.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && more.open) {
+        more.open = false;
+        more.querySelector('summary').focus();
+      }
+    });
     // The full-size render, without the boxes and safe areas drawn over it.
     $('#downloadPreview').addEventListener('click', async () => {
       if (!state.lastImage || $('#downloadPreview').disabled) return;
@@ -1409,6 +1585,39 @@
     });
   }
 
+  // ── Preview tabs and layout ─────────────────────────
+
+  function bindTabs() {
+    const tabs = $$('.tpl-tabs [role="tab"]');
+    const show = (tab) => {
+      tabs.forEach((t) => {
+        const on = t === tab;
+        t.setAttribute('aria-selected', String(on));
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+      });
+    };
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => show(tab));
+      tab.addEventListener('keydown', (e) => {
+        const step = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
+        if (!step) return;
+        e.preventDefault();
+        const next = tabs[(i + step + tabs.length) % tabs.length];
+        show(next);
+        next.focus();
+      });
+    });
+  }
+
+  // The sticky preview sits just under the sticky action bar, whatever its height.
+  function trackBarHeight() {
+    const bar = $('.tpl-actionbar');
+    const set = () => document.documentElement.style.setProperty('--tpl-bar-h', `${bar.offsetHeight}px`);
+    set();
+    if (window.ResizeObserver) new ResizeObserver(set).observe(bar);
+  }
+
   // ── Start ──────────────────────────────────────────
 
   function init() {
@@ -1424,6 +1633,9 @@
     bindPersonFields();
     bindTemplateScreen();
     bindHistory();
+    bindFleet();
+    bindTabs();
+    trackBarHeight();
     drawVariants();
     drawLayers();
     drawProperties();

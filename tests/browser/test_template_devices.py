@@ -21,6 +21,7 @@ def test_the_canvas_preset_picks_its_devices_until_the_user_picks(page):
     page.select_option("#canvasPreset", "1290x2796")
     assert picked(page) == ["iphone-6.7", "iphone-6.1"]
 
+    page.click("#tabDevices")
     page.check('.device-pick[value="iphone-se"]')
     page.select_option("#canvasPreset", "2732x2732")
     assert picked(page) == ["iphone-6.7", "iphone-6.1", "iphone-se"]

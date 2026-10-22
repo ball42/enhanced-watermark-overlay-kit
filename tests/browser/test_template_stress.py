@@ -4,9 +4,11 @@
 def test_stress_shows_one_figure_per_role(page):
     page.goto("/template")
     page.wait_for_selector("#previewImage:not([hidden])")
+    page.click("#rolesSection > summary")  # the Roles section starts collapsed
     page.check("#rolesOn")
     page.click("#addVariant")
     page.click("#addVariant")
+    page.click("#tabStress")
     page.check("#stressToggle")
     page.wait_for_function("document.querySelectorAll('#stressRenders figure').length === 4")
     captions = page.locator("#stressRenders figcaption").all_inner_texts()

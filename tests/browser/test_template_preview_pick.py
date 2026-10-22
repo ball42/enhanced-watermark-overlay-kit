@@ -17,6 +17,7 @@ def test_the_role_picker_shows_with_role_variants_and_is_named(page):
     page.goto("/template")
     page.wait_for_selector("#previewImage:not([hidden])")
     assert not page.is_visible("#previewRole")
+    page.click("#rolesSection > summary")  # the Roles section starts collapsed
     page.check("#rolesOn")
     page.click("#addVariant")
     assert page.is_visible("#previewRole")

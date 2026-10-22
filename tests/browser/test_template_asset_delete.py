@@ -34,6 +34,7 @@ def open_designer(page, template):
         f"localStorage.setItem('ewok-template-draft', {json.dumps(json.dumps(template))});")
     page.goto("/template")
     page.wait_for_selector("#previewImage:not([hidden])")
+    page.click("#assetsSection > summary")  # the Assets section starts collapsed
     page.wait_for_selector('[aria-label="Delete asset logo"]')
 
 

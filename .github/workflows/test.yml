@@ -1,0 +1,27 @@
+name: test
+
+# Pull requests only: EWOK deploys nothing, so nothing runs on push.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked
+      - name: App tests
+        run: uv run pytest
+      - name: wallrender tests
+        # Run in the app's environment, so Pillow stays on the app's pin
+        # (>=11.3,<12, the same as JAWA). wallrender's own range allows
+        # Pillow 12, and its tests fail on Pillow 12.3: ticket 86e3u984w.
+        working-directory: wallrender
+        run: uv run --project .. pytest

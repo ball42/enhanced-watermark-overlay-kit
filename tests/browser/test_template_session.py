@@ -27,12 +27,14 @@ def test_new_template_starts_over_after_a_confirm(designer):
     assert layer_count(page) == 3
 
     page.once("dialog", lambda d: d.dismiss())
+    page.click("#moreActions > summary")
     page.click("#newTemplate")
     assert layer_count(page) == 3
     assert page.input_value("#tplName") == "Lobby"
 
     messages = []
     page.once("dialog", lambda d: (messages.append(d.message), d.accept()))
+    page.click("#moreActions > summary")
     page.click("#newTemplate")
     assert "Start a new template?" in messages[0]
     assert layer_count(page) == 2
@@ -71,6 +73,7 @@ def test_new_template_is_what_the_next_reload_keeps(designer):
     add_text_layer(page)
     page.wait_for_timeout(500)
     page.once("dialog", lambda d: d.accept())
+    page.click("#moreActions > summary")
     page.click("#newTemplate")
     page.wait_for_timeout(500)
     page.reload()
