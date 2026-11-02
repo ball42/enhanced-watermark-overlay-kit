@@ -36,10 +36,6 @@
   --color-info-bg: var(--rb-status-info-bg);
   --color-info-border: var(--roster-info-200);
   --color-info-text: var(--rb-status-info-ink);
-  --color-danger: var(--roster-error-600);
-  --color-danger-hover: var(--roster-error-700);
-  --color-secondary: var(--roster-gray-600);
-  --color-secondary-hover: var(--roster-gray-700);
 
   /* Transparent-image checkerboard (asset thumbnails, preview frame). */
   --ewok-checker-a: var(--roster-gray-200);
@@ -298,72 +294,59 @@ body {
 
 /* ── Buttons ───────────────────────────────── */
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-sm);
-  background: var(--color-primary);
-  color: var(--roster-white);
-  border: none;
-  padding: 10px 20px;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 600;
-  transition: background var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
-  margin: var(--space-xs);
+/* Three weights from roster's Button (roster-html.css): rb-btn is the one
+   solid primary per view, rb-btn--outline plus ewok-btn--neutral the
+   everyday actions (Add, Upload, Insert variable, Open), rb-btn--ghost the
+   row tools. Spacing comes from each container's gap, not a margin here.
+   roster ships no neutral or error outline, so these two build them from
+   roster tokens. */
+.ewok-btn--neutral {
+  --_fg: var(--color-text);
+  --_bd: var(--roster-control-border);
+  --_bg-hover: var(--color-surface-raised);
 }
 
-.btn:hover {
-  background: var(--color-primary-hover);
-  box-shadow: var(--shadow-md);
+/* Delete: error outline, always with the trash icon and the word. */
+.ewok-btn--danger {
+  --_fg: var(--roster-error-600);
+  --_bd: var(--roster-error-600);
+  --_bg-hover: var(--roster-error-50);
 }
 
-.btn:active {
-  transform: scale(0.98);
+.dark .ewok-btn--neutral {
+  --_fg: var(--color-text);
+  --_bd: var(--roster-control-border);
+  --_bg-hover: var(--color-surface-raised);
 }
 
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+.dark .ewok-btn--danger {
+  --_fg: var(--roster-error-300);
+  --_bd: var(--roster-error-400);
+  --_bg-hover: color-mix(in srgb, var(--roster-error-500) 15%, transparent);
 }
 
-.btn-secondary {
-  background: var(--color-secondary);
-}
-
-.btn-secondary:hover {
-  background: var(--color-secondary-hover);
-}
-
-.btn-danger {
-  background: var(--color-danger);
-  padding: 6px 12px;
-  font-size: 0.75rem;
-}
-
-.btn-danger:hover {
-  background: var(--color-danger-hover);
+/* Up and Down: square, icon only; the aria-label names them. */
+.ewok-btn--icon {
+  width: calc(var(--rb-space-1) * 9);
+  padding: 0;
 }
 
 /* Loading spinner inside buttons */
-.btn .spinner {
+.rb-btn .spinner {
   display: none;
   width: 16px;
   height: 16px;
-  border: 2px solid color-mix(in srgb, var(--roster-white) 30%, transparent);
-  border-top-color: var(--roster-white);
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
 
-.btn.loading .spinner {
+.rb-btn.loading .spinner {
   display: inline-block;
 }
 
-.btn.loading .btn-label {
+.rb-btn.loading .btn-label {
   display: none;
 }
 
@@ -646,12 +629,6 @@ body {
   align-items: center;
   gap: var(--space-sm);
   margin-bottom: var(--space-md);
-}
-
-.image-upload-btn {
-  cursor: pointer;
-  font-size: 0.8rem;
-  padding: 6px 14px;
 }
 
 .image-overlay-filename {

@@ -127,15 +127,6 @@
   opacity: 0.6;
 }
 
-.tpl-icon-btn {
-  background: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
-  cursor: pointer;
-  font: inherit;
-}
-
 .tpl-asset-list li {
   display: flex;
   align-items: center;
@@ -689,20 +680,6 @@ input[type="color"] {
   gap: var(--space-sm);
 }
 
-.tpl-actionbar .btn {
-  margin: 0;
-}
-
-.btn.btn-outline {
-  background: var(--color-surface);
-  color: var(--color-text);
-  border: 1px solid var(--color-border-hover);
-}
-
-.btn.btn-outline:hover {
-  background: var(--color-surface-raised);
-}
-
 .tpl-actionbar #ioStatus {
   flex-basis: 100%;
   margin: 0;
@@ -762,10 +739,6 @@ input[type="color"] {
   .tpl-actionbar {
     margin-top: 0;
     border-radius: 0;
-  }
-
-  .tpl-actionbar .btn {
-    padding: 8px 12px;
   }
 
   .tpl-more-menu {
@@ -829,9 +802,8 @@ input[type="color"] {
   margin: 0;
 }
 
-.tpl-preview-head .btn {
-  margin: 0 0 0 auto;
-  padding: 6px 12px;
+.tpl-preview-head .rb-btn {
+  margin-left: auto;
 }
 
 /* An rb-badge (--ok or --warn, set by template.js) with an icon and words. */
