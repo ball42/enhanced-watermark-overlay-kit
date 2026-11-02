@@ -22,7 +22,7 @@ def test_export_actions_stay_visible_while_the_controls_scroll(page, size):
 def test_one_solid_primary_and_the_rest_under_more(page):
     page.goto("/template")
     bar = page.locator(".tpl-actionbar")
-    solid = bar.locator(".btn:not(.btn-outline)")
+    solid = bar.locator(".rb-btn:not(.rb-btn--outline)")
     assert solid.count() == 1
     assert solid.first.get_attribute("id") == "downloadPackage"
     assert not page.is_visible("#downloadBundle")

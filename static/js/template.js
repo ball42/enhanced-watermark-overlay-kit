@@ -303,6 +303,8 @@
     icon.setAttribute('aria-hidden', 'true');
     const el = $('#warningCount');
     el.classList.toggle('warn', n > 0);
+    el.classList.toggle('rb-badge--warn', n > 0);
+    el.classList.toggle('rb-badge--ok', n === 0);
     el.replaceChildren(icon, ` ${text || (n ? `${n} warning${n > 1 ? 's' : ''}` : 'No warnings')}`);
     $('#tabWarnings').textContent = n ? `Warnings (${n})` : 'Warnings';
   }
@@ -341,13 +343,14 @@
     ul.replaceChildren();
     if (!list.length) {
       const li = document.createElement('li');
-      li.className = 'ok';
+      li.className = 'rb-alert rb-alert--ok ok';
       li.textContent = okText || 'No warnings.';
       ul.append(li);
       return;
     }
     list.forEach((w) => {
       const li = document.createElement('li');
+      li.className = 'rb-alert rb-alert--warn';
       // wallrender counts layers from 0; this page numbers them from 1.
       // Each "layer N" becomes a button that selects that layer's box.
       let at = 0;
@@ -460,12 +463,7 @@
       const name = document.createElement('span');
       name.className = 'asset-name';
       name.textContent = `${a.id} (${a.width}×${a.height})`;
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'tpl-icon-btn';
-      del.textContent = 'Delete';
-      del.setAttribute('aria-label', `Delete asset ${a.id}`);
-      del.addEventListener('click', () => deleteAsset(a.id));
+      const del = iconButton('Delete', `Delete asset ${a.id}`, false, () => deleteAsset(a.id), 'delete');
       li.append(img, name, del);
       ul.append(li);
     });
@@ -608,10 +606,10 @@
       const hide = iconButton('Hide', `Hide layer ${i + 1}`, false, () => toggleHidden(i));
       hide.classList.add('layer-hide');
       li.append(pick, hide,
-        iconButton('Up', `Move layer ${i + 1} up`, i === 0, () => move(i, -1)),
-        iconButton('Down', `Move layer ${i + 1} down`, i === state.template.layers.length - 1, () => move(i, 1)),
+        iconButton('Up', `Move layer ${i + 1} up`, i === 0, () => move(i, -1), 'icon'),
+        iconButton('Down', `Move layer ${i + 1} down`, i === state.template.layers.length - 1, () => move(i, 1), 'icon'),
         iconButton('Copy', `Copy layer ${i + 1}`, false, () => copy(i)),
-        iconButton('Delete', `Delete layer ${i + 1}`, false, () => remove(i)));
+        iconButton('Delete', `Delete layer ${i + 1}`, false, () => remove(i), 'delete'));
       drawLayerRow(li, layer, i);
       ol.append(li);
     });
@@ -651,11 +649,27 @@
     hiddenNote = note;
   }
 
-  function iconButton(text, label, disabled, onClick) {
+  // Roster button weights for row tools: ghost by default; Up and Down are
+  // icon-only ghosts (the aria-label names them); Delete is an error outline
+  // with a trash icon and the word, never hue alone.
+  const ROW_BUTTONS = {
+    ghost: 'rb-btn rb-btn--ghost rb-btn--sm',
+    icon: 'rb-btn rb-btn--ghost rb-btn--sm ewok-btn--icon',
+    delete: 'rb-btn rb-btn--outline rb-btn--sm ewok-btn--danger',
+  };
+  const ROW_ICONS = { Up: 'fa-arrow-up', Down: 'fa-arrow-down', Delete: 'fa-trash' };
+
+  function iconButton(text, label, disabled, onClick, kind = 'ghost') {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'tpl-icon-btn';
-    b.textContent = text;
+    b.className = `${ROW_BUTTONS[kind]} tpl-icon-btn`;
+    if (ROW_ICONS[text]) {
+      const icon = document.createElement('i');
+      icon.className = `fas ${ROW_ICONS[text]}`;
+      icon.setAttribute('aria-hidden', 'true');
+      b.append(icon);
+    }
+    if (kind !== 'icon') b.append(text);
     b.setAttribute('aria-label', label);
     b.disabled = disabled;
     b.addEventListener('click', onClick);
@@ -1182,7 +1196,7 @@
           delete roles.variants[key];
           drawVariants();
           rolesChanged();
-        });
+        }, 'delete');
         label.append(input);
         li.append(label, shown, remove);
       }));
@@ -1478,7 +1492,8 @@
     name.className = 'tpl-fleet-name';
     name.textContent = r.label;
     const count = document.createElement('span');
-    count.className = r.warnings.length ? 'tpl-fleet-count warn' : 'tpl-fleet-count';
+    count.className = r.warnings.length ? 'rb-badge rb-badge--warn tpl-fleet-count warn'
+      : 'rb-badge rb-badge--ok tpl-fleet-count';
     count.textContent = r.warnings.length
       ? `${r.warnings.length} warning${r.warnings.length > 1 ? 's' : ''}` : 'No warnings';
     pick.append(img, name, count);

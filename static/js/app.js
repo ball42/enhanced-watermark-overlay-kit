@@ -504,8 +504,8 @@
     div.innerHTML = `
       <div class="text-overlay-header">
         <input type="text" class="overlay-text" placeholder="Enter your text" style="flex:1;font-weight:500;">
-        <button class="btn btn-danger" data-action="remove-overlay" title="Remove">
-          <i class="fas fa-trash"></i>
+        <button type="button" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--danger" data-action="remove-overlay">
+          <i class="fas fa-trash" aria-hidden="true"></i> Delete
         </button>
       </div>
       <div class="overlay-settings">
@@ -685,13 +685,13 @@
     div.innerHTML = `
       <div class="image-overlay-header">
         <span class="image-overlay-title">Image Overlay #${imageOverlayCount}</span>
-        <button class="btn btn-danger" data-action="remove-image-overlay" title="Remove">
-          <i class="fas fa-trash"></i>
+        <button type="button" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--danger" data-action="remove-image-overlay">
+          <i class="fas fa-trash" aria-hidden="true"></i> Delete
         </button>
       </div>
       <div class="overlay-settings">
         <div class="image-upload-group">
-          <label class="btn btn-secondary image-upload-btn">
+          <label class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--neutral image-upload-btn">
             <i class="fas fa-upload"></i> Choose Image
             <input type="file" class="image-overlay-file" accept="image/*" style="display:none;">
           </label>
@@ -931,7 +931,9 @@
   // ── Status & Toast ──────────────────────────
 
   function showStatus(message, type) {
-    statusMessage.className = 'status-message status-' + type;
+    // A roster alert; the ::before word ("Done:", "Error:") carries the kind.
+    const kind = { success: 'ok', warning: 'warn', info: 'info' }[type];
+    statusMessage.className = 'rb-alert ' + (kind ? 'rb-alert--' + kind + ' ' : '') + 'status-message status-' + type;
     statusMessage.textContent = message;
     statusMessage.setAttribute('aria-live', 'polite');
   }
