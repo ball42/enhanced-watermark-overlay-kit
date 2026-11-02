@@ -258,6 +258,14 @@
   .tpl-preview-frame img {
     max-height: 70vh;
   }
+
+  /* Checkbox and radio rows are 44 px tap targets on a phone: the label
+     grows, not the box. */
+  .tpl-inline {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
 }
 
 /* `hidden` must win over the flex and block rules above. */
