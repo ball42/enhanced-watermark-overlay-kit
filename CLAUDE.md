@@ -14,7 +14,7 @@ uv sync
 
 # Run: serves on http://127.0.0.1:5055 only (EWOK has no auth)
 uv run ewok
-# EWOK_DEBUG=1 turns on Flask debug; --port or EWOK_PORT changes the port
+# --open opens /template in the browser; EWOK_DEBUG=1 turns on Flask debug; --port or EWOK_PORT changes the port
 
 # Run tests
 uv run pytest
@@ -66,12 +66,12 @@ Data lives only in gitignored folders (`static/uploads/`, `temp/`, `template_ass
 ### Key Patterns
 
 - **Design: one family with JAWA.** `static/css/style.css` uses JAWA's tokens (Inter and JetBrains Mono, parchment surfaces, borders, radii, shadows, primary blue `#3c6aa7`). EWOK's own identity is Endor: the forest navbar (`#2f4a33`) with a treeline edge, a bark accent and moss success color. Change shared tokens in both repos. Status is never color alone: messages and toasts lead with a word, switches say On or Off.
-- **Pillow pin:** `Pillow>=11.3,<12`, the same as JAWA. Text pixels differ between Pillow releases, so the preview only matches devices on the same version; change both repos together.
+- **Pillow pin:** `Pillow>=11.3,<12`, the same as JAWA. Text pixels differ between Pillow releases, so the preview only matches devices on the same version; change both repos together. Pillow 11.3 has published advisories (PSD, FITS, JPEG2000 and others, fixed in 12.x). They are not reachable: wallrender decodes only PNG and JPEG, and every `Image.open()` in EWOK passes `formats=` (`config.PHOTO_FORMATS` for the photo editor, PNG and JPEG for the asset library), so a PSD named `.png` is refused. Keep `formats=` on any new `Image.open()`. The move to Pillow 12 happens together with JAWA, with a new round-trip pixel fixture.
 - **Path safety:** All file-serving endpoints use `safe_filepath()` in `views/api.py` — `os.path.basename()` + `os.path.realpath()` containment check
 - **Hex colors:** Validated via `hex_to_rgb()` in `utils/image_processing.py` — regex-based, returns `(0,0,0)` fallback
 - **Font loading:** `load_font(size)` helper with system font fallback chain
 - **Temp cleanup:** `utils/cleanup.py` runs via `before_request` hook — removes files older than 1 hour, at most every 5 minutes
-- **SECRET_KEY:** Uses `$SECRET_KEY` env var; falls back to `secrets.token_hex(32)` with a warning log
+- **SECRET_KEY:** Uses `$SECRET_KEY` env var; falls back to `secrets.token_hex(32)` with a DEBUG log (EWOK keeps no sessions)
 
 ## Repository Guidelines
 

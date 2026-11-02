@@ -53,3 +53,12 @@ def make_test_image(width=100, height=100, color=(255, 0, 0), fmt="PNG"):
     buf.seek(0)
     buf.name = f"test.{fmt.lower()}"
     return buf
+
+
+def make_psd_bytes(width=4, height=4):
+    """A minimal 8-bit RGB Photoshop file, which Pillow's PSD plugin reads."""
+    import struct
+
+    header = b"8BPS" + struct.pack(">H6xHIIHH", 1, 3, height, width, 8, 3)
+    sections = struct.pack(">III", 0, 0, 0)  # color mode, resources, layers
+    return header + sections + struct.pack(">H", 0) + bytes(width * height * 3)

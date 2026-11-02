@@ -22,6 +22,7 @@
   const controlsGrid = $('#controlsGrid');
   const previewContainer = $('#previewContainer');
   const downloadSection = $('#downloadSection');
+  const compareBtn = $('#compareBtn');
   const processBtn = $('#processBtn');
   const downloadBtn = $('#downloadBtn');
   const resetBtn = $('#resetBtn');
@@ -51,6 +52,7 @@
     bindBackgroundType();
     bindEffectStrengthDelegation();
     bindLivePreview();
+    bindCompare();
   }
 
   // ── Upload ──────────────────────────────────
@@ -106,6 +108,7 @@
         // The last result belongs to the previous photo: never show or download it.
         processedFilename = null;
         downloadSection.style.display = 'none';
+        compareBtn.style.display = 'none';
         showStatus(
           `Image uploaded — ${result.dimensions.width}\u00d7${result.dimensions.height}`,
           'success'
@@ -321,6 +324,7 @@
         if (warnings.length) showToast(warnings.join(' '), 'warning');
         showPreview();
         downloadSection.style.display = 'block';
+        compareBtn.style.display = '';
       } else if (response.status === 410) {
         // The upload was cleaned up: it cannot be processed again.
         currentFilename = null;
@@ -371,6 +375,7 @@
     statusMessage.className = '';
     textOverlaysContainer.innerHTML = '';
     downloadSection.style.display = 'none';
+    compareBtn.style.display = 'none';
     processBtn.disabled = true;
     textOverlayCount = 0;
     fileInput.value = ''; // so the same file can be chosen again
@@ -857,6 +862,35 @@
 
     wrapper.appendChild(img);
     previewContainer.appendChild(wrapper);
+  }
+
+  // ── Compare with the original ───────────────
+  // While the button is held (pointer, or Space or Enter), the preview shows
+  // the original; the button's words say which image is on screen.
+
+  function showOriginal(on) {
+    const img = $('#preview-image');
+    if (!img || !processedFilename || !currentFilename) return;
+    img.src = on ? '/api/original/' + currentFilename : '/api/preview/' + processedFilename;
+    $('#compareLabel').textContent = on ? 'Showing original' : 'Hold to see original';
+  }
+
+  function bindCompare() {
+    compareBtn.addEventListener('pointerdown', (e) => {
+      compareBtn.setPointerCapture(e.pointerId);
+      showOriginal(true);
+    });
+    ['pointerup', 'pointercancel', 'lostpointercapture', 'blur'].forEach((type) => {
+      compareBtn.addEventListener(type, () => showOriginal(false));
+    });
+    compareBtn.addEventListener('keydown', (e) => {
+      if (e.key !== ' ' && e.key !== 'Enter') return;
+      e.preventDefault();
+      if (!e.repeat) showOriginal(true);
+    });
+    compareBtn.addEventListener('keyup', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') showOriginal(false);
+    });
   }
 
   function handlePreviewClick(e) {

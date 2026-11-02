@@ -39,19 +39,35 @@ def create_app(config_name=None):
     app.register_blueprint(template_bp)
 
     # Every page reads errors as JSON; Flask's own 413 page is HTML.
-    from flask import jsonify
+    from flask import jsonify, request
 
     @app.errorhandler(413)
     def too_large(_err):
         mb = app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)
         return jsonify(error=f"That file is larger than {mb} MB."), 413
 
+    # The pages read /api/ errors as JSON, so these answers are JSON there
+    # too; other paths keep Flask's HTML pages.
+    API_ERRORS = {
+        403: "EWOK refuses requests from other sites and other computers.",
+        404: "EWOK has no such item.",
+        405: "EWOK does not accept that method here.",
+    }
+
+    def api_error(err):
+        if request.path.startswith("/api/"):
+            return jsonify(error=API_ERRORS[err.code]), err.code
+        return err
+
+    for code in API_ERRORS:
+        app.register_error_handler(code, api_error)
+
     # Periodic cleanup of old temp files
     from utils.cleanup import cleanup_old_files
 
     # EWOK has no login, so it only answers to its own address: a foreign
     # Host header (DNS rebinding) or a cross-site write is refused.
-    from flask import abort, request
+    from flask import abort
 
     LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 

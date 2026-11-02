@@ -122,6 +122,11 @@
   font-weight: 600;
 }
 
+/* Hidden layer: "(hidden)" in the row text carries the state; the dimming adds weight. */
+.tpl-layer-list li.is-hidden .layer-select {
+  opacity: 0.6;
+}
+
 .tpl-icon-btn {
   background: none;
   border: 1px solid var(--color-border);
@@ -319,6 +324,16 @@ input[type="color"] {
   border: 3px solid var(--color-primary);
   outline: 1px solid white;
   z-index: 2;
+}
+
+/* Hidden layer: dotted (dashed when selected), and "hidden" in its label. */
+.tpl-boxframe.is-hidden {
+  border-style: dotted;
+  outline-style: dotted;
+}
+
+.tpl-boxframe.selected.is-hidden {
+  border-style: dashed;
 }
 
 .tpl-boxframe.tag-inside .tpl-boxlabel {

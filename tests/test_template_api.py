@@ -503,3 +503,35 @@ def test_preview_batch_invalid_template_returns_its_problems(client):
                        json={"template": {"schema_version": 9}, "devices": [{}]})
     assert resp.status_code == 400
     assert resp.get_json()["problems"]
+
+
+def test_asset_upload_refuses_a_psd_named_png(client):
+    """The PSD plugin never sees the file: it is not a readable PNG or JPEG."""
+    from tests.conftest import make_psd_bytes
+
+    resp = client.post("/api/template/assets",
+                       data={"file": (io.BytesIO(make_psd_bytes()), "logo.png")},
+                       content_type="multipart/form-data")
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "That file is not a readable PNG or JPEG image."
+    assert client.get("/api/template/assets").get_json()["assets"] == []
+
+
+def test_deleting_an_unknown_asset_answers_json(client):
+    resp = client.delete("/api/template/assets/nope")
+    assert resp.status_code == 404
+    assert resp.is_json
+    assert resp.get_json() == {"error": "That asset is no longer in the library."}
+    served = client.get("/api/template/assets/nope")
+    assert served.status_code == 404 and served.is_json
+
+
+def test_api_403_404_and_405_answer_json(client):
+    foreign = client.get("/api/template/assets", headers={"Host": "evil.example"})
+    assert foreign.status_code == 403 and "error" in foreign.get_json()
+    missing = client.get("/api/no-such-route")
+    assert missing.status_code == 404 and "error" in missing.get_json()
+    wrong = client.put("/api/template/assets")
+    assert wrong.status_code == 405 and "error" in wrong.get_json()
+    # Pages outside /api/ keep Flask's HTML answers.
+    assert client.get("/no-such-page").mimetype == "text/html"

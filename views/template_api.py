@@ -13,7 +13,7 @@ import os
 import re
 import zipfile
 
-from flask import Blueprint, abort, jsonify, request, send_file
+from flask import Blueprint, jsonify, request, send_file
 from PIL import Image, UnidentifiedImageError
 
 import config
@@ -27,6 +27,7 @@ template_bp = Blueprint("template_api", __name__, url_prefix="/api/template")
 
 FORMATS = {"PNG": "png", "JPEG": "jpg"}
 EXTENSIONS = ("png", "jpg", "jpeg")
+GONE = "That asset is no longer in the library."
 MAX_BUNDLE_ENTRIES = 60
 MAX_BUNDLE_BYTES = 64 * 1024 * 1024  # uncompressed, checked before reading
 
@@ -147,7 +148,7 @@ def list_assets():
         asset_id, ext = os.path.splitext(name)
         if ext.lstrip(".") in EXTENSIONS and ASSET_ID.fullmatch(asset_id):
             try:
-                with Image.open(os.path.join(_folder(), name)) as img:
+                with Image.open(os.path.join(_folder(), name), formats=tuple(FORMATS)) as img:
                     assets.append({"id": asset_id, "width": img.width, "height": img.height})
             except (OSError, Image.DecompressionBombError):
                 continue  # not a readable image: leave it out of the library
@@ -173,11 +174,11 @@ def _store_asset(asset_id, data):
     """Keep data as <id>.png or .jpg if it really is a PNG or JPEG within
     wallrender's limits. Returns (info, None) or (None, error)."""
     try:
-        with Image.open(io.BytesIO(data)) as img:
+        with Image.open(io.BytesIO(data), formats=tuple(FORMATS)) as img:
             fmt, width, height = img.format, img.width, img.height
             img.verify()
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
-        return None, "That file is not a readable image."
+        return None, "That file is not a readable PNG or JPEG image."
     if fmt not in FORMATS:
         return None, "Assets must be PNG or JPEG."
     if max(width, height) > MAX_SIDE or width * height > MAX_PIXELS:
@@ -194,7 +195,7 @@ def _store_asset(asset_id, data):
 def serve_asset(asset_id):
     path = _asset_path(asset_id)
     if not path:
-        abort(404)
+        return jsonify({"error": GONE}), 404
     return send_file(path)
 
 
@@ -202,7 +203,7 @@ def serve_asset(asset_id):
 def delete_asset(asset_id):
     path = _asset_path(asset_id)
     if not path:
-        abort(404)
+        return jsonify({"error": GONE}), 404
     os.remove(path)
     return "", 204
 

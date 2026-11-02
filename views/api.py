@@ -1,11 +1,12 @@
 from flask import Blueprint, current_app, request, jsonify, send_file
+import logging
 import os
 import re
 import uuid
 from werkzeug.utils import secure_filename
 from PIL import Image, ImageEnhance, ImageFilter
 
-from config import ALLOWED_EXTENSIONS, WALLPAPER_PRESETS
+from config import ALLOWED_EXTENSIONS, PHOTO_FORMATS, WALLPAPER_PRESETS
 from utils.image_processing import (
     resize_for_wallpaper, optimize_wallpaper_size,
     add_text_overlays, add_image_overlays,
@@ -13,6 +14,7 @@ from utils.image_processing import (
 )
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+logger = logging.getLogger(__name__)
 
 MAX_PHOTO_PIXELS = 40_000_000  # same budget as wallrender's canvas
 RESIZE_RANGE = (10, 400)  # percent, as the slider offers
@@ -70,7 +72,7 @@ def upload_file():
         
         # Get image dimensions, and refuse what is not an image or too big
         try:
-            with Image.open(filepath) as img:
+            with Image.open(filepath, formats=PHOTO_FORMATS) as img:
                 width, height = img.size
         except (OSError, Image.DecompressionBombError):
             os.remove(filepath)
@@ -122,7 +124,7 @@ def process_image():
     
     warnings = []  # problems the user should see, e.g. a skipped overlay
     try:
-        with Image.open(input_path) as base_img:
+        with Image.open(input_path, formats=PHOTO_FORMATS) as base_img:
             # Convert to RGBA for transparency support
             if base_img.mode != 'RGBA':
                 base_img = base_img.convert('RGBA')
@@ -245,6 +247,7 @@ def process_image():
             })
             
     except Exception as e:
+        logger.exception("photo processing failed")
         return jsonify({'error': f'Processing failed: {str(e)}'}), 500
 
 @api_bp.route('/download/<filename>')

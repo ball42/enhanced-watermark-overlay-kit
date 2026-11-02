@@ -46,6 +46,7 @@
     previewRole: null, // null: use the sample device's own values
     roleLabels: {}, // variant key -> the role as typed, for display
     lastImage: null,
+    hidden: new Set(), // layer objects left out of the preview (editor only, never exported)
   };
 
   // ── Preview ────────────────────────────────────────
@@ -184,6 +185,11 @@
 
   function schedulePreview() {
     markEdited();
+    queuePreview();
+  }
+
+  // A new preview without marking the template edited (hiding a layer).
+  function queuePreview() {
     $('.tpl-preview').classList.add('is-stale');
     clearTimeout(previewTimer);
     previewTimer = setTimeout(renderPreview, 300);
@@ -215,8 +221,9 @@
     // Like exportable(), but an image layer with no asset yet becomes an
     // invisible panel instead of being dropped, so wallrender's layer
     // numbers in warnings match this page's layer list.
+    // A hidden layer becomes an invisible panel the same way.
     const t = exportable();
-    t.layers = state.template.layers.map((l) => (l.type === 'image' && !l.asset
+    t.layers = state.template.layers.map((l) => ((l.type === 'image' && !l.asset) || state.hidden.has(l)
       ? { type: 'panel', box: { ...l.box }, opacity: 0 }
       : JSON.parse(JSON.stringify(l))));
     return t;
@@ -500,6 +507,13 @@
     if (uses.length && !confirm(`${id} is used by ${inWords(uses)}. Delete it anyway?`)) return;
     try {
       const resp = await fetch(`/api/template/assets/${id}`, { method: 'DELETE' });
+      if (resp.status === 404) {
+        // Already gone, from another tab say: show the library as it is.
+        setStatus(`Asset ${id} was already deleted.`);
+        await loadAssets();
+        schedulePreview();
+        return;
+      }
       if (!resp.ok) {
         setStatus(`Not deleted: ${(await readJson(resp)).error}`);
         return;
@@ -512,13 +526,35 @@
     }
   }
 
+  // The asset id the server derives from a file name: the same rule as
+  // _id_from_filename() in views/template_api.py.
+  function assetIdFromName(name) {
+    const stem = name.replace(/^.*[\\/]/, '').replace(/\.[^.]*$/, '').toLowerCase();
+    return stem.replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+  }
+
+  // Uploading a file whose id is already in the library replaces that
+  // asset for every template on this computer, so ask first.
+  function confirmReplace(id) {
+    if (!state.assets.some((a) => a.id === id)) return true;
+    const uses = assetUses(id);
+    const where = uses.length ? ` and is used by ${inWords(uses)}` : '';
+    return confirm(`${id} is already in the library${where}. Replace it?`);
+  }
+
   function bindAssets() {
     $('#assetFile').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
+      e.target.value = '';
+      const id = assetIdFromName(file.name);
+      if (!confirmReplace(id)) {
+        setStatus(`Not uploaded: kept the existing asset ${id}.`);
+        return;
+      }
+      const replacing = state.assets.some((a) => a.id === id);
       const form = new FormData();
       form.append('file', file);
-      e.target.value = '';
       try {
         const resp = await fetch('/api/template/assets', { method: 'POST', body: form });
         const body = await readJson(resp);
@@ -526,8 +562,9 @@
           setStatus(`Upload failed: ${body.error}`);
           return;
         }
-        setStatus(`Uploaded asset ${body.id}.`);
+        setStatus(replacing ? `Replaced asset ${body.id}.` : `Uploaded asset ${body.id}.`);
         await loadAssets();
+        if (replacing) schedulePreview();
       } catch (err) {
         setStatus('Upload failed: could not reach EWOK.');
       }
@@ -552,10 +589,9 @@
     const rows = Array.from(ol.children);
     const layers = state.template.layers;
     if (rows.length === layers.length && props.parentElement === rows[state.selected]) {
-      rows.forEach((li, i) => {
-        li.querySelector('.layer-select').textContent = `${i + 1}. ${describe(layers[i])}`;
-      });
+      rows.forEach((li, i) => drawLayerRow(li, layers[i], i));
       drawOverlay();
+      drawHiddenNote();
       return;
     }
     $('#propsHome').append(props); // out of the rows before they are replaced
@@ -569,15 +605,50 @@
       pick.textContent = `${i + 1}. ${describe(layer)}`;
       pick.setAttribute('aria-pressed', String(i === state.selected));
       pick.addEventListener('click', () => select(i));
-      li.append(pick,
+      const hide = iconButton('Hide', `Hide layer ${i + 1}`, false, () => toggleHidden(i));
+      hide.classList.add('layer-hide');
+      li.append(pick, hide,
         iconButton('Up', `Move layer ${i + 1} up`, i === 0, () => move(i, -1)),
         iconButton('Down', `Move layer ${i + 1} down`, i === state.template.layers.length - 1, () => move(i, 1)),
         iconButton('Copy', `Copy layer ${i + 1}`, false, () => copy(i)),
         iconButton('Delete', `Delete layer ${i + 1}`, false, () => remove(i)));
+      drawLayerRow(li, layer, i);
       ol.append(li);
     });
     if (ol.children[state.selected]) ol.children[state.selected].append(props);
     drawOverlay();
+    drawHiddenNote();
+  }
+
+  // A row's text and Hide toggle. "(hidden)" carries the state in words; the
+  // dimming only adds weight.
+  function drawLayerRow(li, layer, i) {
+    const hidden = state.hidden.has(layer);
+    li.classList.toggle('is-hidden', hidden);
+    li.querySelector('.layer-select').textContent = `${i + 1}. ${describe(layer)}${hidden ? ' (hidden)' : ''}`;
+    const toggle = li.querySelector('.layer-hide');
+    toggle.textContent = hidden ? 'Show' : 'Hide';
+    toggle.setAttribute('aria-pressed', String(hidden));
+  }
+
+  function toggleHidden(i) {
+    const layer = state.template.layers[i];
+    if (state.hidden.has(layer)) state.hidden.delete(layer); else state.hidden.add(layer);
+    drawLayers();
+    queuePreview();
+  }
+
+  let hiddenNote = '';
+
+  // Under the export buttons: hidden layers are still exported.
+  function drawHiddenNote() {
+    const n = state.template.layers.filter((l) => state.hidden.has(l)).length;
+    const note = !n ? '' : n === 1 ? '1 layer is hidden in the preview; it is still exported.'
+      : `${n} layers are hidden in the preview; they are still exported.`;
+    const el = $('#ioStatus');
+    if (note) el.textContent = note;
+    else if (hiddenNote && el.textContent === hiddenNote) el.textContent = '';
+    hiddenNote = note;
   }
 
   function iconButton(text, label, disabled, onClick) {
@@ -769,9 +840,10 @@
     });
     frame.classList.toggle('selected', i === state.selected);
     frame.classList.toggle('tag-inside', b.y < 0.02); // no room for the tag above the box
-    frame.querySelector('.tpl-boxlabel').textContent = String(i + 1);
-    frame.setAttribute('aria-label', `Layer ${i + 1} box (${layer.type}): x ${b.x}, y ${b.y}, `
-      + `width ${b.w}, height ${b.h}${i === state.selected ? ', editing' : ''}`);
+    frame.classList.toggle('is-hidden', state.hidden.has(layer));
+    frame.querySelector('.tpl-boxlabel').textContent = state.hidden.has(layer) ? `${i + 1} hidden` : String(i + 1);
+    frame.setAttribute('aria-label', `Layer ${i + 1} box (${layer.type}${state.hidden.has(layer) ? ', hidden' : ''}): `
+      + `x ${b.x}, y ${b.y}, width ${b.w}, height ${b.h}${i === state.selected ? ', editing' : ''}`);
   }
 
   function drawOverlay() {

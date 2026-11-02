@@ -540,3 +540,35 @@ class TestPreviousResult:
             self._process(client, filename, previous_filename=previous)
         assert os.path.exists(upload_path)
         assert os.path.exists(outside)
+
+
+def test_upload_refuses_a_psd_named_png(client):
+    """Files are decoded by content: only the photo editor's formats may open."""
+    import io
+
+    from tests.conftest import make_psd_bytes
+
+    resp = client.post(
+        "/api/upload",
+        data={"file": (io.BytesIO(make_psd_bytes()), "photo.png")},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "That file is not a readable image."
+
+
+def test_a_processing_failure_is_logged_with_its_traceback(client, caplog):
+    import logging
+
+    up = client.post("/api/upload", data={"file": (make_test_image(), "photo.png")},
+                     content_type="multipart/form-data")
+    filename = up.get_json()["filename"]
+    with caplog.at_level(logging.ERROR, logger="views.api"):
+        resp = client.post("/api/process",
+                           data=json.dumps({"filename": filename, "opacity": "abc"}),
+                           content_type="application/json")
+    assert resp.status_code == 500
+    assert resp.get_json()["error"].startswith("Processing failed:")
+    records = [r for r in caplog.records if r.name == "views.api" and r.levelno == logging.ERROR]
+    assert len(records) == 1
+    assert records[0].exc_info is not None
