@@ -540,3 +540,18 @@ class TestPreviousResult:
             self._process(client, filename, previous_filename=previous)
         assert os.path.exists(upload_path)
         assert os.path.exists(outside)
+
+
+def test_upload_refuses_a_psd_named_png(client):
+    """Files are decoded by content: only the photo editor's formats may open."""
+    import io
+
+    from tests.conftest import make_psd_bytes
+
+    resp = client.post(
+        "/api/upload",
+        data={"file": (io.BytesIO(make_psd_bytes()), "photo.png")},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "That file is not a readable image."

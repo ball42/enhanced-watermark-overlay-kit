@@ -16,6 +16,9 @@ TEMP_FOLDER = os.path.join(BASE_DIR, 'temp')
 # Template mode's asset library (backgrounds, logos): kept, not cleaned up
 TEMPLATE_ASSETS_FOLDER = os.path.join(BASE_DIR, 'template_assets')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
+# Pillow decoders the photo editor may use: a file is decoded by its content,
+# not its name, so a PSD named .png must not reach the PSD plugin.
+PHOTO_FORMATS = ('PNG', 'JPEG', 'GIF', 'BMP', 'WEBP')
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
 
 # Wallpaper presets for common devices

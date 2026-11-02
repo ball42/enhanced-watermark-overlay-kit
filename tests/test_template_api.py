@@ -503,3 +503,15 @@ def test_preview_batch_invalid_template_returns_its_problems(client):
                        json={"template": {"schema_version": 9}, "devices": [{}]})
     assert resp.status_code == 400
     assert resp.get_json()["problems"]
+
+
+def test_asset_upload_refuses_a_psd_named_png(client):
+    """The PSD plugin never sees the file: it is not a readable PNG or JPEG."""
+    from tests.conftest import make_psd_bytes
+
+    resp = client.post("/api/template/assets",
+                       data={"file": (io.BytesIO(make_psd_bytes()), "logo.png")},
+                       content_type="multipart/form-data")
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "That file is not a readable PNG or JPEG image."
+    assert client.get("/api/template/assets").get_json()["assets"] == []

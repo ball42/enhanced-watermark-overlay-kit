@@ -147,7 +147,7 @@ def list_assets():
         asset_id, ext = os.path.splitext(name)
         if ext.lstrip(".") in EXTENSIONS and ASSET_ID.fullmatch(asset_id):
             try:
-                with Image.open(os.path.join(_folder(), name)) as img:
+                with Image.open(os.path.join(_folder(), name), formats=tuple(FORMATS)) as img:
                     assets.append({"id": asset_id, "width": img.width, "height": img.height})
             except (OSError, Image.DecompressionBombError):
                 continue  # not a readable image: leave it out of the library
@@ -173,11 +173,11 @@ def _store_asset(asset_id, data):
     """Keep data as <id>.png or .jpg if it really is a PNG or JPEG within
     wallrender's limits. Returns (info, None) or (None, error)."""
     try:
-        with Image.open(io.BytesIO(data)) as img:
+        with Image.open(io.BytesIO(data), formats=tuple(FORMATS)) as img:
             fmt, width, height = img.format, img.width, img.height
             img.verify()
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
-        return None, "That file is not a readable image."
+        return None, "That file is not a readable PNG or JPEG image."
     if fmt not in FORMATS:
         return None, "Assets must be PNG or JPEG."
     if max(width, height) > MAX_SIDE or width * height > MAX_PIXELS:

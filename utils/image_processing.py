@@ -10,6 +10,8 @@ import re
 
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageChops
 
+from config import PHOTO_FORMATS
+
 logger = logging.getLogger(__name__)
 
 _HEX_PATTERN = re.compile(r'^#?([0-9a-fA-F]{6})$')
@@ -260,7 +262,7 @@ def add_image_overlays(img, image_overlays, upload_folder, warnings=None):
             continue
             
         try:
-            with Image.open(overlay_path) as overlay_img:
+            with Image.open(overlay_path, formats=PHOTO_FORMATS) as overlay_img:
                 if overlay_img.mode != 'RGBA':
                     overlay_img = overlay_img.convert('RGBA')
                 
