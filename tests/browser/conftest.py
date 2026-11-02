@@ -9,6 +9,7 @@ They need the "browser" dependency group and Playwright's Chromium:
 Without Playwright they are skipped.
 """
 
+import contextlib
 import os
 import threading
 
@@ -18,17 +19,29 @@ pytest.importorskip("playwright.sync_api")
 from playwright.sync_api import sync_playwright  # noqa: E402
 from werkzeug.serving import make_server  # noqa: E402
 
-PORT = int(os.environ.get("EWOK_TEST_PORT", "8406"))
+# Port 0 lets the OS pick a free port, so parallel runs (two worktrees)
+# do not collide. EWOK_TEST_PORT still pins one when set.
+PORT = int(os.environ.get("EWOK_TEST_PORT", "0"))
+
+
+@contextlib.contextmanager
+def serve(app):
+    """Serve app on 127.0.0.1 in a thread and yield its base URL."""
+    server = make_server("127.0.0.1", PORT, app, threaded=True)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}"
+    finally:
+        server.shutdown()
+        thread.join()
+        server.server_close()
 
 
 @pytest.fixture()
 def live_url(app):
-    server = make_server("127.0.0.1", PORT, app, threaded=True)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    yield f"http://127.0.0.1:{PORT}"
-    server.shutdown()
-    thread.join()
+    with serve(app) as url:
+        yield url
 
 
 @pytest.fixture(scope="session")
