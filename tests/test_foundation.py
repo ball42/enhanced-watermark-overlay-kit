@@ -76,3 +76,50 @@ def test_pillow_is_pinned_to_jawas_range():
 
     major, minor = (int(p) for p in PIL.__version__.split(".")[:2])
     assert (11, 3) <= (major, minor) < (12, 0)
+
+
+def test_help_explains_the_options(capsys):
+    import app as ewok_app
+
+    with pytest.raises(SystemExit):
+        ewok_app.main(["--help"])
+    out = capsys.readouterr().out
+    assert "Run EWOK, the local watermark editor and Brander template designer." in out
+    assert "Port to serve on (default 5055, or EWOK_PORT)." in out
+    assert "--open" in out
+    assert "SECRET_KEY" not in out
+
+
+def test_starting_without_secret_key_prints_no_warning(tmp_path):
+    import subprocess
+    import sys
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env = {k: v for k, v in os.environ.items() if k != "SECRET_KEY"}
+    done = subprocess.run([sys.executable, "app.py", "--help"], cwd=root, env=env,
+                          capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0
+    assert "SECRET_KEY" not in done.stdout + done.stderr
+
+
+def test_open_flag_opens_the_designer(monkeypatch):
+    import app as ewok_app
+
+    timers = []
+
+    class FakeTimer:
+        def __init__(self, delay, func, args=()):
+            timers.append((delay, func, args))
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(ewok_app.threading, "Timer", FakeTimer)
+    monkeypatch.setattr(ewok_app.app, "run", lambda **kwargs: None)
+    monkeypatch.delenv("WERKZEUG_RUN_MAIN", raising=False)
+    ewok_app.main(["--open", "--port", "6002"])
+    assert timers == [(1.0, ewok_app.webbrowser.open, ("http://127.0.0.1:6002/template",))]
+
+    timers.clear()
+    ewok_app.main(["--port", "6002"])
+    assert timers == []

@@ -54,7 +54,7 @@ uv sync
 uv run ewok
 ```
 
-Open `http://127.0.0.1:5055/template` in your browser. EWOK listens on localhost only and has no login, so don't expose it to a network. `--port` (or `EWOK_PORT`) changes the port, and `EWOK_DEBUG=1` turns on Flask's debug mode.
+Open `http://127.0.0.1:5055/template` in your browser, or start with `ewok --open` to open it for you. EWOK listens on localhost only and has no login, so don't expose it to a network. `--port` (or `EWOK_PORT`) changes the port, and `EWOK_DEBUG=1` turns on Flask's debug mode.
 
 ### JAWA's wallrender version
 

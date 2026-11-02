@@ -88,4 +88,5 @@ WALLRENDER_TARGET = os.environ.get('EWOK_WALLRENDER_TARGET', '0.9.0')
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
     SECRET_KEY = secrets.token_hex(32)
-    logger.warning("SECRET_KEY not set — using random key. Sessions will not persist across restarts.")
+    # EWOK keeps no sessions, so a random key changes nothing a user sees.
+    logger.debug("SECRET_KEY not set — using random key. Sessions will not persist across restarts.")

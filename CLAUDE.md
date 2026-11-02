@@ -14,7 +14,7 @@ uv sync
 
 # Run: serves on http://127.0.0.1:5055 only (EWOK has no auth)
 uv run ewok
-# EWOK_DEBUG=1 turns on Flask debug; --port or EWOK_PORT changes the port
+# --open opens /template in the browser; EWOK_DEBUG=1 turns on Flask debug; --port or EWOK_PORT changes the port
 
 # Run tests
 uv run pytest
@@ -71,7 +71,7 @@ Data lives only in gitignored folders (`static/uploads/`, `temp/`, `template_ass
 - **Hex colors:** Validated via `hex_to_rgb()` in `utils/image_processing.py` — regex-based, returns `(0,0,0)` fallback
 - **Font loading:** `load_font(size)` helper with system font fallback chain
 - **Temp cleanup:** `utils/cleanup.py` runs via `before_request` hook — removes files older than 1 hour, at most every 5 minutes
-- **SECRET_KEY:** Uses `$SECRET_KEY` env var; falls back to `secrets.token_hex(32)` with a warning log
+- **SECRET_KEY:** Uses `$SECRET_KEY` env var; falls back to `secrets.token_hex(32)` with a DEBUG log (EWOK keeps no sessions)
 
 ## Repository Guidelines
 
