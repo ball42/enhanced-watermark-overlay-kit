@@ -555,3 +555,20 @@ def test_upload_refuses_a_psd_named_png(client):
     )
     assert resp.status_code == 400
     assert resp.get_json()["error"] == "That file is not a readable image."
+
+
+def test_a_processing_failure_is_logged_with_its_traceback(client, caplog):
+    import logging
+
+    up = client.post("/api/upload", data={"file": (make_test_image(), "photo.png")},
+                     content_type="multipart/form-data")
+    filename = up.get_json()["filename"]
+    with caplog.at_level(logging.ERROR, logger="views.api"):
+        resp = client.post("/api/process",
+                           data=json.dumps({"filename": filename, "opacity": "abc"}),
+                           content_type="application/json")
+    assert resp.status_code == 500
+    assert resp.get_json()["error"].startswith("Processing failed:")
+    records = [r for r in caplog.records if r.name == "views.api" and r.levelno == logging.ERROR]
+    assert len(records) == 1
+    assert records[0].exc_info is not None

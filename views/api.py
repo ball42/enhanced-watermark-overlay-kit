@@ -1,4 +1,5 @@
 from flask import Blueprint, current_app, request, jsonify, send_file
+import logging
 import os
 import re
 import uuid
@@ -13,6 +14,7 @@ from utils.image_processing import (
 )
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+logger = logging.getLogger(__name__)
 
 MAX_PHOTO_PIXELS = 40_000_000  # same budget as wallrender's canvas
 RESIZE_RANGE = (10, 400)  # percent, as the slider offers
@@ -245,6 +247,7 @@ def process_image():
             })
             
     except Exception as e:
+        logger.exception("photo processing failed")
         return jsonify({'error': f'Processing failed: {str(e)}'}), 500
 
 @api_bp.route('/download/<filename>')
