@@ -512,13 +512,35 @@
     }
   }
 
+  // The asset id the server derives from a file name: the same rule as
+  // _id_from_filename() in views/template_api.py.
+  function assetIdFromName(name) {
+    const stem = name.replace(/^.*[\\/]/, '').replace(/\.[^.]*$/, '').toLowerCase();
+    return stem.replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+  }
+
+  // Uploading a file whose id is already in the library replaces that
+  // asset for every template on this computer, so ask first.
+  function confirmReplace(id) {
+    if (!state.assets.some((a) => a.id === id)) return true;
+    const uses = assetUses(id);
+    const where = uses.length ? ` and is used by ${inWords(uses)}` : '';
+    return confirm(`${id} is already in the library${where}. Replace it?`);
+  }
+
   function bindAssets() {
     $('#assetFile').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
+      e.target.value = '';
+      const id = assetIdFromName(file.name);
+      if (!confirmReplace(id)) {
+        setStatus(`Not uploaded: kept the existing asset ${id}.`);
+        return;
+      }
+      const replacing = state.assets.some((a) => a.id === id);
       const form = new FormData();
       form.append('file', file);
-      e.target.value = '';
       try {
         const resp = await fetch('/api/template/assets', { method: 'POST', body: form });
         const body = await readJson(resp);
@@ -526,8 +548,9 @@
           setStatus(`Upload failed: ${body.error}`);
           return;
         }
-        setStatus(`Uploaded asset ${body.id}.`);
+        setStatus(replacing ? `Replaced asset ${body.id}.` : `Uploaded asset ${body.id}.`);
         await loadAssets();
+        if (replacing) schedulePreview();
       } catch (err) {
         setStatus('Upload failed: could not reach EWOK.');
       }
