@@ -303,6 +303,8 @@
     icon.setAttribute('aria-hidden', 'true');
     const el = $('#warningCount');
     el.classList.toggle('warn', n > 0);
+    el.classList.toggle('rb-badge--warn', n > 0);
+    el.classList.toggle('rb-badge--ok', n === 0);
     el.replaceChildren(icon, ` ${text || (n ? `${n} warning${n > 1 ? 's' : ''}` : 'No warnings')}`);
     $('#tabWarnings').textContent = n ? `Warnings (${n})` : 'Warnings';
   }
@@ -341,13 +343,14 @@
     ul.replaceChildren();
     if (!list.length) {
       const li = document.createElement('li');
-      li.className = 'ok';
+      li.className = 'rb-alert rb-alert--ok ok';
       li.textContent = okText || 'No warnings.';
       ul.append(li);
       return;
     }
     list.forEach((w) => {
       const li = document.createElement('li');
+      li.className = 'rb-alert rb-alert--warn';
       // wallrender counts layers from 0; this page numbers them from 1.
       // Each "layer N" becomes a button that selects that layer's box.
       let at = 0;
@@ -1478,7 +1481,8 @@
     name.className = 'tpl-fleet-name';
     name.textContent = r.label;
     const count = document.createElement('span');
-    count.className = r.warnings.length ? 'tpl-fleet-count warn' : 'tpl-fleet-count';
+    count.className = r.warnings.length ? 'rb-badge rb-badge--warn tpl-fleet-count warn'
+      : 'rb-badge rb-badge--ok tpl-fleet-count';
     count.textContent = r.warnings.length
       ? `${r.warnings.length} warning${r.warnings.length > 1 ? 's' : ''}` : 'No warnings';
     pick.append(img, name, count);

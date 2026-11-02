@@ -1,7 +1,7 @@
 /* ── Template designer ─────────────────────── */
 
 #templateEditor :focus-visible {
-  outline: 3px solid var(--color-primary);
+  outline: 3px solid var(--roster-ring);
   outline-offset: 2px;
 }
 
@@ -149,12 +149,12 @@
   object-fit: contain;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: repeating-conic-gradient(#e2e8f0 0% 25%, white 0% 50%) 50% / 10px 10px;
+  background: repeating-conic-gradient(var(--ewok-checker-a) 0% 25%, var(--ewok-checker-b) 0% 50%) 50% / 10px 10px;
 }
 
 .tpl-asset-list .asset-name {
   flex: 1;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
 }
 
 .tpl-file-btn input[type="file"] {
@@ -165,7 +165,7 @@
 }
 
 .tpl-file-btn:focus-within {
-  outline: 3px solid var(--color-primary);
+  outline: 3px solid var(--roster-ring);
   outline-offset: 2px;
 }
 
@@ -182,7 +182,7 @@
 .tpl-preview-frame {
   display: flex;
   justify-content: center;
-  background: repeating-conic-gradient(#e2e8f0 0% 25%, white 0% 50%) 50% / 16px 16px;
+  background: repeating-conic-gradient(var(--ewok-checker-a) 0% 25%, var(--ewok-checker-b) 0% 50%) 50% / 16px 16px;
   border-radius: var(--radius-md);
   padding: var(--space-md);
 }
@@ -197,10 +197,11 @@
   opacity: 0.6;
 }
 
-.tpl-warnings li {
+/* Each warning is a roster rb-alert (rb-alert--warn, or rb-alert--ok for
+   "No warnings"). Block, not flex: "Layer 2" buttons sit inside the sentence. */
+.tpl-warnings li.rb-alert {
+  display: block;
   padding: var(--space-xs) var(--space-sm);
-  border-left: 4px solid #b45309;
-  background: #fffbeb;
   margin-bottom: var(--space-xs);
   font-size: 0.9rem;
 }
@@ -224,11 +225,6 @@
 
 .tpl-warn-layer:hover {
   color: var(--color-primary-hover);
-}
-
-.tpl-warnings li.ok {
-  border-left-color: var(--color-success);
-  background: var(--color-success-bg);
 }
 
 .tpl-warnings li.ok::before {
@@ -305,8 +301,8 @@ input[type="color"] {
 
 .tpl-boxframe {
   position: absolute;
-  border: 2px dashed rgba(255, 255, 255, 0.85);
-  outline: 1px dashed rgba(0, 0, 0, 0.6);
+  border: 2px dashed color-mix(in srgb, var(--roster-white) 85%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--roster-black) 60%, transparent);
   cursor: move;
   touch-action: none;
   line-height: 1.2;
@@ -322,15 +318,15 @@ input[type="color"] {
   font-size: 11px;
   font-weight: 700;
   padding: 1px 5px;
-  background: rgba(15, 23, 42, 0.85);
-  color: white;
+  background: color-mix(in srgb, var(--roster-gray-950) 85%, transparent);
+  color: var(--roster-white);
   pointer-events: none;
 }
 
 /* Selected box: solid thick border plus the word "editing" in its label. */
 .tpl-boxframe.selected {
   border: 3px solid var(--color-primary);
-  outline: 1px solid white;
+  outline: 1px solid var(--roster-white);
   z-index: 2;
 }
 
@@ -360,7 +356,7 @@ input[type="color"] {
 
 /* Focus is amber and offset, distinct from the blue "editing" border. */
 #templateEditor .tpl-boxframe:focus-visible {
-  outline: 3px solid #f59e0b;
+  outline: 3px solid var(--roster-amber-500);
   outline-offset: 2px;
 }
 
@@ -370,7 +366,7 @@ input[type="color"] {
   bottom: -7px;
   width: 14px;
   height: 14px;
-  background: white;
+  background: var(--roster-white);
   border: 2px solid var(--color-primary);
   cursor: nwse-resize;
 }
@@ -385,22 +381,22 @@ input[type="color"] {
   top: 0;
   bottom: 0;
   left: 50%;
-  border-left: 2px dashed #f59e0b;
+  border-left: 2px dashed var(--roster-amber-500);
 }
 
 .tpl-guide-h {
   left: 0;
   right: 0;
   top: 50%;
-  border-top: 2px dashed #f59e0b;
+  border-top: 2px dashed var(--roster-amber-500);
 }
 
 .tpl-guide span {
   position: absolute;
   font-size: 11px;
   line-height: 1.2;
-  background: #f59e0b;
-  color: #111827;
+  background: var(--roster-amber-500);
+  color: var(--roster-gray-900);
   padding: 0 4px;
   white-space: nowrap;
 }
@@ -453,12 +449,12 @@ input[type="color"] {
 }
 
 .tpl-zone {
-  background: repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.45) 0 6px, rgba(255, 255, 255, 0.15) 6px 12px);
-  border: 2px dashed #f59e0b;
+  background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--roster-amber-500) 45%, transparent) 0 6px, color-mix(in srgb, var(--roster-white) 15%, transparent) 6px 12px);
+  border: 2px dashed var(--roster-amber-500);
 }
 
 .tpl-cropped {
-  background: repeating-linear-gradient(-45deg, rgba(15, 23, 42, 0.75) 0 6px, rgba(15, 23, 42, 0.45) 6px 12px);
+  background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--roster-gray-950) 75%, transparent) 0 6px, color-mix(in srgb, var(--roster-gray-950) 45%, transparent) 6px 12px);
 }
 
 .tpl-zone span,
@@ -469,8 +465,8 @@ input[type="color"] {
   font-size: 11px;
   font-weight: 700;
   padding: 1px 5px;
-  background: #111827;
-  color: white;
+  background: var(--roster-gray-900);
+  color: var(--roster-white);
 }
 
 .tpl-device-picks {
@@ -502,7 +498,7 @@ input[type="color"] {
   position: relative;
   background-size: cover;   /* exactly what iOS does: fill, then crop */
   background-position: center;
-  border: 3px solid #111827;
+  border: 3px solid var(--roster-gray-900);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -528,13 +524,13 @@ input[type="color"] {
 }
 
 .tpl-variant-key {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
   color: var(--color-text-muted);
 }
 
 .tpl-variant-list textarea {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
 }
 
 .tpl-variant-list label {
@@ -631,7 +627,6 @@ input[type="color"] {
 }
 
 .tpl-fleet-count.warn {
-  color: var(--color-warning);
   font-weight: 600;
 }
 
@@ -839,14 +834,9 @@ input[type="color"] {
   padding: 6px 12px;
 }
 
-.tpl-warn-count {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-success);
-}
-
-.tpl-warn-count.warn {
-  color: var(--color-warning);
+/* An rb-badge (--ok or --warn, set by template.js) with an icon and words. */
+.tpl-warn-count:empty {
+  display: none;
 }
 
 .tpl-preview .tpl-preview-pick .control-group,

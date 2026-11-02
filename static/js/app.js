@@ -931,7 +931,9 @@
   // ── Status & Toast ──────────────────────────
 
   function showStatus(message, type) {
-    statusMessage.className = 'status-message status-' + type;
+    // A roster alert; the ::before word ("Done:", "Error:") carries the kind.
+    const kind = { success: 'ok', warning: 'warn', info: 'info' }[type];
+    statusMessage.className = 'rb-alert ' + (kind ? 'rb-alert--' + kind + ' ' : '') + 'status-message status-' + type;
     statusMessage.textContent = message;
     statusMessage.setAttribute('aria-live', 'polite');
   }
