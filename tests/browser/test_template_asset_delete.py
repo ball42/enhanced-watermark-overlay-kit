@@ -80,3 +80,11 @@ def test_deleting_an_unused_asset_needs_no_confirm(page):
     page.wait_for_selector('[aria-label="Delete asset spare"]', state="detached")
     assert dialogs == []
     assert asset_ids(page) == ["logo"]
+
+
+def test_deleting_an_asset_another_tab_deleted_says_so(page):
+    open_designer(page, uses_logo())
+    assert page.request.delete("/api/template/assets/spare").status == 204
+    page.click('[aria-label="Delete asset spare"]')
+    page.wait_for_selector('[aria-label="Delete asset spare"]', state="detached")
+    assert page.inner_text("#previewStatus") == "Asset spare was already deleted."

@@ -500,6 +500,13 @@
     if (uses.length && !confirm(`${id} is used by ${inWords(uses)}. Delete it anyway?`)) return;
     try {
       const resp = await fetch(`/api/template/assets/${id}`, { method: 'DELETE' });
+      if (resp.status === 404) {
+        // Already gone, from another tab say: show the library as it is.
+        setStatus(`Asset ${id} was already deleted.`);
+        await loadAssets();
+        schedulePreview();
+        return;
+      }
       if (!resp.ok) {
         setStatus(`Not deleted: ${(await readJson(resp)).error}`);
         return;

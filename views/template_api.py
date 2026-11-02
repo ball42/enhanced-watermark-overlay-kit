@@ -13,7 +13,7 @@ import os
 import re
 import zipfile
 
-from flask import Blueprint, abort, jsonify, request, send_file
+from flask import Blueprint, jsonify, request, send_file
 from PIL import Image, UnidentifiedImageError
 
 import config
@@ -27,6 +27,7 @@ template_bp = Blueprint("template_api", __name__, url_prefix="/api/template")
 
 FORMATS = {"PNG": "png", "JPEG": "jpg"}
 EXTENSIONS = ("png", "jpg", "jpeg")
+GONE = "That asset is no longer in the library."
 MAX_BUNDLE_ENTRIES = 60
 MAX_BUNDLE_BYTES = 64 * 1024 * 1024  # uncompressed, checked before reading
 
@@ -194,7 +195,7 @@ def _store_asset(asset_id, data):
 def serve_asset(asset_id):
     path = _asset_path(asset_id)
     if not path:
-        abort(404)
+        return jsonify({"error": GONE}), 404
     return send_file(path)
 
 
@@ -202,7 +203,7 @@ def serve_asset(asset_id):
 def delete_asset(asset_id):
     path = _asset_path(asset_id)
     if not path:
-        abort(404)
+        return jsonify({"error": GONE}), 404
     os.remove(path)
     return "", 204
 
