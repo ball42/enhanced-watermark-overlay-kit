@@ -7,6 +7,8 @@
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="icon" type="image/png" sizes="512x512" href="/static/ewok.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <!-- Before the CSS and without defer: sets .dark before first paint. -->
+    <script src="/static/js/vendor/roster-theme.js"></script>
     <link rel="stylesheet" href="/static/css/vendor/roster-web.css">
     <link rel="stylesheet" href="/static/css/vendor/roster-html.css">
     <link rel="stylesheet" href="/static/css/style.css">
@@ -20,6 +22,11 @@
             <a href="/" aria-current="page">Photo</a>
             <a href="/template">Template</a>
         </nav>
+        <button type="button" class="ewok-theme-toggle" data-roster-theme-toggle aria-pressed="false" title="Dark mode">
+            <svg class="icon-moon" aria-hidden="true"><use href="/static/css/vendor/icons.svg#moon"></use></svg>
+            <svg class="icon-sun" aria-hidden="true"><use href="/static/css/vendor/icons.svg#sun"></use></svg>
+            <span class="visually-hidden">Dark mode</span>
+        </button>
     </header>
     <div class="container">
         <div class="page-intro">

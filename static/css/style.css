@@ -66,6 +66,28 @@
   --transition-base: 200ms ease;
 }
 
+
+/* Dark: roster's .dark tokens (theme.js sets .dark on <html> from the saved
+   choice or the OS setting). The navbar keeps its forest green. */
+.dark {
+  --color-primary: var(--roster-primary-400);
+  --color-primary-hover: var(--roster-primary-300);
+  --color-primary-light: color-mix(in srgb, var(--roster-primary-500) 18%, transparent);
+  --color-text: var(--roster-gray-100);
+  --color-text-muted: var(--roster-gray-400);
+  --color-text-light: var(--roster-gray-500);
+  --color-bg: var(--roster-gray-950);
+  --color-surface-raised: var(--roster-gray-800);
+  --color-border-hover: var(--roster-gray-600);
+  --color-success-border: var(--roster-success-800);
+  --color-warning-border: var(--roster-amber-800);
+  --color-error-border: var(--roster-error-800);
+  --color-info-border: var(--roster-info-800);
+  /* A dark neutral checkerboard, so dark wallpapers are judged on dark. */
+  --ewok-checker-a: var(--roster-gray-800);
+  --ewok-checker-b: var(--roster-gray-900);
+}
+
 /* ── Reset ─────────────────────────────────── */
 
 *,
@@ -773,12 +795,13 @@ body {
   opacity: 1;
 }
 
+/* Solid toasts with white text: fixed roster steps, 4.5:1 in both themes. */
 .toast-error {
-  background: var(--color-error);
+  background: var(--roster-error-700);
 }
 
 .toast-success {
-  background: var(--color-success);
+  background: var(--roster-success-700);
 }
 
 /* ── Action Bar ────────────────────────────── */
@@ -888,7 +911,7 @@ body {
 
 /* Current mode: filled and underlined, so it does not rely on color alone. */
 .mode-nav a[aria-current="page"] {
-  background: var(--color-surface);
+  background: var(--roster-white);
   color: var(--color-navbar);
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -897,6 +920,55 @@ body {
 .mode-nav a:focus-visible {
   outline: 3px solid var(--roster-white);
   outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Theme toggle, like roster's ThemeToggle: a moon in light, a sun in dark,
+   with the word for screen readers and aria-pressed for the state. */
+.ewok-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--roster-white) 35%, transparent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--roster-white);
+  cursor: pointer;
+}
+
+.ewok-theme-toggle:hover {
+  background: color-mix(in srgb, var(--roster-white) 10%, transparent);
+}
+
+.ewok-theme-toggle:focus-visible {
+  outline: 3px solid var(--roster-white);
+  outline-offset: 2px;
+}
+
+.ewok-theme-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.ewok-theme-toggle .icon-sun,
+.dark .ewok-theme-toggle .icon-moon {
+  display: none;
+}
+
+.dark .ewok-theme-toggle .icon-sun {
+  display: block;
 }
 
 /* ── Accessibility: focus, states in words ─── */
@@ -924,7 +996,7 @@ body {
 }
 
 .toast-warning {
-  background: var(--color-warning);
+  background: var(--roster-amber-800);
 }
 
 .toast-close {

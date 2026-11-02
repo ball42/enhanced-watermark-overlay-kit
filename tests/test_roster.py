@@ -14,9 +14,14 @@ ROSTER_CSS = ("/static/css/vendor/roster-web.css", "/static/css/vendor/roster-ht
 HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
 
 
-@pytest.mark.parametrize("name", ["roster-web.css", "roster-html.css"])
-def test_vendored_files_carry_their_version_stamp(name):
-    first = (VENDOR / name).read_text(encoding="utf-8").splitlines()[0]
+@pytest.mark.parametrize("path, name", [
+    (VENDOR / "roster-web.css", "roster-web.css"),
+    (VENDOR / "roster-html.css", "roster-html.css"),
+    (VENDOR / "icons.svg", "icons.svg"),
+    (ROOT / "static" / "js" / "vendor" / "roster-theme.js", "theme.js"),
+])
+def test_vendored_files_carry_their_version_stamp(path, name):
+    first = path.read_text(encoding="utf-8").splitlines()[0]
     assert re.search(r"roster-bridge \S+ from @blakesteve/roster \S+ " + re.escape(name) + " sha256:", first)
 
 
@@ -24,6 +29,7 @@ def test_vendored_files_keep_the_licence_notice():
     text = (VENDOR / "README.md").read_text(encoding="utf-8")
     assert "MIT" in text and "@blakesteve/roster" in text
     assert "Copyright (c) 2026 Blake Ball." in text
+    assert "CC BY 4.0" in text  # icons.svg: Font Awesome Free
 
 
 @pytest.mark.parametrize("path", ["/", "/template"])
@@ -71,3 +77,21 @@ def test_status_and_warning_markup_use_roster_classes():
     assert "'rb-alert '" in app
     assert "'rb-alert rb-alert--warn'" in tpl and "'rb-alert rb-alert--ok ok'" in tpl
     assert "rb-badge--warn" in tpl
+
+
+@pytest.mark.parametrize("path", ["/", "/template"])
+def test_theme_script_runs_before_the_css_and_the_toggle_is_there(client, path):
+    body = client.get(path).get_data(as_text=True)
+    script = body.index('<script src="/static/js/vendor/roster-theme.js"></script>')
+    assert script < body.index("</head>") and script < body.index(ROSTER_CSS[0])
+    assert "data-roster-theme-toggle" in body and 'aria-pressed="false"' in body
+    assert "icons.svg#moon" in body and "icons.svg#sun" in body
+
+
+def test_dark_tokens_cover_the_page_and_the_preview_frame():
+    css = (CSS / "style.css").read_text(encoding="utf-8")
+    dark = re.search(r"\n\.dark \{(.*?)\n\}", css, re.S).group(1)
+    for name in ("--color-bg", "--color-text", "--color-text-muted"):
+        assert name + ":" in dark
+    assert "--ewok-checker-a: var(--roster-gray-800)" in dark
+    assert "--ewok-checker-b: var(--roster-gray-900)" in dark
