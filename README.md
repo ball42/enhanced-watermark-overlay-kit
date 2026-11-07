@@ -158,6 +158,25 @@ Template designer:
 | Icons | Font Awesome 6 |
 | Testing | pytest, pytest-flask, Playwright |
 
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| `uv: command not found` | Install [uv](https://docs.astral.sh/uv/), then run `uv sync` again. |
+| Port 5055 is in use | Start on another port: `uv run ewok --port 5056`. |
+| 403 from another computer or a hostname | EWOK answers only to `127.0.0.1`, `localhost` and `[::1]`. Open it by one of those. |
+| Weight (Medium, Semibold, Bold) looks like Regular on devices | The JAWA install vendors a wallrender older than 0.12.0. Update JAWA's copy. |
+| Preview text differs slightly from the device | Pillow versions differ between EWOK and JAWA. Both pin `Pillow>=11.3,<12`; keep them equal. |
+| Uploaded photo disappears | Uploads are deleted an hour after last use. Upload it again. |
+
+## Maintenance
+
+- **Dependencies.** Pillow is pinned below 12 to match JAWA, and a Pillow change shifts text pixels. Move EWOK and JAWA to a new Pillow release together. Run `uv lock --upgrade` to refresh other dependencies, then both test suites.
+- **Design files.** `static/css/vendor/` and `static/js/vendor/` are generated copies of the shared design system. Replace them whole; do not edit them.
+- **wallrender.** It is versioned in `wallrender/pyproject.toml`. When you release a new version, update the copy vendored in JAWA and raise `EWOK_WALLRENDER_TARGET`'s default if appropriate.
+- **Data.** Everything EWOK writes is under `static/uploads/`, `temp/` and `template_assets/`. Back up `template_assets/` if you rely on the asset library; the other two are disposable.
+- **More detail.** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains the components and design decisions.
+
 ## Contributing
 
 1. Fork the repository.
