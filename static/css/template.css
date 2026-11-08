@@ -30,12 +30,28 @@
 .tpl-row {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-sm);
+  gap: var(--space-sm) var(--space-md);
   align-items: flex-end;
+  margin-bottom: var(--space-md);
 }
 
 .tpl-row .control-group {
   flex: 1 1 120px;
+  margin-bottom: 0;
+}
+
+/* Labels in a row share a line box so their inputs sit on one baseline. */
+.tpl-row .control-group > label {
+  display: flex;
+  align-items: flex-end;
+  min-height: 2.6em;
+  line-height: 1.25;
+}
+
+.tpl-controls .tpl-hint {
+  margin-top: var(--space-xs);
+  margin-bottom: var(--space-md);
+  line-height: 1.5;
 }
 
 .tpl-box label {
