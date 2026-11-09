@@ -10,8 +10,11 @@ from tests.browser.test_photo_live import upload
 def test_edits_during_a_slow_render_send_one_more_render_not_one_each(page, tmp_path, monkeypatch):
     real = views.api.add_watermark
 
+    # Longer than all five edits take, even on a busy machine, so every edit
+    # lands during the first render. At 1.5 s the last edit could land after
+    # the second render began, which rightly asks for a third (a flaky test).
     def slow_watermark(*args, **kwargs):
-        time.sleep(1.5)
+        time.sleep(4)
         return real(*args, **kwargs)
 
     monkeypatch.setattr(views.api, "add_watermark", slow_watermark)
@@ -37,7 +40,7 @@ def test_edits_during_a_slow_render_send_one_more_render_not_one_each(page, tmp_
         page.fill("#contrast", value)
         page.wait_for_timeout(450)
     page.wait_for_function("!document.querySelector('#preview-image').classList.contains('is-stale')",
-                           timeout=10000)
+                           timeout=20000)
     page.wait_for_timeout(600)
 
     assert most[0] <= 1
