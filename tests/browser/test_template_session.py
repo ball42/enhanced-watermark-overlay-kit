@@ -100,3 +100,13 @@ def test_leaving_after_a_download_does_not_ask(designer):
 
 def test_a_fresh_page_does_not_ask(designer):
     assert not leave_prompts(designer)
+
+
+def test_new_template_asks_nothing_when_nothing_would_be_lost(designer):
+    page = designer
+    dialogs = []
+    page.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
+    page.click("#moreActions > summary")
+    page.click("#newTemplate")
+    assert dialogs == []
+    assert page.text_content("#ioStatus") == "Started a new template."

@@ -535,3 +535,21 @@ def test_api_403_404_and_405_answer_json(client):
     assert wrong.status_code == 405 and "error" in wrong.get_json()
     # Pages outside /api/ keep Flask's HTML answers.
     assert client.get("/no-such-page").mimetype == "text/html"
+
+
+def test_import_a_bundle_rezipped_by_finder(client):
+    """macOS Finder's Compress adds a folder, __MACOSX/ AppleDouble copies
+    and .DS_Store. They are not a second template and not assets."""
+    upload(client, "logo.png")
+    with zipfile.ZipFile(io.BytesIO(export(client, logo_template()).data)) as z:
+        files = {n: z.read(n) for n in z.namelist()}
+    client.delete("/api/template/assets/logo")
+    entries = {f"ward-ipads/{n}": data for n, data in files.items()}
+    entries.update({f"__MACOSX/ward-ipads/._{n}": b"\0\5\26\7AppleDouble" for n in files})
+    entries["ward-ipads/.DS_Store"] = b"\0\0\0\1Bud1"
+    resp = import_file(client, make_zip(entries), "ward-ipads.zip")
+    assert resp.status_code == 200, resp.get_json()
+    body = resp.get_json()
+    assert body["template"] == logo_template()
+    assert body["assets"] == ["logo"]
+    assert body["skipped"] == []

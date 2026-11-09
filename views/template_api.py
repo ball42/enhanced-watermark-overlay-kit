@@ -294,6 +294,15 @@ def _load_template(raw):
     return (None, problems) if problems else (template, [])
 
 
+def _os_litter(path):
+    """Files an operating system adds when it zips a folder: macOS's
+    __MACOSX/ AppleDouble copies (._name), .DS_Store, and Windows' Thumbs.db.
+    A bundle re-zipped in Finder would otherwise hold a second .json."""
+    parts = path.replace("\\", "/").split("/")
+    name = parts[-1]
+    return "__MACOSX" in parts or name.startswith("._") or name in (".DS_Store", "Thumbs.db")
+
+
 @template_bp.route("/import", methods=["POST"])
 def import_bundle():
     upload = request.files.get("file")
@@ -315,7 +324,7 @@ def import_bundle():
         return jsonify({"error": "Open a template .json or an EWOK .zip bundle."}), 400
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as bundle:
-            entries = [e for e in bundle.infolist() if not e.is_dir()]
+            entries = [e for e in bundle.infolist() if not e.is_dir() and not _os_litter(e.filename)]
             if len(entries) > MAX_BUNDLE_ENTRIES or sum(e.file_size for e in entries) > MAX_BUNDLE_BYTES:
                 return jsonify({"error": "That bundle is too large."}), 400
             jsons = [e for e in entries if e.filename.lower().endswith(".json")]

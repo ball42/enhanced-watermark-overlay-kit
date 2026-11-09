@@ -1603,7 +1603,10 @@
       saveBlob(blob, `${slug(state.template.name)}-${slug(state.values.device_name || 'sample')}.png`);
     });
     $('#newTemplate').addEventListener('click', () => {
-      if (!confirm('Start a new template? The current design is not saved unless you downloaded it.')) return;
+      // An untouched new template has nothing to lose, so it needs no confirm.
+      const untouched = JSON.stringify(state.template) === JSON.stringify(newTemplate());
+      if (!untouched
+        && !confirm('Start a new template? The current design is not saved unless you downloaded it.')) return;
       loadTemplate(newTemplate());
       dirty = false;
       ioStatus('Started a new template.');
@@ -1633,38 +1636,34 @@
       const skipped = body.skipped && body.skipped.length ? ` Skipped: ${body.skipped.join('; ')}.` : '';
       ioStatus(`Opened ${file.name}.${added}${replaced}${skipped}`);
     });
-    $('#downloadPackage').addEventListener('click', async () => {
+    // Both server exports: the template goes to EWOK, a file comes back.
+    // A failure, including EWOK no longer running, is said in words.
+    const exportVia = (url, ext, done) => async () => {
       const t = exportable();
-      const resp = await fetch('/api/template/package', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template: t }),
-      });
-      if (!resp.ok) {
-        const body = await readJson(resp);
-        ioStatus(`Not exported: ${(body.problems || [body.error]).join('; ')}`);
+      let resp;
+      try {
+        resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ template: t }),
+        });
+        if (!resp.ok) {
+          const body = await readJson(resp);
+          ioStatus(`Not exported: ${(body.problems || [body.error]).join('; ')}`);
+          return;
+        }
+        saveBlob(await resp.blob(), `${slug(t.name)}.${ext}`);
+      } catch (err) {
+        ioStatus('Not exported: could not reach EWOK. Is it still running?');
         return;
       }
-      saveBlob(await resp.blob(), `${slug(t.name)}.brander.json`);
       dirty = false;
-      ioStatus(`Downloaded ${slug(t.name)}.brander.json: upload it to JAWA's template store.`);
-    });
-    $('#downloadBundle').addEventListener('click', async () => {
-      const t = exportable();
-      const resp = await fetch('/api/template/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template: t }),
-      });
-      if (!resp.ok) {
-        const body = await readJson(resp);
-        ioStatus(`Not exported: ${(body.problems || [body.error]).join('; ')}`);
-        return;
-      }
-      saveBlob(await resp.blob(), `${slug(t.name)}.zip`);
-      dirty = false;
-      ioStatus(`Downloaded ${slug(t.name)}.zip: copy its files into Brander's assets folder.`);
-    });
+      ioStatus(`Downloaded ${slug(t.name)}.${ext}: ${done}`);
+    };
+    $('#downloadPackage').addEventListener('click', exportVia('/api/template/package', 'brander.json',
+      "upload it to JAWA's template store."));
+    $('#downloadBundle').addEventListener('click', exportVia('/api/template/export', 'zip',
+      "copy its files into Brander's assets folder."));
     $('#downloadJson').addEventListener('click', () => {
       const t = exportable();
       saveBlob(new Blob([JSON.stringify(t, null, 2) + '\n'], { type: 'application/json' }), `${slug(t.name)}.json`);
