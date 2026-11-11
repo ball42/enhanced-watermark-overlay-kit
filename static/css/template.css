@@ -196,7 +196,7 @@
 
 .tpl-preview-frame img {
   max-width: 100%;
-  max-height: max(240px, calc(100vh - var(--tpl-bar-h, 64px) - 290px));
+  max-height: min(var(--tpl-stage-room, 100vh), max(240px, calc(100vh - var(--tpl-bar-h, 64px) - 290px)));
   box-shadow: var(--shadow-lg);
 }
 

@@ -1910,6 +1910,28 @@
     if (window.ResizeObserver) new ResizeObserver(set).observe(bar);
   }
 
+  // Before the page scrolls, the title sits above the action bar and pushes
+  // the stage down, so the CSS size (which assumes the stuck position) would
+  // run past the window. Cap the image by the room actually left under the
+  // stage's top; once stuck, the cap is larger than the CSS size and does nothing.
+  function trackStageRoom() {
+    const stage = $('#stage');
+    const frame = $('.tpl-preview-frame');
+    let queued = false;
+    const set = () => {
+      queued = false;
+      const below = parseFloat(getComputedStyle(frame).paddingBottom) || 0;
+      const room = Math.floor(window.innerHeight - stage.getBoundingClientRect().top - below);
+      document.documentElement.style.setProperty('--tpl-stage-room', `${Math.max(240, room)}px`);
+    };
+    const queue = () => {
+      if (!queued) { queued = true; requestAnimationFrame(set); }
+    };
+    set();
+    window.addEventListener('scroll', queue, { passive: true });
+    window.addEventListener('resize', queue);
+  }
+
   // ── Start ──────────────────────────────────────────
 
   function init() {
@@ -1928,6 +1950,7 @@
     bindFleet();
     bindTabs();
     trackBarHeight();
+    trackStageRoom();
     drawVariants();
     drawLayers();
     drawProperties();
