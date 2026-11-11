@@ -485,6 +485,40 @@ def test_preview_batch_returns_one_result_per_device_in_order(client):
         assert img.width <= 240
 
 
+def test_preview_batch_names_each_warnings_kind_and_the_smallest_text(client):
+    template = {**TEMPLATE, "layers": TEMPLATE["layers"] + [
+        {"type": "text", "text": "{{asset_tag}}", "box": {"x": 0.1, "y": 0.6, "w": 0.8, "h": 0.1},
+         "size": 0.03, "color": "#0C2646"}]}
+    devices = [{"device_name": "iPad", "asset_tag": "A1"}, {"device_name": "W" * 30}]
+    body = client.post("/api/template/preview-batch", json={"template": template, "devices": devices}).get_json()
+    first, second = body["results"]
+    assert len(first["kinds"]) == len(first["warnings"])
+    assert first["kinds"] == ["contrast"]  # navy text on a navy background
+    assert first["smallest_text"] == {"px": 18, "layer": 1}  # 0.03 of 600 px, unshrunk
+    assert set(second["kinds"]) == {"missing", "shrank"}  # no asset tag; the long name shrank
+    assert second["smallest_text"]["layer"] == 0
+    assert second["smallest_text"]["px"] < 24  # shrank from 0.04 of 600 px
+    assert body["readable_px"] == 8  # wallrender's READABLE_MIN of 600 px, rounded up
+
+
+@pytest.mark.parametrize("warning, kind", [
+    ("layer 0: text does not fit its box even at 12px; it is cut off", "cut_off"),
+    ("layer 0: text shrank to 9px, too small to read on the device; set a smallest size", "too_small"),
+    ("layer 0: text shortened with \u2026 to fit its box", "shrank"),
+    ("layer 1: QR colors have low contrast 1.2:1; phones need at least 3:1 to scan it", "qr"),
+    ("layer 1: QR modules are only 2 px; phones may not scan it", "qr"),
+    ("layer 2: hidden because {{location.building}} has no value", "missing"),
+    ("no role value; the empty variant is used", "role"),
+    ("role 'lab' has no variant of its own; it uses the default", "role"),
+    ("layer 0: the font has no glyph for '\u2603' (\u2603); it will show as a box", "glyph"),
+    ("something new", "other"),
+])
+def test_warning_kind(warning, kind):
+    from views.template_api import warning_kind
+
+    assert warning_kind(warning) == kind
+
+
 def test_preview_batch_over_200_devices_is_400(client):
     resp = client.post("/api/template/preview-batch",
                        json={"template": TEMPLATE, "devices": [{"device_name": "x"}] * 201})

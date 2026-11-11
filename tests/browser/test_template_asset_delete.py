@@ -87,4 +87,12 @@ def test_deleting_an_asset_another_tab_deleted_says_so(page):
     assert page.request.delete("/api/template/assets/spare").status == 204
     page.click('[aria-label="Delete asset spare"]')
     page.wait_for_selector('[aria-label="Delete asset spare"]', state="detached")
-    assert page.inner_text("#previewStatus") == "Asset spare was already deleted."
+    assert page.inner_text("#assetStatus") == "Asset spare was already deleted."
+
+
+def test_the_delete_message_outlasts_the_render_that_follows(page):
+    open_designer(page, uses_logo())
+    page.click('[aria-label="Delete asset spare"]')
+    page.wait_for_selector('[aria-label="Delete asset spare"]', state="detached")
+    page.wait_for_function("document.querySelector('#previewStatus').textContent.startsWith('Rendered')")
+    assert page.inner_text("#assetStatus") == "Deleted asset spare."

@@ -580,6 +580,289 @@ input[type="color"] {
   margin-bottom: var(--space-sm);
 }
 
+/* ── Devices from a CSV: the fleet summary ───── */
+/* Blue for devices that fit, orange for those that need attention (checked
+   with the dataviz palette validator in light and dark); every part also
+   carries an icon and a word, so colour never stands alone. */
+
+:root {
+  --fleet-fit: var(--roster-primary-500);
+  --fleet-fit-ink: var(--roster-white);
+  --fleet-attention: var(--roster-amber-600);
+  --fleet-attention-ink: var(--roster-gray-950);
+  --fleet-track: color-mix(in srgb, var(--fleet-attention) 16%, var(--color-surface));
+}
+
+/* primary-400 alone is too light against the dark card; 70/30 with 500 is
+   inside the validator's dark lightness band. */
+.dark {
+  --fleet-fit: color-mix(in srgb, var(--roster-primary-400) 70%, var(--roster-primary-500));
+  --fleet-fit-ink: var(--roster-gray-950);
+  --fleet-track: color-mix(in srgb, var(--fleet-attention) 22%, var(--color-surface));
+}
+
+.tpl-fleet-summary {
+  margin: var(--space-sm) 0 var(--space-md);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm, none);
+}
+
+.tpl-fleet-body {
+  transition: opacity var(--transition-base);
+}
+
+.tpl-fleet-summary.is-stale .tpl-fleet-body,
+.tpl-fleet.is-stale {
+  opacity: 0.45;
+}
+
+.tpl-fleet-stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  margin: 0 0 var(--space-md);
+}
+
+.tpl-fleet-stale[hidden] {
+  display: none;
+}
+
+.tpl-fleet-stale span {
+  flex: 1 1 12rem;
+}
+
+.tpl-fleet-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-sm);
+  margin: 0 0 var(--space-sm);
+  line-height: 1.1;
+}
+
+.tpl-fleet-figure {
+  font-size: 3.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.tpl-fleet-figure-of {
+  font-size: 1rem;
+  color: var(--color-text-muted);
+}
+
+/* Tall segmented bar: one whole (the fleet), two parts. */
+.tpl-fleet-bar {
+  display: flex;
+  gap: 2px;
+  height: 28px;
+  margin-bottom: var(--space-sm);
+}
+
+.tpl-fleet-block {
+  display: flex;
+  align-items: center;
+  min-width: 4px;
+  padding: 0 var(--space-xs);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tpl-fleet-block--fit {
+  background: var(--fleet-fit);
+  color: var(--fleet-fit-ink);
+}
+
+.tpl-fleet-block--attention {
+  background: var(--fleet-attention);
+  color: var(--fleet-attention-ink);
+}
+
+.tpl-fleet-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.tpl-fleet-filter,
+.tpl-fleet-kind {
+  font: inherit;
+  color: var(--color-text);
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.tpl-fleet-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 36px;
+  padding: 0 var(--space-sm);
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.tpl-fleet-filter:hover,
+.tpl-fleet-kind:hover {
+  border-color: var(--color-border-hover);
+}
+
+.tpl-fleet-filter[aria-pressed="true"],
+.tpl-fleet-kind[aria-pressed="true"] {
+  border: 2px solid var(--color-primary);
+  background: var(--color-primary-light);
+  font-weight: 600;
+}
+
+.tpl-fleet-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 3px;
+}
+
+.tpl-fleet-subhead {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-xs);
+}
+
+/* Meter list: name, bar and count per problem kind, bars aligned. */
+.tpl-fleet-kinds {
+  list-style: none;
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.tpl-fleet-kind {
+  display: grid;
+  grid-template-columns: minmax(9rem, 13rem) 1fr auto;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: 40px;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.tpl-fleet-kind-name i {
+  width: 1.1em;
+  color: var(--color-text-muted);
+}
+
+.tpl-fleet-meter {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--fleet-track);
+  overflow: hidden;
+}
+
+.tpl-fleet-meter-fill {
+  display: block;
+  height: 100%;
+  min-width: 8px;
+  border-radius: 999px;
+  background: var(--fleet-attention);
+}
+
+.tpl-fleet-kind-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.tpl-fleet-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-sm);
+  margin: 0;
+}
+
+.tpl-fleet-fact {
+  padding: var(--space-sm);
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+.tpl-fleet-fact dt {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.tpl-fleet-fact dd {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tpl-fleet-fact-value {
+  font-size: 1.15rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+button.tpl-fleet-fact-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.tpl-fleet-fact-detail {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (max-width: 600px) {
+  .tpl-fleet-kind {
+    grid-template-columns: 1fr auto;
+    min-height: 44px;
+  }
+
+  .tpl-fleet-meter {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .tpl-fleet-filter {
+    min-height: 44px;
+  }
+}
+
 /* ── Devices from a CSV: a contact sheet ─────── */
 
 .tpl-fleet {
@@ -630,6 +913,10 @@ input[type="color"] {
 
 .tpl-fleet-count.warn::before {
   content: "\26A0  ";
+}
+
+.tpl-fleet > li[hidden] {
+  display: none;
 }
 
 .tpl-fleet .tpl-warnings li {

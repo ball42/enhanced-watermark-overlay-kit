@@ -9,6 +9,7 @@ asset ids follow wallrender's pattern, and only PNG and JPEG are kept.
 import base64
 import io
 import json
+import math
 import os
 import re
 import zipfile
@@ -21,6 +22,7 @@ import wallrender
 from wallrender import TemplateError, render_with_lint, required_version, validate
 from wallrender.cli import folder_assets, role_keys, stress_values
 from wallrender.devices import fit_warnings
+from wallrender.render import READABLE_MIN, _lint_warnings, _render
 from wallrender.schema import ASSET_ID, MAX_PIXELS, MAX_SIDE, newer_than
 
 template_bp = Blueprint("template_api", __name__, url_prefix="/api/template")
@@ -116,13 +118,43 @@ def preview_batch():
     results = []
     try:
         for n, values in enumerate(devices, 1):
-            image, warnings = render_with_lint(template, values, assets)
+            # The same render and lint as render_with_lint(), keeping the text
+            # sizes it measured so the summary can name the smallest one.
+            image, missing, fits, hidden, qrs = _render(template, values, assets,
+                                                        fits=[], hidden=[], qrs=[])
+            warnings = _lint_warnings(template, values, assets, image, missing, fits, hidden, qrs)
+            smallest = min(fits, key=lambda f: f.used, default=None)
             image.thumbnail((THUMB_WIDTH, THUMB_WIDTH * 8))
             label = values.get("device_name") or values.get("serial_number") or f"Device {n}"
-            results.append({"label": str(label), "warnings": warnings, "thumb": _png_data_url(image)})
+            results.append({
+                "label": str(label), "warnings": warnings, "kinds": [warning_kind(w) for w in warnings],
+                "smallest_text": smallest and {"px": smallest.used, "layer": smallest.index},
+                "thumb": _png_data_url(image),
+            })
     except TemplateError as err:
         return jsonify({"problems": err.problems}), 422
-    return jsonify({"results": results})
+    return jsonify({"results": results, "readable_px": math.ceil(READABLE_MIN * template["canvas"]["height"])})
+
+
+# What kind of problem a lint warning names, for the fleet summary. The
+# order matters: a QR contrast warning is a QR problem, not a text one.
+WARNING_KINDS = (
+    ("qr", re.compile(r"\bQR\b")),
+    ("cut_off", re.compile(r"cut off")),
+    ("too_small", re.compile(r"too small to read")),
+    ("shrank", re.compile(r"\bshrank\b|shortened")),
+    ("missing", re.compile(r"no value|hidden because")),
+    ("contrast", re.compile(r"low contrast")),
+    ("glyph", re.compile(r"no glyph")),
+    ("role", re.compile(r"\brole\b")),
+)
+
+
+def warning_kind(warning):
+    for kind, pattern in WARNING_KINDS:
+        if pattern.search(warning):
+            return kind
+    return "other"
 
 
 def _asset_path(asset_id):

@@ -191,6 +191,7 @@
   // A new preview without marking the template edited (hiding a layer).
   function queuePreview() {
     $('.tpl-preview').classList.add('is-stale');
+    markFleetStale();
     clearTimeout(previewTimer);
     previewTimer = setTimeout(renderPreview, 300);
   }
@@ -500,6 +501,12 @@
   const inWords = (items) => (items.length < 2 ? items.join('')
     : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
 
+  // Asset results have their own line in the Assets section: the preview
+  // status line is rewritten by the render that follows.
+  function assetStatus(text) {
+    $('#assetStatus').textContent = text;
+  }
+
   async function deleteAsset(id) {
     const uses = assetUses(id);
     if (uses.length && !confirm(`${id} is used by ${inWords(uses)}. Delete it anyway?`)) return;
@@ -507,20 +514,20 @@
       const resp = await fetch(`/api/template/assets/${id}`, { method: 'DELETE' });
       if (resp.status === 404) {
         // Already gone, from another tab say: show the library as it is.
-        setStatus(`Asset ${id} was already deleted.`);
+        assetStatus(`Asset ${id} was already deleted.`);
         await loadAssets();
         schedulePreview();
         return;
       }
       if (!resp.ok) {
-        setStatus(`Not deleted: ${(await readJson(resp)).error}`);
+        assetStatus(`Not deleted: ${(await readJson(resp)).error}`);
         return;
       }
-      setStatus(`Deleted asset ${id}.`);
+      assetStatus(`Deleted asset ${id}.`);
       await loadAssets();
       schedulePreview();
     } catch (err) {
-      setStatus('Not deleted: could not reach EWOK.');
+      assetStatus('Not deleted: could not reach EWOK.');
     }
   }
 
@@ -547,7 +554,7 @@
       e.target.value = '';
       const id = assetIdFromName(file.name);
       if (!confirmReplace(id)) {
-        setStatus(`Not uploaded: kept the existing asset ${id}.`);
+        assetStatus(`Not uploaded: kept the existing asset ${id}.`);
         return;
       }
       const replacing = state.assets.some((a) => a.id === id);
@@ -557,14 +564,14 @@
         const resp = await fetch('/api/template/assets', { method: 'POST', body: form });
         const body = await readJson(resp);
         if (!resp.ok) {
-          setStatus(`Upload failed: ${body.error}`);
+          assetStatus(`Upload failed: ${body.error}`);
           return;
         }
-        setStatus(replacing ? `Replaced asset ${body.id}.` : `Uploaded asset ${body.id}.`);
+        assetStatus(replacing ? `Replaced asset ${body.id}.` : `Uploaded asset ${body.id}.`);
         await loadAssets();
         if (replacing) schedulePreview();
       } catch (err) {
-        setStatus('Upload failed: could not reach EWOK.');
+        assetStatus('Upload failed: could not reach EWOK.');
       }
     });
   }
@@ -1452,15 +1459,53 @@
     $('#fleetStatus').textContent = text;
   }
 
+  // What each warning kind from /api/template/preview-batch is called, with
+  // its icon, in the order a designer would fix them.
+  const FLEET_KINDS = {
+    cut_off: ['Text cut off', 'fa-scissors'],
+    too_small: ['Text too small to read', 'fa-text-height'],
+    shrank: ['Text shrank or shortened', 'fa-compress'],
+    missing: ['Missing value', 'fa-circle-question'],
+    contrast: ['Low contrast', 'fa-circle-half-stroke'],
+    qr: ['QR hard to scan', 'fa-qrcode'],
+    glyph: ['Character the font lacks', 'fa-font'],
+    role: ['No role variant', 'fa-user-tag'],
+    other: ['Other', 'fa-circle-info'],
+  };
+  const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+  let fleetResults = [];
+  let fleetFilter = 'all';
+  let fleetSignature = null; // the template as last checked, to tell when the results go out of date
+
+  // The template as the check sees it. The name is not drawn, so renaming
+  // does not make the results out of date.
+  function fleetTemplate() {
+    const t = previewable();
+    delete t.name;
+    return JSON.stringify(t);
+  }
+
+  // Called on every preview: dims the results once the template differs
+  // from the one they were checked against (and undims them after an undo).
+  function markFleetStale() {
+    if (fleetSignature === null) return;
+    const stale = fleetTemplate() !== fleetSignature;
+    $('#fleetStale').hidden = !stale;
+    $('#fleetSummary').classList.toggle('is-stale', stale);
+    $('#fleetSheet').classList.toggle('is-stale', stale);
+  }
+
   async function checkFleet() {
     if (!fleet.length) return;
     fleetStatus(`Checking ${fleet.length} devices…`);
+    $('#fleetStaleRecheck').disabled = true;
+    const signature = fleetTemplate();
     let body;
     try {
       const resp = await fetch('/api/template/preview-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template: previewable(), devices: fleet }),
+        body: JSON.stringify({ template: JSON.parse(signature), devices: fleet }),
       });
       body = await readJson(resp);
       if (!resp.ok) {
@@ -1470,14 +1515,183 @@
     } catch (err) {
       fleetStatus('Not checked: could not reach EWOK.');
       return;
+    } finally {
+      $('#fleetStaleRecheck').disabled = false;
     }
-    const results = body.results.map((r, i) => ({ ...r, values: fleet[i] }));
+    fleetSignature = signature;
+    const results = body.results.map((r, i) => ({ ...r, kinds: r.kinds || [], values: fleet[i] }));
     // Stable sort: the most warnings first, otherwise in file order.
     results.sort((a, b) => b.warnings.length - a.warnings.length);
     const warned = results.filter((r) => r.warnings.length).length;
     fleetStatus(`${fleetNote}Checked ${results.length} devices: ${warned ? `${warned} with warnings, listed first` : 'no warnings'}.`
       + ' Pick a device to preview it.');
+    fleetResults = results;
     $('#fleetSheet').replaceChildren(...results.map(fleetItem));
+    drawFleetSummary(results, body.readable_px);
+    setFleetFilter(fleetFilter in fleetCounts(results) ? fleetFilter : 'all');
+    markFleetStale();
+  }
+
+  // Devices per filter: all, fit (no warnings), attention, and each kind.
+  function fleetCounts(results) {
+    const counts = { all: results.length, fit: 0, attention: 0 };
+    results.forEach((r) => {
+      if (!r.warnings.length) counts.fit += 1; else counts.attention += 1;
+      new Set(r.kinds).forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
+    });
+    return counts;
+  }
+
+  function fleetMatches(r, filter) {
+    if (filter === 'all') return true;
+    if (filter === 'fit') return !r.warnings.length;
+    if (filter === 'attention') return r.warnings.length > 0;
+    return r.kinds.includes(filter);
+  }
+
+  function filterLabel(filter) {
+    return { fit: 'Fit', attention: 'Need attention' }[filter] || FLEET_KINDS[filter]?.[0] || filter;
+  }
+
+  function setFleetFilter(filter) {
+    fleetFilter = filter;
+    $$('[data-fleet-filter]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.fleetFilter === filter)));
+    const items = $('#fleetSheet').children;
+    let shown = 0;
+    fleetResults.forEach((r, i) => {
+      const match = fleetMatches(r, filter);
+      items[i].hidden = !match;
+      if (match) shown += 1;
+    });
+    $('#fleetSheet').setAttribute('aria-label', filter === 'all' ? 'All devices'
+      : `${filterLabel(filter)}: ${plural(shown, 'device')}`);
+  }
+
+  function fleetFilterButton(filter, content, className) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.fleetFilter = filter;
+    b.className = className;
+    b.setAttribute('aria-pressed', 'false');
+    b.append(...content);
+    b.addEventListener('click', () => setFleetFilter(fleetFilter === filter && filter !== 'all' ? 'all' : filter));
+    return b;
+  }
+
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+  const icon = (name) => {
+    const i = el('i', `fas ${name}`);
+    i.setAttribute('aria-hidden', 'true');
+    return i;
+  };
+
+  function drawFleetSummary(results, readablePx) {
+    const counts = fleetCounts(results);
+    const total = results.length;
+    // The two shares always add up to 100.
+    const fitShare = Math.round((100 * counts.fit) / total);
+    const share = (n) => (n === counts.fit ? fitShare : 100 - fitShare);
+    $('#fleetSummary').hidden = false;
+
+    // Hero: how many fit, of how many.
+    $('#fleetFitCount').textContent = counts.fit.toLocaleString();
+    $('#fleetFitOf').textContent = `of ${plural(total, 'device')} ${counts.fit === 1 ? 'fits' : 'fit'} with no warnings`;
+
+    // One whole, two parts: a tall segmented bar with its share printed in each block.
+    const bar = $('#fleetBar');
+    bar.replaceChildren();
+    [['fit', counts.fit, 'Fit'], ['attention', counts.attention, 'Need attention']].forEach(([key, n, name]) => {
+      if (!n) return;
+      const block = el('span', `tpl-fleet-block tpl-fleet-block--${key}`);
+      block.style.flexGrow = String(n);
+      block.title = `${name}: ${plural(n, 'device')} (${share(n)}%)`;
+      if (n / total >= 0.12) block.textContent = `${share(n)}%`;
+      bar.append(block);
+    });
+    bar.setAttribute('aria-label', `${counts.fit} fit (${share(counts.fit)}%), `
+      + `${counts.attention} need attention (${share(counts.attention)}%)`);
+
+    // The legend names the parts and filters the sheet.
+    const swatch = (key) => el('span', `tpl-fleet-swatch tpl-fleet-block--${key}`);
+    $('#fleetFilters').replaceChildren(
+      fleetFilterButton('all', [`All ${total.toLocaleString()}`], 'tpl-fleet-filter'),
+      ...(counts.fit && counts.attention ? [
+        fleetFilterButton('fit', [swatch('fit'), icon('fa-check'), ` Fit ${counts.fit.toLocaleString()}`], 'tpl-fleet-filter'),
+        fleetFilterButton('attention', [swatch('attention'), icon('fa-triangle-exclamation'),
+          ` Need attention ${counts.attention.toLocaleString()}`], 'tpl-fleet-filter'),
+      ] : []),
+    );
+
+    // By problem: a meter list, most devices first; each row filters the sheet.
+    const kinds = Object.keys(FLEET_KINDS).filter((k) => counts[k])
+      .sort((a, b) => counts[b] - counts[a]);
+    $('#fleetKindsHeading').hidden = !kinds.length;
+    $('#fleetKinds').replaceChildren(...kinds.map((k) => {
+      const [name, iconName] = FLEET_KINDS[k];
+      const meter = el('span', 'tpl-fleet-meter');
+      const fill = el('span', 'tpl-fleet-meter-fill');
+      fill.style.width = `${(100 * counts[k]) / total}%`;
+      meter.append(fill);
+      const li = document.createElement('li');
+      li.append(fleetFilterButton(k, [
+        el('span', 'tpl-fleet-kind-name'), meter,
+        el('span', 'tpl-fleet-kind-count', plural(counts[k], 'device')),
+      ], 'tpl-fleet-kind'));
+      li.querySelector('.tpl-fleet-kind-name').append(icon(iconName), ` ${name}`);
+      return li;
+    }));
+
+    // Two facts a template lives or dies by: the longest name and the smallest text.
+    const facts = $('#fleetFacts');
+    facts.replaceChildren();
+    const fact = (label, value, detail, r) => {
+      const div = el('div', 'tpl-fleet-fact');
+      const dd = el('dd');
+      const v = r ? el('button', 'tpl-fleet-fact-value tpl-fleet-fact-link', value) : el('span', 'tpl-fleet-fact-value', value);
+      if (r) {
+        v.type = 'button';
+        v.setAttribute('aria-label', `${value}: preview ${r.label}`);
+        v.addEventListener('click', () => previewFleetDevice(r));
+      }
+      dd.append(v, el('span', 'tpl-fleet-fact-detail', detail));
+      div.append(el('dt', '', label), dd);
+      facts.append(div);
+    };
+    const named = results.filter((r) => typeof r.values.device_name === 'string' && r.values.device_name);
+    if (named.length) {
+      const longest = named.reduce((a, b) => (b.values.device_name.length > a.values.device_name.length ? b : a));
+      const len = [...longest.values.device_name].length;
+      fact('Longest name', longest.values.device_name,
+        `${plural(len, 'character')} · ${longest.warnings.length ? `⚠ ${plural(longest.warnings.length, 'warning')}` : '✓ fits'}`,
+        longest);
+    }
+    const sized = results.filter((r) => r.smallest_text);
+    if (sized.length) {
+      const smallest = sized.reduce((a, b) => (b.smallest_text.px < a.smallest_text.px ? b : a));
+      const { px, layer } = smallest.smallest_text;
+      const ok = !readablePx || px >= readablePx;
+      fact('Smallest text', `${px} px`,
+        `${ok ? '✓ readable' : '⚠ too small to read'} · layer ${layer + 1} on ${smallest.label}`, smallest);
+    }
+    facts.hidden = !facts.children.length;
+  }
+
+  function previewFleetDevice(r) {
+    $$('.tpl-fleet-pick[aria-current]').forEach((b) => b.removeAttribute('aria-current'));
+    const i = fleetResults.indexOf(r);
+    const pick = $('#fleetSheet').children[i]?.querySelector('.tpl-fleet-pick');
+    if (pick) pick.setAttribute('aria-current', 'true');
+    state.values = JSON.parse(JSON.stringify(r.values));
+    $('#samplePreset').value = 'custom';
+    $('#sampleValues').value = JSON.stringify(state.values, null, 2);
+    $('#sampleError').hidden = true;
+    drawSampleFields();
+    schedulePreview();
   }
 
   function fleetItem(r) {
@@ -1497,16 +1711,7 @@
     count.textContent = r.warnings.length
       ? `${r.warnings.length} warning${r.warnings.length > 1 ? 's' : ''}` : 'No warnings';
     pick.append(img, name, count);
-    pick.addEventListener('click', () => {
-      $$('.tpl-fleet-pick[aria-current]').forEach((b) => b.removeAttribute('aria-current'));
-      pick.setAttribute('aria-current', 'true');
-      state.values = JSON.parse(JSON.stringify(r.values));
-      $('#samplePreset').value = 'custom';
-      $('#sampleValues').value = JSON.stringify(state.values, null, 2);
-      $('#sampleError').hidden = true;
-      drawSampleFields();
-      schedulePreview();
-    });
+    pick.addEventListener('click', () => previewFleetDevice(r));
     li.append(pick);
     if (r.warnings.length) {
       const ul = document.createElement('ul');
@@ -1534,6 +1739,7 @@
       await checkFleet();
     });
     $('#fleetRecheck').addEventListener('click', checkFleet);
+    $('#fleetStaleRecheck').addEventListener('click', checkFleet);
   }
 
   function slug(name) {

@@ -36,3 +36,89 @@ def test_csv_devices_show_as_thumbnails_with_warnings_first(designer, tmp_path):
     assert page.input_value("#sample-device_name") == "Lab iPad"
     assert page.input_value("#sample-location-building") == "East, Wing"
     assert json.loads(page.input_value("#sampleValues"))["jss_id"] == 3
+
+
+def load_csv(page, tmp_path):
+    csv = tmp_path / "fleet.csv"
+    csv.write_text(CSV)
+    page.set_input_files("#fleetFile", str(csv))
+    page.wait_for_function("document.querySelectorAll('#fleetSheet .tpl-fleet-pick').length === 3")
+
+
+def shown_names(page):
+    return page.locator("#fleetSheet > li:not([hidden]) .tpl-fleet-name").all_text_contents()
+
+
+def test_the_summary_leads_with_how_many_fit_and_splits_the_rest_by_problem(designer, tmp_path):
+    page = designer
+    load_csv(page, tmp_path)
+    assert page.text_content("#fleetFitCount") == "2"
+    assert page.text_content("#fleetFitOf") == "of 3 devices fit with no warnings"
+    assert page.get_attribute("#fleetBar", "aria-label") == "2 fit (67%), 1 need attention (33%)"
+    assert page.locator("#fleetBar .tpl-fleet-block").all_text_contents() == ["67%", "33%"]
+
+    # Each problem row names its kind in words and counts devices.
+    kinds = page.locator("#fleetKinds .tpl-fleet-kind")
+    assert kinds.count() >= 1
+    assert kinds.first.locator(".tpl-fleet-kind-count").text_content() == "1 device"
+
+    # A problem row filters the sheet; pressing it again shows every device.
+    kinds.first.click()
+    assert kinds.first.get_attribute("aria-pressed") == "true"
+    assert shown_names(page) == ["W" * 48]
+    kinds.first.click()
+    assert len(shown_names(page)) == 3
+
+    page.click("#fleetFilters [data-fleet-filter=fit]")
+    assert sorted(shown_names(page)) == ["Front Desk iPhone", "Lab iPad"]
+    page.click("#fleetFilters [data-fleet-filter=all]")
+    assert len(shown_names(page)) == 3
+
+    facts = page.locator("#fleetFacts .tpl-fleet-fact")
+    assert facts.nth(0).locator("dt").text_content() == "Longest name"
+    assert facts.nth(0).locator(".tpl-fleet-fact-value").text_content() == "W" * 48
+    assert "48 characters" in facts.nth(0).text_content()
+    assert facts.nth(1).locator("dt").text_content() == "Smallest text"
+    assert facts.nth(1).locator(".tpl-fleet-fact-value").text_content().endswith(" px")
+    assert "layer 1 on " + "W" * 48 in facts.nth(1).text_content()
+
+    # The longest name previews that device.
+    facts.nth(0).locator("button").click()
+    page.wait_for_function("document.querySelector('#sample-device_name').value.length === 48")
+
+
+def test_the_summary_says_out_of_date_after_a_template_edit_and_not_after_undo(designer, tmp_path):
+    page = designer
+    load_csv(page, tmp_path)
+    assert page.is_hidden("#fleetStale")
+
+    page.fill("#tplName", "Lobby")  # the name is not drawn
+    page.wait_for_function("document.querySelector('#previewStatus').textContent.startsWith('Rendered')")
+    assert page.is_hidden("#fleetStale")
+
+    page.click('[aria-label="Delete layer 2"]')
+    page.wait_for_selector("#fleetStale:not([hidden])")
+    assert "Out of date" in page.text_content("#fleetStale")
+    assert "is-stale" in page.get_attribute("#fleetSummary", "class")
+    assert "is-stale" in page.get_attribute("#fleetSheet", "class")
+
+    page.click("#undoButton")
+    page.wait_for_selector("#fleetStale", state="hidden")
+
+    page.click('[aria-label="Delete layer 2"]')
+    page.wait_for_selector("#fleetStale:not([hidden])")
+    page.click("#fleetStaleRecheck")
+    page.wait_for_selector("#fleetStale", state="hidden")
+    assert "is-stale" not in page.get_attribute("#fleetSummary", "class")
+
+
+def test_the_summary_fits_a_phone(page, tmp_path):
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto("/template")
+    page.wait_for_selector("#previewImage:not([hidden])")
+    load_csv(page, tmp_path)
+    assert page.evaluate("document.documentElement.scrollWidth") <= 390
+    box = page.locator("#fleetSummary").bounding_box()
+    assert box["x"] >= 0 and box["x"] + box["width"] <= 390
+    row = page.locator("#fleetKinds .tpl-fleet-kind").first.bounding_box()
+    assert row["height"] >= 44
