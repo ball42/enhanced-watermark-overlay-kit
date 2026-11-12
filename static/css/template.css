@@ -791,6 +791,130 @@ input[type="color"] {
   white-space: nowrap;
 }
 
+/* Change since the last check: an arrow and words, on a blue (fewer) or
+   orange (more) pill with the same inks as the bar blocks. */
+.tpl-fleet-change {
+  display: inline-block;
+  margin-left: var(--space-xs);
+  padding: 1px 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tpl-fleet-change.is-better {
+  background: var(--fleet-fit);
+  color: var(--fleet-fit-ink);
+}
+
+.tpl-fleet-change.is-worse {
+  background: var(--fleet-attention);
+  color: var(--fleet-attention-ink);
+}
+
+.tpl-fleet-change.is-same {
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.tpl-fleet-delta {
+  margin: 0 0 var(--space-sm);
+}
+
+.tpl-fleet-delta[hidden] {
+  display: none;
+}
+
+.tpl-fleet-delta .tpl-fleet-change {
+  margin-left: 0;
+  font-size: 0.85rem;
+  padding: 2px 0.6rem;
+}
+
+.tpl-fleet-kind:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.tpl-fleet-kind-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tpl-fleet-kind-detail {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-left: 1.4em;
+}
+
+.tpl-fleet-subhead[hidden] {
+  display: none;
+}
+
+.tpl-fleet-remembered {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+}
+
+.tpl-fleet-remembered[hidden],
+.tpl-fleet-remember[hidden] {
+  display: none;
+}
+
+.tpl-fleet-remembered > span:first-of-type {
+  flex: 1 1 12rem;
+}
+
+.tpl-fleet-remembered-actions {
+  display: inline-flex;
+  gap: var(--space-xs);
+}
+
+.tpl-fleet-remember {
+  min-height: 44px;
+  align-items: center;
+}
+
+/* Progress while a long list is checked in chunks. */
+.tpl-fleet-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  margin: 0 0 var(--space-sm);
+}
+
+.tpl-fleet-progress[hidden] {
+  display: none;
+}
+
+.tpl-fleet-progress-track {
+  flex: 1 1 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--fleet-track);
+  overflow: hidden;
+}
+
+.tpl-fleet-progress-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--fleet-fit);
+  transition: width var(--transition-base);
+}
+
+.tpl-fleet-progress-text {
+  flex: 1 1 auto;
+  font-variant-numeric: tabular-nums;
+}
+
 .tpl-fleet-facts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
@@ -1134,4 +1258,8 @@ button.tpl-fleet-fact-link {
 .tpl-tabs [role="tab"][aria-selected="true"] {
   color: var(--color-text);
   border-bottom-color: var(--color-primary);
+}
+
+.tpl-fleet-kinds:empty {
+  display: none;
 }

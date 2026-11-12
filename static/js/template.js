@@ -1415,7 +1415,9 @@
   // this check only. Devices with warnings are listed first.
 
   const FLEET_MAX = 200;
+  const FLEET_KEY = 'ewok-fleet';
   let fleet = [];
+  let fleetFileName = '';
   let fleetNote = ''; // said before each result, such as rows left out
 
   // Rows of fields; quoted fields may hold commas, quotes ("") and newlines.
@@ -1495,40 +1497,122 @@
     $('#fleetSheet').classList.toggle('is-stale', stale);
   }
 
+  // The check runs in chunks, so the summary and sheet fill in as answers
+  // arrive and Stop keeps what was checked. Each CSV loaded is a new list;
+  // a re-check of the same list is compared with the last complete one.
+  const FLEET_CHUNK = 10;
+  let fleetRun = null; // the check in progress: { controller, stopped }
+  let fleetListId = 0;
+  let fleetLast = null; // { listId, counts } of the last complete check
+  let fleetChecked = null; // the template as last checked, for layer names
+
+  function showFleetProgress(done, total) {
+    const bar = $('#fleetProgressBar');
+    $('#fleetProgress').hidden = false;
+    bar.setAttribute('aria-valuemax', String(total));
+    bar.setAttribute('aria-valuenow', String(done));
+    const text = `Checked ${done.toLocaleString()} of ${plural(total, 'device')}`;
+    bar.setAttribute('aria-valuetext', text);
+    $('#fleetProgressFill').style.width = `${(100 * done) / total}%`;
+    $('#fleetProgressText').textContent = text;
+  }
+
+  function stopFleet() {
+    if (!fleetRun) return;
+    fleetRun.stopped = true;
+    fleetRun.controller.abort();
+  }
+
+  // Which layers a device warns on, and the kind of each warning there.
+  function fleetIssues(r) {
+    const issues = [];
+    r.warnings.forEach((w, j) => {
+      const m = /\blayer (\d+)/.exec(w);
+      if (m) issues.push({ layer: Number(m[1]), kind: r.kinds[j] || 'other' });
+    });
+    return issues;
+  }
+
   async function checkFleet() {
     if (!fleet.length) return;
-    fleetStatus(`Checking ${fleet.length} devices…`);
-    $('#fleetStaleRecheck').disabled = true;
+    if (fleetRun) fleetRun.controller.abort(); // a newer check takes over
+    const run = { controller: new AbortController(), stopped: false };
+    fleetRun = run;
+    const devices = fleet;
+    const listId = fleetListId;
     const signature = fleetTemplate();
-    let body;
+    const template = JSON.parse(signature);
+    const results = [];
+    let readablePx = null;
+    let failure = null;
+    $('#fleetRecheck').disabled = true;
+    $('#fleetStaleRecheck').disabled = true;
+    fleetStatus(`${fleetNote}Checking ${plural(devices.length, 'device')}…`);
+    showFleetProgress(0, devices.length);
     try {
-      const resp = await fetch('/api/template/preview-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template: JSON.parse(signature), devices: fleet }),
-      });
-      body = await readJson(resp);
-      if (!resp.ok) {
-        fleetStatus(`Not checked: ${(body.problems || [body.error]).join('; ')}`);
-        return;
+      for (let start = 0; start < devices.length; start += FLEET_CHUNK) {
+        const resp = await fetch('/api/template/preview-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ template, devices: devices.slice(start, start + FLEET_CHUNK), first: start + 1 }),
+          signal: run.controller.signal,
+        });
+        const body = await readJson(resp);
+        if (fleetRun !== run) return;
+        if (!resp.ok) {
+          failure = `Not checked: ${(body.problems || [body.error]).join('; ')}`;
+          break;
+        }
+        readablePx = body.readable_px;
+        body.results.forEach((r, i) => {
+          const result = { ...r, kinds: r.kinds || [], values: devices[start + i], row: start + i };
+          result.issues = fleetIssues(result);
+          results.push(result);
+        });
+        showFleetProgress(results.length, devices.length);
+        showFleetResults(results, template, signature, readablePx, null);
       }
     } catch (err) {
-      fleetStatus('Not checked: could not reach EWOK.');
-      return;
+      if (fleetRun !== run) return;
+      if (!run.stopped) failure = 'Not checked: could not reach EWOK.';
     } finally {
-      $('#fleetStaleRecheck').disabled = false;
+      if (fleetRun === run) {
+        fleetRun = null;
+        $('#fleetProgress').hidden = true;
+        $('#fleetRecheck').disabled = false;
+        $('#fleetStaleRecheck').disabled = false;
+      }
     }
-    fleetSignature = signature;
-    const results = body.results.map((r, i) => ({ ...r, kinds: r.kinds || [], values: fleet[i] }));
-    // Stable sort: the most warnings first, otherwise in file order.
-    results.sort((a, b) => b.warnings.length - a.warnings.length);
-    const warned = results.filter((r) => r.warnings.length).length;
-    fleetStatus(`${fleetNote}Checked ${results.length} devices: ${warned ? `${warned} with warnings, listed first` : 'no warnings'}.`
+    const n = results.length;
+    const total = devices.length;
+    if (failure) {
+      fleetStatus(n ? `${failure} The summary shows the ${plural(n, 'device')} checked before that.` : failure);
+      return;
+    }
+    if (run.stopped) {
+      fleetStatus(n ? `Stopped after ${n.toLocaleString()} of ${plural(total, 'device')}; the summary shows those. `
+        + 'Check again to check them all.' : 'Stopped before any device was checked.');
+      return;
+    }
+    // Complete: compare with the last complete check of the same list.
+    const counts = fleetCounts(results);
+    const previous = fleetLast && fleetLast.listId === listId ? fleetLast.counts : null;
+    showFleetResults(results, template, signature, readablePx, previous);
+    fleetLast = { listId, counts };
+    const warned = counts.attention;
+    fleetStatus(`${fleetNote}Checked ${plural(n, 'device')}: ${warned ? `${warned} with warnings, listed first` : 'no warnings'}.`
       + ' Pick a device to preview it.');
-    fleetResults = results;
-    $('#fleetSheet').replaceChildren(...results.map(fleetItem));
-    drawFleetSummary(results, body.readable_px);
-    setFleetFilter(fleetFilter in fleetCounts(results) ? fleetFilter : 'all');
+  }
+
+  function showFleetResults(results, template, signature, readablePx, previous) {
+    fleetSignature = signature;
+    fleetChecked = template;
+    // The most warnings first, otherwise in file order.
+    const sorted = [...results].sort((a, b) => b.warnings.length - a.warnings.length || a.row - b.row);
+    fleetResults = sorted;
+    $('#fleetSheet').replaceChildren(...sorted.map(fleetItem));
+    drawFleetSummary(sorted, readablePx, previous);
+    setFleetFilter(fleetFilter in fleetCounts(sorted) ? fleetFilter : 'all');
     markFleetStale();
   }
 
@@ -1538,6 +1622,7 @@
     results.forEach((r) => {
       if (!r.warnings.length) counts.fit += 1; else counts.attention += 1;
       new Set(r.kinds).forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
+      new Set(r.issues.map((x) => `layer:${x.layer}`)).forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
     });
     return counts;
   }
@@ -1546,10 +1631,12 @@
     if (filter === 'all') return true;
     if (filter === 'fit') return !r.warnings.length;
     if (filter === 'attention') return r.warnings.length > 0;
+    if (filter.startsWith('layer:')) return r.issues.some((x) => `layer:${x.layer}` === filter);
     return r.kinds.includes(filter);
   }
 
   function filterLabel(filter) {
+    if (filter.startsWith('layer:')) return `Layer ${Number(filter.slice(6)) + 1}`;
     return { fit: 'Fit', attention: 'Need attention' }[filter] || FLEET_KINDS[filter]?.[0] || filter;
   }
 
@@ -1567,15 +1654,30 @@
       : `${filterLabel(filter)}: ${plural(shown, 'device')}`);
   }
 
-  function fleetFilterButton(filter, content, className) {
+  function fleetFilterButton(filter, content, className, onPick) {
     const b = document.createElement('button');
     b.type = 'button';
     b.dataset.fleetFilter = filter;
     b.className = className;
     b.setAttribute('aria-pressed', 'false');
     b.append(...content);
-    b.addEventListener('click', () => setFleetFilter(fleetFilter === filter && filter !== 'all' ? 'all' : filter));
+    b.addEventListener('click', () => {
+      setFleetFilter(fleetFilter === filter && filter !== 'all' ? 'all' : filter);
+      if (onPick) onPick();
+    });
     return b;
+  }
+
+  // The change since the last check, in words and an arrow: blue when
+  // fewer devices have the problem, orange when more.
+  function fleetChange(now, before, noun) {
+    const d = now - before;
+    if (!d) return el('span', 'tpl-fleet-change is-same', noun ? '= No change since the last check' : '= same');
+    const better = d < 0;
+    const text = `${better ? '▼' : '▲'} ${Math.abs(d).toLocaleString()} ${better ? 'fewer' : 'more'}${noun ? ` ${noun}` : ''}`;
+    const span = el('span', `tpl-fleet-change ${better ? 'is-better' : 'is-worse'}`, text);
+    span.title = `${before.toLocaleString()} at the last check, ${now.toLocaleString()} now`;
+    return span;
   }
 
   const el = (tag, className, text) => {
@@ -1590,7 +1692,41 @@
     return i;
   };
 
-  function drawFleetSummary(results, readablePx) {
+  const LAYER_ICONS = { text: 'fa-font', qr: 'fa-qrcode', image: 'fa-image', panel: 'fa-square' };
+
+  function fleetMeter(n, total) {
+    const meter = el('span', 'tpl-fleet-meter');
+    const fill = el('span', 'tpl-fleet-meter-fill');
+    fill.style.width = `${(100 * n) / total}%`;
+    fill.hidden = !n;
+    meter.append(fill);
+    return meter;
+  }
+
+  // Layers that warn on any device, most devices first, each with the
+  // problem that most of those devices have there.
+  function fleetLayers(results) {
+    const byLayer = new Map();
+    results.forEach((r) => {
+      const seen = new Set();
+      r.issues.forEach(({ layer, kind }) => {
+        if (!byLayer.has(layer)) byLayer.set(layer, { index: layer, devices: 0, kinds: {} });
+        const entry = byLayer.get(layer);
+        if (!seen.has(layer)) entry.devices += 1;
+        if (!seen.has(`${layer}:${kind}`)) entry.kinds[kind] = (entry.kinds[kind] || 0) + 1;
+        seen.add(layer);
+        seen.add(`${layer}:${kind}`);
+      });
+    });
+    const order = Object.keys(FLEET_KINDS);
+    return [...byLayer.values()].map((e) => ({
+      ...e,
+      // Ties go to the kind a designer would fix first.
+      kind: Object.keys(e.kinds).sort((a, b) => e.kinds[b] - e.kinds[a] || order.indexOf(a) - order.indexOf(b))[0],
+    })).sort((a, b) => b.devices - a.devices || a.index - b.index);
+  }
+
+  function drawFleetSummary(results, readablePx, previous) {
     const counts = fleetCounts(results);
     const total = results.length;
     // The two shares always add up to 100.
@@ -1601,6 +1737,9 @@
     // Hero: how many fit, of how many.
     $('#fleetFitCount').textContent = counts.fit.toLocaleString();
     $('#fleetFitOf').textContent = `of ${plural(total, 'device')} ${counts.fit === 1 ? 'fits' : 'fit'} with no warnings`;
+    const delta = $('#fleetDelta');
+    delta.hidden = !previous;
+    delta.replaceChildren(...(previous ? [fleetChange(counts.attention, previous.attention, 'need attention')] : []));
 
     // One whole, two parts: a tall segmented bar with its share printed in each block.
     const bar = $('#fleetBar');
@@ -1628,21 +1767,39 @@
     );
 
     // By problem: a meter list, most devices first; each row filters the sheet.
-    const kinds = Object.keys(FLEET_KINDS).filter((k) => counts[k])
-      .sort((a, b) => counts[b] - counts[a]);
+    // After a re-check, a problem that is gone stays as a row at 0, so the fix shows.
+    const kinds = Object.keys(FLEET_KINDS).filter((k) => counts[k] || previous?.[k])
+      .sort((a, b) => (counts[b] || 0) - (counts[a] || 0) || (previous?.[b] || 0) - (previous?.[a] || 0));
     $('#fleetKindsHeading').hidden = !kinds.length;
     $('#fleetKinds').replaceChildren(...kinds.map((k) => {
       const [name, iconName] = FLEET_KINDS[k];
-      const meter = el('span', 'tpl-fleet-meter');
-      const fill = el('span', 'tpl-fleet-meter-fill');
-      fill.style.width = `${(100 * counts[k]) / total}%`;
-      meter.append(fill);
+      const n = counts[k] || 0;
+      const count = el('span', 'tpl-fleet-kind-count', plural(n, 'device'));
+      if (previous) count.append(fleetChange(n, previous[k] || 0));
+      const nameCell = el('span', 'tpl-fleet-kind-name');
+      nameCell.append(icon(iconName), ` ${name}`);
       const li = document.createElement('li');
-      li.append(fleetFilterButton(k, [
-        el('span', 'tpl-fleet-kind-name'), meter,
-        el('span', 'tpl-fleet-kind-count', plural(counts[k], 'device')),
-      ], 'tpl-fleet-kind'));
-      li.querySelector('.tpl-fleet-kind-name').append(icon(iconName), ` ${name}`);
+      const row = fleetFilterButton(k, [nameCell, fleetMeter(n, total), count], 'tpl-fleet-kind');
+      row.disabled = !n;
+      li.append(row);
+      return li;
+    }));
+
+    // By layer: which layer causes the warnings, and its most common problem.
+    // A row selects that layer for editing and filters the sheet.
+    const layers = fleetLayers(results);
+    $('#fleetLayersHeading').hidden = !layers.length;
+    $('#fleetLayers').replaceChildren(...layers.map(({ index, devices, kind }) => {
+      const layer = fleetChecked?.layers?.[index];
+      const nameCell = el('span', 'tpl-fleet-kind-name');
+      nameCell.append(icon(LAYER_ICONS[layer?.type] || 'fa-layer-group'),
+        ` ${index + 1}. ${layer ? describe(layer) : 'Layer'}`);
+      const [kindName] = FLEET_KINDS[kind] || FLEET_KINDS.other;
+      nameCell.append(el('span', 'tpl-fleet-kind-detail', `Mostly: ${kindName}`));
+      const li = document.createElement('li');
+      li.append(fleetFilterButton(`layer:${index}`, [nameCell, fleetMeter(devices, total),
+        el('span', 'tpl-fleet-kind-count', plural(devices, 'device'))], 'tpl-fleet-kind tpl-fleet-layer',
+      () => { if (state.template.layers[index]) select(index); }));
       return li;
     }));
 
@@ -1722,7 +1879,62 @@
     return li;
   }
 
+  // A browser-only copy of the device list, kept only when the designer
+  // turns the switch on. Storage can be blocked, so every use is guarded.
+  function rememberedFleet() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(FLEET_KEY));
+      return saved && Array.isArray(saved.devices) && saved.devices.length ? saved : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function setRemember(on) {
+    $('#fleetRemember').checked = on;
+    $('#fleetRememberState').textContent = on ? 'On' : 'Off';
+    try {
+      if (on) localStorage.setItem(FLEET_KEY, JSON.stringify({ name: fleetFileName, devices: fleet }));
+      else localStorage.removeItem(FLEET_KEY);
+    } catch (err) {
+      if (on) {
+        $('#fleetRemember').checked = false;
+        $('#fleetRememberState').textContent = 'Off';
+        fleetStatus('Not remembered: this browser does not allow EWOK to keep it.');
+      }
+    }
+  }
+
+  function restoreFleet() {
+    const saved = rememberedFleet();
+    if (!saved) return;
+    fleet = saved.devices.slice(0, FLEET_MAX);
+    fleetFileName = saved.name || 'a CSV';
+    fleetNote = '';
+    fleetListId += 1;
+    $('#fleetRememberedText').textContent = `${plural(fleet.length, 'device')} from ${fleetFileName}, remembered in this browser.`;
+    $('#fleetRemembered').hidden = false;
+    $('#fleetRememberRow').hidden = false;
+    $('#fleetRemember').checked = true;
+    $('#fleetRememberState').textContent = 'On';
+  }
+
   function bindFleet() {
+    $('#fleetRemember').addEventListener('change', (e) => setRemember(e.target.checked));
+    $('#fleetRememberedCheck').addEventListener('click', () => {
+      $('#fleetRemembered').hidden = true;
+      $('#fleetRecheck').hidden = false;
+      checkFleet();
+    });
+    $('#fleetForget').addEventListener('click', () => {
+      setRemember(false);
+      fleet = [];
+      $('#fleetRemembered').hidden = true;
+      $('#fleetRememberRow').hidden = true;
+      $('#fleetRecheck').hidden = true;
+      fleetStatus('Forgotten: this browser no longer keeps the device list.');
+    });
+    restoreFleet();
     $('#fleetFile').addEventListener('change', async (e) => {
       const file = e.target.files[0];
       e.target.value = '';
@@ -1733,6 +1945,12 @@
         return;
       }
       fleet = devices.slice(0, FLEET_MAX);
+      fleetFileName = file.name;
+      fleetListId += 1;
+      $('#fleetRemembered').hidden = true;
+      $('#fleetRememberRow').hidden = false;
+      if ($('#fleetRemember').checked) setRemember(true); // keep the new list instead
+      fleetLast = null; // a new list starts a new comparison
       $('#fleetRecheck').hidden = false;
       fleetNote = devices.length > FLEET_MAX
         ? `${file.name} has ${devices.length} devices; only the first ${FLEET_MAX} are used. ` : '';
@@ -1740,6 +1958,7 @@
     });
     $('#fleetRecheck').addEventListener('click', checkFleet);
     $('#fleetStaleRecheck').addEventListener('click', checkFleet);
+    $('#fleetStop').addEventListener('click', stopFleet);
   }
 
   function slug(name) {

@@ -519,6 +519,20 @@ def test_warning_kind(warning, kind):
     assert warning_kind(warning) == kind
 
 
+def test_preview_batch_numbers_unnamed_devices_from_first(client):
+    """The page checks a long list in chunks; an unnamed device keeps its row number."""
+    resp = client.post("/api/template/preview-batch",
+                       json={"template": TEMPLATE, "devices": [{}, {"device_name": "iPad"}], "first": 11})
+    assert [r["label"] for r in resp.get_json()["results"]] == ["Device 11", "iPad"]
+
+
+@pytest.mark.parametrize("first", [0, -1, "3", 1.5, True])
+def test_preview_batch_bad_first_is_400(client, first):
+    resp = client.post("/api/template/preview-batch",
+                       json={"template": TEMPLATE, "devices": [{}], "first": first})
+    assert resp.status_code == 400
+
+
 def test_preview_batch_over_200_devices_is_400(client):
     resp = client.post("/api/template/preview-batch",
                        json={"template": TEMPLATE, "devices": [{"device_name": "x"}] * 201})

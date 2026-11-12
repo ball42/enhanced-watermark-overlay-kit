@@ -102,7 +102,9 @@ THUMB_WIDTH = 240
 def preview_batch():
     """Render one template for many devices (a CSV the designer loaded in the
     browser) and return a small thumbnail and the warnings for each. The
-    values are used for this request only and never stored."""
+    values are used for this request only and never stored. The page sends
+    the list in chunks; `first` is the number of the chunk's first device, so
+    an unnamed one is still called by its row in the file."""
     body = _json_body()
     devices = body.get("devices") if isinstance(body, dict) else None
     if not isinstance(devices, list) or "template" not in body \
@@ -110,6 +112,9 @@ def preview_batch():
         return jsonify({"error": "Send JSON with a template and a devices list of value objects."}), 400
     if len(devices) > MAX_BATCH:
         return jsonify({"error": f"At most {MAX_BATCH} devices at a time."}), 400
+    first = body.get("first", 1)
+    if type(first) is not int or first < 1:
+        return jsonify({"error": "first must be a whole number from 1."}), 400
     template = body["template"]
     problems = validate(template)
     if problems:
@@ -117,7 +122,7 @@ def preview_batch():
     assets = folder_assets(_folder())
     results = []
     try:
-        for n, values in enumerate(devices, 1):
+        for n, values in enumerate(devices, first):
             # The same render and lint as render_with_lint(), keeping the text
             # sizes it measured so the summary can name the smallest one.
             image, missing, fits, hidden, qrs = _render(template, values, assets,

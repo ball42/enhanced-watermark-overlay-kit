@@ -322,7 +322,7 @@
                         </details>
                         <small id="sampleError" class="tpl-error" hidden></small>
                         <h4 class="tpl-subheading">Your devices</h4>
-                        <p class="tpl-hint">Check the template against a device list, such as a Jamf Pro inventory export. The header row names the values (<code>device_name</code>, <code>asset_tag</code>, <code>location.building</code>). Up to 200 rows; EWOK keeps nothing from the file.</p>
+                        <p class="tpl-hint">Check the template against a device list, such as a Jamf Pro inventory export. The header row names the values (<code>device_name</code>, <code>asset_tag</code>, <code>location.building</code>). Up to 200 rows. EWOK keeps nothing from the file unless you turn on Remember, which keeps it in this browser only.</p>
                         <div class="tpl-row">
                             <label class="rb-btn rb-btn--outline ewok-btn--neutral tpl-file-btn">
                                 <i class="fas fa-file-csv" aria-hidden="true"></i> Load devices from CSV
@@ -330,15 +330,25 @@
                             </label>
                             <button type="button" class="rb-btn rb-btn--outline ewok-btn--neutral" id="fleetRecheck" hidden><i class="fas fa-rotate" aria-hidden="true"></i> Check again</button>
                         </div>
+                        <p id="fleetRemembered" class="rb-alert rb-alert--info tpl-fleet-remembered" hidden><i class="fas fa-file-csv" aria-hidden="true"></i> <span id="fleetRememberedText"></span> <span class="tpl-fleet-remembered-actions"><button type="button" class="rb-btn rb-btn--primary rb-btn--sm" id="fleetRememberedCheck">Check</button> <button type="button" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--neutral" id="fleetForget">Forget</button></span></p>
+                        <label class="tpl-inline tpl-fleet-remember" id="fleetRememberRow" hidden><input type="checkbox" role="switch" id="fleetRemember"> Remember this list in this browser <span class="rb-badge tpl-fleet-remember-state" id="fleetRememberState">Off</span></label>
                         <p id="fleetStatus" class="tpl-status" aria-live="polite"></p>
+                        <div id="fleetProgress" class="tpl-fleet-progress" hidden>
+                            <div class="tpl-fleet-progress-track" id="fleetProgressBar" role="progressbar" aria-label="Devices checked" aria-valuemin="0"><span class="tpl-fleet-progress-fill" id="fleetProgressFill"></span></div>
+                            <span class="tpl-fleet-progress-text" id="fleetProgressText"></span>
+                            <button type="button" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--neutral" id="fleetStop"><i class="fas fa-stop" aria-hidden="true"></i> Stop</button>
+                        </div>
                         <section id="fleetSummary" class="tpl-fleet-summary" aria-label="Fleet summary" hidden>
                             <p id="fleetStale" class="rb-alert rb-alert--warn tpl-fleet-stale" hidden><i class="fas fa-clock-rotate-left" aria-hidden="true"></i> <span><strong>Out of date:</strong> the template changed after this check.</span> <button type="button" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--neutral" id="fleetStaleRecheck">Check again</button></p>
                             <div class="tpl-fleet-body">
                                 <p class="tpl-fleet-hero"><span class="tpl-fleet-figure" id="fleetFitCount"></span> <span class="tpl-fleet-figure-of" id="fleetFitOf"></span></p>
+                                <p class="tpl-fleet-delta" id="fleetDelta" hidden></p>
                                 <div class="tpl-fleet-bar" id="fleetBar" role="img"></div>
                                 <div class="tpl-fleet-filters" id="fleetFilters" role="group" aria-label="Show devices"></div>
                                 <h5 class="tpl-fleet-subhead" id="fleetKindsHeading">By problem</h5>
                                 <ul class="tpl-fleet-kinds" id="fleetKinds" aria-labelledby="fleetKindsHeading"></ul>
+                                <h5 class="tpl-fleet-subhead" id="fleetLayersHeading">By layer</h5>
+                                <ul class="tpl-fleet-kinds" id="fleetLayers" aria-labelledby="fleetLayersHeading"></ul>
                                 <dl class="tpl-fleet-facts" id="fleetFacts"></dl>
                             </div>
                         </section>
