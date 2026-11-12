@@ -122,3 +122,116 @@ def test_the_summary_fits_a_phone(page, tmp_path):
     assert box["x"] >= 0 and box["x"] + box["width"] <= 390
     row = page.locator("#fleetKinds .tpl-fleet-kind").first.bounding_box()
     assert row["height"] >= 44
+
+
+def test_the_summary_names_the_layer_behind_the_warnings(designer, tmp_path):
+    page = designer
+    load_csv(page, tmp_path)
+    rows = page.locator("#fleetLayers .tpl-fleet-kind")
+    assert page.is_visible("#fleetLayersHeading")
+    first = rows.first
+    assert first.locator(".tpl-fleet-kind-name").text_content().strip().startswith("1. Text:")
+    assert "Mostly: " in first.locator(".tpl-fleet-kind-detail").text_content()
+    assert first.locator(".tpl-fleet-kind-count").text_content() == "1 device"
+
+    # Pick the QR layer first, so selecting layer 1 from the summary shows.
+    page.locator("#layerList .layer-select").nth(1).click()
+    first.click()
+    assert first.get_attribute("aria-pressed") == "true"
+    assert shown_names(page) == ["W" * 48]
+    assert page.get_attribute("#layerList .layer-select >> nth=0", "aria-pressed") == "true"
+    assert "Layer 1" in page.get_attribute("#fleetSheet", "aria-label")
+    first.click()
+    assert len(shown_names(page)) == 3
+
+
+def test_a_recheck_shows_the_change_since_the_last_check(designer, tmp_path):
+    page = designer
+    load_csv(page, tmp_path)
+    assert page.is_hidden("#fleetDelta")  # nothing to compare with yet
+    kind = page.locator("#fleetKinds .tpl-fleet-kind").first
+    kind_name = kind.locator(".tpl-fleet-kind-name").text_content()
+
+    page.click('[aria-label="Delete layer 1"]')  # the device name layer, the one that warned
+    page.wait_for_selector("#fleetStale:not([hidden])")
+    page.click("#fleetStaleRecheck")
+    page.wait_for_selector("#fleetDelta:not([hidden])")
+    delta = page.text_content("#fleetDelta")
+    assert delta == "▼ 1 fewer need attention"
+    assert "is-better" in page.get_attribute("#fleetDelta .tpl-fleet-change", "class")
+
+    # The fixed problem stays as a row at 0 with its change, and cannot filter.
+    gone = page.locator("#fleetKinds .tpl-fleet-kind", has_text=kind_name.strip())
+    assert gone.locator(".tpl-fleet-kind-count").text_content() == "0 devices▼ 1 fewer"
+    assert gone.is_disabled()
+
+    page.click("#undoButton")
+    page.wait_for_selector("#fleetStale:not([hidden])")
+    page.click("#fleetStaleRecheck")
+    page.wait_for_function("document.querySelector('#fleetDelta').textContent.startsWith('▲')")
+    assert page.text_content("#fleetDelta") == "▲ 1 more need attention"
+    assert "is-worse" in page.get_attribute("#fleetDelta .tpl-fleet-change", "class")
+
+    load_csv(page, tmp_path)  # a new list starts over
+    page.wait_for_function("document.querySelector('#fleetStatus').textContent.startsWith('Checked')")
+    assert page.is_hidden("#fleetDelta")
+
+
+def test_a_long_list_checks_in_chunks_and_stop_keeps_what_was_checked(designer, tmp_path):
+    page = designer
+    csv = tmp_path / "fleet.csv"
+    csv.write_text("device_name\r\n" + "".join(f"iPad {n}\r\n" for n in range(1, 26)))
+    held = []
+
+    def route(r):
+        body = json.loads(r.request.post_data)
+        if body.get("first", 1) == 1:
+            r.continue_()
+        else:
+            held.append(r)  # later chunks never answer until Stop
+
+    page.route("**/api/template/preview-batch", route)
+    page.set_input_files("#fleetFile", str(csv))
+    page.wait_for_function("document.querySelector('#fleetProgressText').textContent.startsWith('Checked 10 ')")
+    assert page.text_content("#fleetProgressText") == "Checked 10 of 25 devices"
+    assert page.get_attribute("#fleetProgressBar", "aria-valuenow") == "10"
+    assert page.locator("#fleetSheet .tpl-fleet-pick").count() == 10  # the sheet fills in as it goes
+    assert page.text_content("#fleetFitOf").startswith("of 10 devices")  # and so does the summary
+    assert page.is_disabled("#fleetRecheck")
+
+    page.click("#fleetStop")
+    page.wait_for_selector("#fleetProgress", state="hidden")
+    assert page.text_content("#fleetStatus").startswith("Stopped after 10 of 25 devices")
+    assert page.locator("#fleetSheet .tpl-fleet-pick").count() == 10
+    assert page.is_enabled("#fleetRecheck")
+    assert held and json.loads(held[0].request.post_data)["first"] == 11
+    page.unroute_all(behavior="ignoreErrors")
+
+
+def test_the_device_list_is_remembered_only_when_asked(designer, tmp_path):
+    page = designer
+    load_csv(page, tmp_path)
+    assert page.text_content("#fleetRememberState") == "Off"
+    page.reload()
+    page.wait_for_selector("#previewImage:not([hidden])")
+    assert page.is_hidden("#fleetRemembered")  # Off by default: nothing kept
+
+    load_csv(page, tmp_path)
+    page.check("#fleetRemember")
+    assert page.text_content("#fleetRememberState") == "On"
+    page.reload()
+    page.wait_for_selector("#previewImage:not([hidden])")
+    assert page.text_content("#fleetRememberedText") == "3 devices from fleet.csv, remembered in this browser."
+    assert page.is_checked("#fleetRemember")
+    page.click("#fleetRememberedCheck")
+    page.wait_for_function("document.querySelectorAll('#fleetSheet .tpl-fleet-pick').length === 3")
+    assert page.is_hidden("#fleetRemembered")
+
+    page.reload()
+    page.wait_for_selector("#fleetRemembered:not([hidden])")
+    page.click("#fleetForget")
+    assert page.text_content("#fleetStatus").startswith("Forgotten")
+    assert page.evaluate("localStorage.getItem('ewok-fleet')") is None
+    page.reload()
+    page.wait_for_selector("#previewImage:not([hidden])")
+    assert page.is_hidden("#fleetRemembered")
