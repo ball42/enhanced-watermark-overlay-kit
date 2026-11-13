@@ -332,6 +332,7 @@
                         </div>
                         <p id="fleetRemembered" class="rb-alert rb-alert--info tpl-fleet-remembered" hidden><i class="fas fa-file-csv" aria-hidden="true"></i> <span id="fleetRememberedText"></span> <span class="tpl-fleet-remembered-actions"><button type="button" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--neutral" id="fleetRememberedCheck">Check</button> <button type="button" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--neutral" id="fleetForget">Forget</button></span></p>
                         <label class="tpl-inline tpl-fleet-remember" id="fleetRememberRow" hidden><input type="checkbox" role="switch" id="fleetRemember"> Remember this list in this browser <span class="rb-badge tpl-fleet-remember-state" id="fleetRememberState">Off</span></label>
+                        <label class="tpl-inline tpl-fleet-remember" id="fleetAutoRow" hidden><input type="checkbox" role="switch" id="fleetAuto"> Check after each edit <span class="rb-badge tpl-fleet-remember-state" id="fleetAutoState">Off</span></label>
                         <p id="fleetStatus" class="tpl-status" aria-live="polite"></p>
                         <div id="fleetProgress" class="tpl-fleet-progress" hidden>
                             <div class="tpl-fleet-progress-track" id="fleetProgressBar" role="progressbar" aria-label="Devices checked" aria-valuemin="0"><span class="tpl-fleet-progress-fill" id="fleetProgressFill"></span></div>
@@ -345,11 +346,20 @@
                                 <p class="tpl-fleet-delta" id="fleetDelta" hidden></p>
                                 <div class="tpl-fleet-bar" id="fleetBar" role="img"></div>
                                 <div class="tpl-fleet-filters" id="fleetFilters" role="group" aria-label="Show devices"></div>
+                                <section class="tpl-fleet-names" id="fleetNames" aria-labelledby="fleetNamesHeading" hidden>
+                                    <h5 class="tpl-fleet-subhead" id="fleetNamesHeading">Name length, in characters</h5>
+                                    <p class="tpl-fleet-names-say" id="fleetNamesSay"></p>
+                                    <div class="tpl-fleet-strip" id="fleetStrip" role="group" aria-label="Devices by name length. Arrow keys move between devices; Enter previews one."></div>
+                                    <p class="tpl-fleet-strip-key" aria-hidden="true"><span><span class="tpl-fleet-dot is-fit"></span> Fits</span> <span><span class="tpl-fleet-dot is-shrank"></span> Shrinks or is cut off</span> <span><span class="tpl-fleet-key-line"></span> Break point</span></p>
+                                </section>
                                 <h5 class="tpl-fleet-subhead" id="fleetKindsHeading">By problem</h5>
                                 <ul class="tpl-fleet-kinds" id="fleetKinds" aria-labelledby="fleetKindsHeading"></ul>
                                 <h5 class="tpl-fleet-subhead" id="fleetLayersHeading">By layer</h5>
                                 <ul class="tpl-fleet-kinds" id="fleetLayers" aria-labelledby="fleetLayersHeading"></ul>
+                                <h5 class="tpl-fleet-subhead" id="fleetBuildingsHeading" hidden>By building</h5>
+                                <ul class="tpl-fleet-kinds" id="fleetBuildings" aria-labelledby="fleetBuildingsHeading"></ul>
                                 <dl class="tpl-fleet-facts" id="fleetFacts"></dl>
+                                <p class="tpl-fleet-report"><button type="button" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--neutral" id="fleetReport"><i class="fas fa-file-arrow-down" aria-hidden="true"></i> Download report (.csv)</button></p>
                             </div>
                         </section>
                         <ol id="fleetSheet" class="tpl-fleet"></ol>

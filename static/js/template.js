@@ -192,6 +192,7 @@
   function queuePreview() {
     $('.tpl-preview').classList.add('is-stale');
     markFleetStale();
+    scheduleFleetAuto();
     clearTimeout(previewTimer);
     previewTimer = setTimeout(renderPreview, 300);
   }
@@ -1623,6 +1624,8 @@
       if (!r.warnings.length) counts.fit += 1; else counts.attention += 1;
       new Set(r.kinds).forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
       new Set(r.issues.map((x) => `layer:${x.layer}`)).forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
+      const b = `building:${fleetBuilding(r)}`;
+      counts[b] = (counts[b] || 0) + 1;
     });
     return counts;
   }
@@ -1632,11 +1635,13 @@
     if (filter === 'fit') return !r.warnings.length;
     if (filter === 'attention') return r.warnings.length > 0;
     if (filter.startsWith('layer:')) return r.issues.some((x) => `layer:${x.layer}` === filter);
+    if (filter.startsWith('building:')) return `building:${fleetBuilding(r)}` === filter;
     return r.kinds.includes(filter);
   }
 
   function filterLabel(filter) {
     if (filter.startsWith('layer:')) return `Layer ${Number(filter.slice(6)) + 1}`;
+    if (filter.startsWith('building:')) return filter.slice(9);
     return { fit: 'Fit', attention: 'Need attention' }[filter] || FLEET_KINDS[filter]?.[0] || filter;
   }
 
@@ -1803,6 +1808,9 @@
       return li;
     }));
 
+    drawFleetNames(results);
+    drawFleetBuildings(results, total);
+
     // Two facts a template lives or dies by: the longest name and the smallest text.
     const facts = $('#fleetFacts');
     facts.replaceChildren();
@@ -1836,6 +1844,201 @@
         `${ok ? '✓ readable' : '⚠ too small to read'} · layer ${layer + 1} on ${smallest.label}`, smallest);
     }
     facts.hidden = !facts.children.length;
+  }
+
+  // ── Name length: where names start to shrink ──
+  // Layers that print the device name, and the warnings that mean a name
+  // is too long for its box.
+  const NAME_KINDS = new Set(['shrank', 'cut_off', 'too_small']);
+  const nameLength = (r) => [...r.values.device_name].length;
+
+  function fleetNameLayers() {
+    const layers = fleetChecked?.layers || [];
+    return new Set(layers.map((l, i) => (l.type === 'text' && /\{\{\s*device_name\s*\}\}/.test(l.text || '') ? i : -1))
+      .filter((i) => i >= 0));
+  }
+
+  // The break point from the results alone: the longest name that fits,
+  // below the shortest name that shrinks. Returns null without both.
+  function fleetHeadroom(named, nameLayers) {
+    const shrinks = (r) => r.issues.some((x) => nameLayers.has(x.layer) && NAME_KINDS.has(x.kind));
+    const marks = named.map((r) => ({ r, len: nameLength(r), shrank: shrinks(r) }));
+    const shrunk = marks.filter((m) => m.shrank).map((m) => m.len);
+    const fits = marks.filter((m) => !m.shrank).map((m) => m.len);
+    const shortestShrunk = shrunk.length ? Math.min(...shrunk) : null;
+    let upTo = null;
+    if (shortestShrunk !== null) {
+      const below = fits.filter((n) => n < shortestShrunk);
+      upTo = below.length ? Math.max(...below) : shortestShrunk - 1;
+    }
+    return { marks, upTo, shortestShrunk, longest: Math.max(...marks.map((m) => m.len)) };
+  }
+
+  function drawFleetNames(results) {
+    const section = $('#fleetNames');
+    const nameLayers = fleetNameLayers();
+    const named = results.filter((r) => typeof r.values.device_name === 'string' && r.values.device_name);
+    section.hidden = !named.length || !nameLayers.size;
+    if (section.hidden) return;
+    const { marks, upTo, shortestShrunk, longest } = fleetHeadroom(named, nameLayers);
+    const longer = upTo === null ? 0 : marks.filter((m) => m.len > upTo).length;
+
+    // Say it in words first.
+    const say = $('#fleetNamesSay');
+    say.replaceChildren();
+    if (upTo === null) {
+      say.append(el('strong', '', `Every name fits.`), ` The longest is ${plural(longest, 'character')}.`);
+    } else if (upTo <= 0) {
+      say.append(el('strong', '', 'Every name shrinks.'), ` The shortest is ${plural(shortestShrunk, 'character')}.`);
+    } else {
+      say.append('Names fit up to ', el('strong', '', plural(upTo, 'character')), '. ',
+        `⚠ ${plural(longer, 'device')} ${longer === 1 ? 'is' : 'are'} longer.`);
+    }
+
+    // One mark per device on a characters axis, stacked where lengths match.
+    const strip = $('#fleetStrip');
+    strip.replaceChildren();
+    const max = Math.max(longest + 1, (upTo || 0) + 2, 10);
+    const x = (n) => `${(100 * n) / max}%`;
+    const plot = el('div', 'tpl-fleet-strip-plot');
+    const stacks = new Map();
+    marks.forEach((m) => stacks.set(m.len, (stacks.get(m.len) || 0) + 1));
+    const tallest = Math.max(...stacks.values());
+    const step = Math.min(12, 84 / Math.max(tallest, 1)); // stacks stay inside the plot
+    plot.style.height = `${Math.max(36, Math.min(tallest * 12, 84) + 16)}px`;
+
+    if (upTo !== null && upTo > 0) {
+      const line = el('span', 'tpl-fleet-break');
+      const at = shortestShrunk === null ? upTo : (upTo + shortestShrunk) / 2;
+      line.style.left = x(at);
+      line.classList.toggle('is-late', at / max > 0.6); // label on the left, inside the strip
+      line.append(el('span', 'tpl-fleet-break-label', `fits up to ${upTo}`));
+      plot.append(line);
+    }
+    const level = new Map();
+    // Fits below shrinks inside a stack; then file order.
+    const ordered = [...marks].sort((a, b) => a.len - b.len || a.shrank - b.shrank || a.r.row - b.r.row);
+    const buttons = ordered.map((m, i) => {
+      const k = level.get(m.len) || 0;
+      level.set(m.len, k + 1);
+      const b = el('button', `tpl-fleet-mark ${m.shrank ? 'is-shrank' : 'is-fit'}`);
+      b.type = 'button';
+      b.style.left = x(m.len);
+      b.style.bottom = `${4 + k * step}px`;
+      b.tabIndex = i === 0 ? 0 : -1;
+      const said = m.shrank ? '⚠ shrinks or is cut off' : '✓ fits';
+      b.title = `${m.r.values.device_name}: ${plural(m.len, 'character')}, ${said}`;
+      b.setAttribute('aria-label', `${b.title}. Preview it.`);
+      b.addEventListener('click', () => {
+        previewFleetDevice(m.r);
+        $$('.tpl-fleet-mark[aria-current]').forEach((o) => o.removeAttribute('aria-current'));
+        b.setAttribute('aria-current', 'true');
+      });
+      plot.append(b);
+      return b;
+    });
+    plot.addEventListener('keydown', (e) => {
+      const i = buttons.indexOf(document.activeElement);
+      if (i < 0) return;
+      const to = { ArrowRight: i + 1, ArrowUp: i + 1, ArrowLeft: i - 1, ArrowDown: i - 1, Home: 0, End: buttons.length - 1 }[e.key];
+      if (to === undefined) return;
+      e.preventDefault();
+      const next = buttons[Math.max(0, Math.min(buttons.length - 1, to))];
+      buttons[i].tabIndex = -1;
+      next.tabIndex = 0;
+      next.focus();
+    });
+
+    // A quiet axis: a baseline and a few character counts.
+    const axis = el('div', 'tpl-fleet-strip-axis');
+    const every = max > 60 ? 20 : max > 30 ? 10 : 5;
+    for (let n = 0; n <= max; n += every) {
+      const tick = el('span', 'tpl-fleet-tick', String(n));
+      tick.style.left = x(n);
+      axis.append(tick);
+    }
+    strip.append(plot, axis);
+  }
+
+  // ── By building: which site's devices are in trouble ──
+  function fleetBuilding(r) {
+    const b = r.values?.location?.building;
+    return typeof b === 'string' && b.trim() ? b.trim() : 'No building';
+  }
+
+  function drawFleetBuildings(results, total) {
+    const hasBuildings = results.some((r) => fleetBuilding(r) !== 'No building');
+    const groups = new Map();
+    if (hasBuildings) {
+      results.forEach((r) => {
+        const name = fleetBuilding(r);
+        if (!groups.has(name)) groups.set(name, { name, devices: 0, attention: 0 });
+        const g = groups.get(name);
+        g.devices += 1;
+        if (r.warnings.length) g.attention += 1;
+      });
+    }
+    // Worst share first, then the bigger building, then by name.
+    const rows = [...groups.values()].sort((a, b) => b.attention / b.devices - a.attention / a.devices
+      || b.devices - a.devices || a.name.localeCompare(b.name));
+    $('#fleetBuildingsHeading').hidden = !rows.length;
+    $('#fleetBuildings').replaceChildren(...rows.map((g) => {
+      const nameCell = el('span', 'tpl-fleet-kind-name');
+      nameCell.append(icon('fa-building'), ` ${g.name}`);
+      nameCell.append(el('span', 'tpl-fleet-kind-detail', plural(g.devices, 'device')));
+      const count = el('span', 'tpl-fleet-kind-count',
+        g.attention ? `⚠ ${g.attention.toLocaleString()} of ${g.devices.toLocaleString()} need attention` : '✓ all fit');
+      const li = document.createElement('li');
+      li.append(fleetFilterButton(`building:${g.name}`, [nameCell, fleetMeter(g.attention, g.devices), count],
+        'tpl-fleet-kind tpl-fleet-building'));
+      return li;
+    }));
+  }
+
+  // ── Report: the check as a CSV, in file order ──
+  function csvField(v) {
+    // A leading = + - @ would run as a formula in a spreadsheet, so it gets a quote mark.
+    let text = String(v ?? '');
+    if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  }
+
+  function fleetReport() {
+    const header = ['row', 'device_name', 'building', 'result', 'problems', 'warnings'];
+    const rows = [...fleetResults].sort((a, b) => a.row - b.row).map((r) => [
+      r.row + 2, // the CSV's own line number: the header is line 1
+      typeof r.values.device_name === 'string' && r.values.device_name ? r.values.device_name : r.label,
+      fleetBuilding(r) === 'No building' ? '' : fleetBuilding(r),
+      r.warnings.length ? 'Needs attention' : 'Fit',
+      [...new Set(r.kinds)].map((k) => (FLEET_KINDS[k] || FLEET_KINDS.other)[0]).join('; '),
+      r.warnings.join(' | '),
+    ]);
+    const text = [header, ...rows].map((row) => row.map(csvField).join(',')).join('\r\n') + '\r\n';
+    const csvName = slug((fleetFileName || 'devices').replace(/\.csv$/i, ''));
+    const name = `${slug(state.template.name)}-${csvName}-report.csv`;
+    saveBlob(new Blob([text], { type: 'text/csv' }), name);
+    fleetStatus(`Saved ${name}: ${plural(rows.length, 'device')}${$('#fleetStale').hidden ? '' : ', from the check before your last edit'}.`);
+  }
+
+  // ── Check after each edit ──
+  const FLEET_AUTO_DELAY = 1500;
+  let fleetAutoTimer = null;
+
+  function setFleetAuto(on) {
+    $('#fleetAuto').checked = on;
+    $('#fleetAutoState').textContent = on ? 'On' : 'Off';
+    if (!on) clearTimeout(fleetAutoTimer);
+    else scheduleFleetAuto();
+  }
+
+  // Called on every preview: about 1.5 s after the last edit, check again.
+  // checkFleet() takes over from any check still running.
+  function scheduleFleetAuto() {
+    clearTimeout(fleetAutoTimer);
+    if (!$('#fleetAuto')?.checked || !fleet.length || fleetSignature === null) return;
+    fleetAutoTimer = setTimeout(() => {
+      if (fleetTemplate() !== fleetSignature) checkFleet();
+    }, FLEET_AUTO_DELAY);
   }
 
   function previewFleetDevice(r) {
@@ -1923,6 +2126,7 @@
     $('#fleetRemember').addEventListener('change', (e) => setRemember(e.target.checked));
     $('#fleetRememberedCheck').addEventListener('click', () => {
       $('#fleetRemembered').hidden = true;
+      $('#fleetAutoRow').hidden = false;
       $('#fleetRecheck').hidden = false;
       checkFleet();
     });
@@ -1931,6 +2135,8 @@
       fleet = [];
       $('#fleetRemembered').hidden = true;
       $('#fleetRememberRow').hidden = true;
+      $('#fleetAutoRow').hidden = true;
+      setFleetAuto(false);
       $('#fleetRecheck').hidden = true;
       fleetStatus('Forgotten: this browser no longer keeps the device list.');
     });
@@ -1949,6 +2155,7 @@
       fleetListId += 1;
       $('#fleetRemembered').hidden = true;
       $('#fleetRememberRow').hidden = false;
+      $('#fleetAutoRow').hidden = false;
       if ($('#fleetRemember').checked) setRemember(true); // keep the new list instead
       fleetLast = null; // a new list starts a new comparison
       $('#fleetRecheck').hidden = false;
@@ -1959,6 +2166,8 @@
     $('#fleetRecheck').addEventListener('click', checkFleet);
     $('#fleetStaleRecheck').addEventListener('click', checkFleet);
     $('#fleetStop').addEventListener('click', stopFleet);
+    $('#fleetReport').addEventListener('click', fleetReport);
+    $('#fleetAuto').addEventListener('change', (e) => setFleetAuto(e.target.checked));
   }
 
   function slug(name) {
