@@ -54,6 +54,23 @@ def _png_data_url(image):
     return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
+# A photo background makes the full-size render an 8-12 MB PNG that takes
+# 0.25 s to encode, for an image the page shows a few hundred pixels wide. So
+# the on-screen preview of a render over an asset background is a JPEG (about
+# 1.2 MB and 16 ms for a grainy 1290x2796 photo); Download preview fetches the
+# lossless PNG from /preview.png instead.
+PREVIEW_JPEG_QUALITY = 82
+
+
+def _preview_data_url(image, template, values):
+    resolved, _ = resolve(template, values)
+    if "asset" not in (resolved.get("background") or {}):
+        return _png_data_url(image)
+    buffer = io.BytesIO()
+    image.convert("RGB").save(buffer, "JPEG", quality=PREVIEW_JPEG_QUALITY)
+    return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
 MAX_DEVICES = 20
 
 
@@ -67,7 +84,7 @@ def _json_body():
 
 def _render_one(template, values, assets, label, devices=(), screen="lock"):
     image, warnings = render_with_lint(template, values, assets)
-    return {"label": label, "image": _png_data_url(image),
+    return {"label": label, "image": _preview_data_url(image, template, values),
             "warnings": warnings,
             "device_warnings": fit_warnings(template, image.size, list(devices), screen)}
 
@@ -101,6 +118,27 @@ def preview():
         return jsonify({"problems": err.problems}), 422
     renders[0]["warnings"] = newer_than(template, config.WALLRENDER_TARGET) + renders[0]["warnings"]
     return jsonify({"renders": renders})
+
+
+@template_bp.route("/preview.png", methods=["POST"])
+def preview_png():
+    """The sample render as a lossless PNG, the same pixels as
+    `wallrender preview`: what Download preview saves."""
+    body = _json_body()
+    if not isinstance(body, dict) or not isinstance(body.get("values"), dict) \
+            or "template" not in body:
+        return jsonify({"error": "Send JSON with a template and a values object."}), 400
+    problems = validate(body["template"])
+    if problems:
+        return jsonify({"problems": problems}), 400
+    try:
+        image, _ = render_with_lint(body["template"], body["values"], folder_assets(_folder()))
+    except TemplateError as err:
+        return jsonify({"problems": err.problems}), 422
+    buffer = io.BytesIO()
+    image.save(buffer, "PNG")
+    buffer.seek(0)
+    return send_file(buffer, mimetype="image/png")
 
 
 MAX_BATCH = 200

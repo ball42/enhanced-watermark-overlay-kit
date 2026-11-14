@@ -46,7 +46,8 @@
     guide: { device: '', orientation: 'portrait', screen: 'lock' },
     previewRole: null, // null: use the sample device's own values
     roleLabels: {}, // variant key -> the role as typed, for display
-    lastImage: null,
+    lastImage: null, // the preview shown (a JPEG over a photo background)
+    lastRendered: null, // the template and values it shows, for the lossless download
     hidden: new Set(), // layer objects left out of the preview (editor only, never exported)
   };
 
@@ -255,13 +256,13 @@
     if (previewController) previewController.abort();
     previewController = new AbortController();
     setStatus('Rendering…');
+    const sent = { template: previewable(), values: previewValues() };
     try {
       const resp = await fetch('/api/template/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          template: previewable(), values: previewValues(), stress: state.stress,
-          devices: pickedDevices(), screen: state.guide.screen,
+          ...sent, stress: state.stress, devices: pickedDevices(), screen: state.guide.screen,
         }),
         signal: previewController.signal,
       });
@@ -293,6 +294,7 @@
       showWarnings(render.warnings);
       showStress(body.renders.slice(1));
       state.lastImage = render.image;
+      state.lastRendered = sent;
       $('#downloadPreview').disabled = false;
       img.onload = () => {
         drawSafeAreas();
@@ -2495,11 +2497,21 @@
         more.querySelector('summary').focus();
       }
     });
-    // The full-size render, without the boxes and safe areas drawn over it.
+    // The full-size render as a lossless PNG (the preview shown over a photo
+    // is a JPEG), without the boxes and safe areas drawn over it.
     $('#downloadPreview').addEventListener('click', async () => {
-      if (!state.lastImage || $('#downloadPreview').disabled) return;
-      const blob = await (await fetch(state.lastImage)).blob();
-      saveBlob(blob, `${slug(state.template.name)}-${slug(state.values.device_name || 'sample')}.png`);
+      if (!state.lastRendered || $('#downloadPreview').disabled) return;
+      try {
+        const resp = await fetch('/api/template/preview.png', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(state.lastRendered),
+        });
+        if (!resp.ok) throw new Error(String(resp.status));
+        saveBlob(await resp.blob(), `${slug(state.template.name)}-${slug(state.values.device_name || 'sample')}.png`);
+      } catch (err) {
+        setStatus('Not downloaded: EWOK could not render the PNG. Try again after the next preview.');
+      }
     });
     $('#newTemplate').addEventListener('click', () => {
       // An untouched new template has nothing to lose, so it needs no confirm.

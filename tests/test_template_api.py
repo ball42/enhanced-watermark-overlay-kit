@@ -23,7 +23,8 @@ TEMPLATE = {
 
 
 def decode(data_url):
-    assert data_url.startswith("data:image/png;base64,")
+    # A render over a photo (an asset background) previews as a JPEG.
+    assert data_url.startswith(("data:image/png;base64,", "data:image/jpeg;base64,"))
     return Image.open(io.BytesIO(base64.b64decode(data_url.split(",", 1)[1])))
 
 
