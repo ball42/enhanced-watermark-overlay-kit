@@ -131,7 +131,8 @@ Template designer:
 | `GET` | `/api/template/assets` | List the asset library |
 | `POST` | `/api/template/assets` | Add a PNG or JPEG to the asset library |
 | `GET` | `/api/template/assets/<asset_id>` | Serve one asset |
-| `DELETE` | `/api/template/assets/<asset_id>` | Delete one asset |
+| `DELETE` | `/api/template/assets/<asset_id>` | Delete one asset (it waits a day in `template_assets/.trash/`) |
+| `POST` | `/api/template/assets/<asset_id>/restore` | Undo a delete: bring the asset back from the trash |
 | `POST` | `/api/template/export` | Download a `.zip` bundle: the template JSON, its assets and a README |
 | `POST` | `/api/template/package` | Download a `.brander.json` package for JAWA's template store |
 | `POST` | `/api/template/import` | Open a template `.json`, a `.zip` bundle or a `.brander.json` package |
