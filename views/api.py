@@ -22,6 +22,28 @@ RESIZE_RANGE = (10, 400)  # percent, as the slider offers
 # Upload names are "<uuid4>_<name>" (upload_file below).
 UPLOAD_NAME = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_')
 EXPIRED = 'This upload expired after an hour without use. Upload it again.'
+UNEXPECTED = 'EWOK hit an error; the log has details.'
+# The photo editor's sliders, by the label the page shows for each.
+SETTINGS = {
+    'opacity': 'Image Opacity',
+    'saturation': 'Color Saturation',
+    'resize': 'Custom Resize',
+    'brightness': 'Brightness',
+    'contrast': 'Contrast',
+    'blur_sharpen': 'Blur / Sharpen',
+    'rotation': 'Rotation',
+}
+
+
+def bad_setting(data):
+    """The label of the first slider setting that is not a number, or None."""
+    for key, label in SETTINGS.items():
+        if key in data:
+            value = data[key]
+            if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                    or value != value or value in (float('inf'), float('-inf')):
+                return label
+    return None
 
 
 def upload_folder():
@@ -105,10 +127,13 @@ def remove_previous_result(previous, output_path):
 @api_bp.route('/process', methods=['POST'])
 def process_image():
     """Process image with applied effects"""
-    data = request.get_json()
-    
-    if not data or 'filename' not in data:
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict) or 'filename' not in data:
         return jsonify({'error': 'No filename provided'}), 400
+    label = bad_setting(data)
+    if label:
+        return jsonify({'error': f'{label} must be a number.'}), 400
     
     input_path = safe_filepath(data['filename'], upload_folder())
     if not input_path or not os.path.exists(input_path):
@@ -176,8 +201,6 @@ def process_image():
             # Apply custom resize
             if 'resize' in data and data['resize'] != 100:
                 resize = data['resize']
-                if isinstance(resize, bool) or not isinstance(resize, (int, float)):
-                    return jsonify({'error': 'Resize must be a number.'}), 400
                 resize = min(max(resize, RESIZE_RANGE[0]), RESIZE_RANGE[1])
                 resize_factor = resize / 100.0
                 if result_img.width * result_img.height * resize_factor ** 2 > MAX_PHOTO_PIXELS:
@@ -246,9 +269,10 @@ def process_image():
                 'dimensions': {'width': result_img.width, 'height': result_img.height}
             })
             
-    except Exception as e:
+    except Exception:
+        # The traceback goes to the log; the page gets one fixed sentence.
         logger.exception("photo processing failed")
-        return jsonify({'error': f'Processing failed: {str(e)}'}), 500
+        return jsonify({'error': UNEXPECTED}), 500
 
 @api_bp.route('/download/<filename>')
 def download_file(filename):

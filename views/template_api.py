@@ -12,6 +12,8 @@ import json
 import math
 import os
 import re
+import shutil
+import time
 import zipfile
 
 from flask import Blueprint, jsonify, request, send_file
@@ -32,6 +34,10 @@ EXTENSIONS = ("png", "jpg", "jpeg")
 GONE = "That asset is no longer in the library."
 MAX_BUNDLE_ENTRIES = 60
 MAX_BUNDLE_BYTES = 64 * 1024 * 1024  # uncompressed, checked before reading
+# A deleted asset waits in <assets>/.trash for a day, so Delete can be undone
+# (and a template that still names it can get it back).
+TRASH = ".trash"
+TRASH_DAYS = 1
 
 
 def _folder():
@@ -178,15 +184,52 @@ def _id_from_filename(filename):
     return re.sub(r"[^a-z0-9_-]+", "-", stem).strip("-")[:64]
 
 
+def _trash():
+    path = os.path.join(_folder(), TRASH)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _trashed_path(asset_id):
+    """The trashed file for an id, or None."""
+    if not ASSET_ID.fullmatch(asset_id or ""):
+        return None
+    for ext in EXTENSIONS:
+        path = os.path.join(_trash(), f"{asset_id}.{ext}")
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def _empty_trash():
+    """Remove what has been in the trash longer than TRASH_DAYS."""
+    folder = os.path.join(_folder(), TRASH)
+    if not os.path.isdir(folder):
+        return
+    cutoff = time.time() - TRASH_DAYS * 24 * 3600
+    for name in os.listdir(folder):
+        path = os.path.join(folder, name)
+        try:
+            if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                os.remove(path)
+        except OSError:
+            pass  # gone already, from another request
+
+
+def _image_info(asset_id, path):
+    with Image.open(path, formats=tuple(FORMATS)) as img:
+        return {"id": asset_id, "width": img.width, "height": img.height}
+
+
 @template_bp.route("/assets", methods=["GET"])
 def list_assets():
+    _empty_trash()
     assets = []
     for name in sorted(os.listdir(_folder())):
         asset_id, ext = os.path.splitext(name)
         if ext.lstrip(".") in EXTENSIONS and ASSET_ID.fullmatch(asset_id):
             try:
-                with Image.open(os.path.join(_folder(), name), formats=tuple(FORMATS)) as img:
-                    assets.append({"id": asset_id, "width": img.width, "height": img.height})
+                assets.append(_image_info(asset_id, os.path.join(_folder(), name)))
             except (OSError, Image.DecompressionBombError):
                 continue  # not a readable image: leave it out of the library
     return jsonify({"assets": assets})
@@ -241,8 +284,29 @@ def delete_asset(asset_id):
     path = _asset_path(asset_id)
     if not path:
         return jsonify({"error": GONE}), 404
-    os.remove(path)
+    _empty_trash()
+    old = _trashed_path(asset_id)
+    if old:
+        os.remove(old)  # the trash keeps the latest delete of an id
+    kept = os.path.join(_trash(), os.path.basename(path))
+    shutil.move(path, kept)
+    os.utime(kept)  # the day in the trash counts from now
     return "", 204
+
+
+@template_bp.route("/assets/<asset_id>/restore", methods=["POST"])
+def restore_asset(asset_id):
+    """Undo a delete: move the asset back from the trash. An asset uploaded
+    under the same id since is never overwritten."""
+    _empty_trash()
+    kept = _trashed_path(asset_id)
+    if not kept:
+        return jsonify({"error": f"Nothing to undo: {asset_id} is no longer in the trash."}), 404
+    if _asset_path(asset_id):
+        return jsonify({"error": f"Not restored: a newer {asset_id} is in the library."}), 409
+    path = os.path.join(_folder(), os.path.basename(kept))
+    shutil.move(kept, path)
+    return jsonify(_image_info(asset_id, path))
 
 
 # --- Export and import: the bundle Brander uses ---------------------------

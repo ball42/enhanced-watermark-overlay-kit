@@ -650,8 +650,34 @@
 
   // Asset results have their own line in the Assets section: the preview
   // status line is rewritten by the render that follows.
-  function assetStatus(text) {
-    $('#assetStatus').textContent = text;
+  // The asset message line; an optional action (Undo) follows the words.
+  function assetStatus(text, action) {
+    const line = $('#assetStatus');
+    line.textContent = text;
+    if (!action) return;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'rb-btn rb-btn--ghost rb-btn--sm tpl-status-action';
+    b.textContent = action.text;
+    b.setAttribute('aria-label', action.label);
+    b.addEventListener('click', action.run, { once: true });
+    line.append(' ', b);
+  }
+
+  // A deleted asset waits a day in EWOK's trash, so Delete can be undone.
+  async function undoDelete(id) {
+    try {
+      const resp = await fetch(`/api/template/assets/${id}/restore`, { method: 'POST' });
+      if (!resp.ok) {
+        assetStatus((await readJson(resp)).error || `Not restored: EWOK answered ${resp.status}.`);
+        return;
+      }
+      assetStatus(`Restored ${id}.`);
+      await loadAssets();
+      schedulePreview();
+    } catch (err) {
+      assetStatus('Not restored: could not reach EWOK.');
+    }
   }
 
   async function deleteAsset(id) {
@@ -670,7 +696,9 @@
         assetStatus(`Not deleted: ${(await readJson(resp)).error}`);
         return;
       }
-      assetStatus(`Deleted asset ${id}.`);
+      assetStatus(`Deleted ${id}.`, {
+        text: 'Undo', label: `Undo deleting ${id}`, run: () => undoDelete(id),
+      });
       await loadAssets();
       schedulePreview();
     } catch (err) {

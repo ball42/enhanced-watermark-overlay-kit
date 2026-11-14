@@ -1477,3 +1477,16 @@ button.tpl-fleet-fact-link {
 .tpl-fleet-report {
   margin: var(--space-md) 0 0;
 }
+
+/* ── The asset message line's Undo ─────────────── */
+
+.tpl-status-action {
+  vertical-align: baseline;
+  margin-left: var(--space-xs);
+}
+
+@media (max-width: 600px) {
+  .tpl-status-action {
+    min-height: 44px;
+  }
+}

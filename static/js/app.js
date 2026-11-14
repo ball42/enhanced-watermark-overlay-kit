@@ -87,43 +87,69 @@
     });
   }
 
+  // ── Talking to EWOK ─────────────────────────
+
+  // Every failure reads as one plain sentence: the server's own message for
+  // a refused request, never Python's text or the browser's "Failed to fetch".
+  const NOT_RUNNING = 'EWOK is not running. Start it with uv run ewok.';
+  const UNEXPECTED = 'EWOK hit an error; the log has details.';
+
+  // POST to EWOK and read its JSON. A request that never reached the server
+  // comes back as { ok: false, error: NOT_RUNNING }; an answer that is not
+  // JSON (a crash page, a proxy) as UNEXPECTED. An abort still throws.
+  async function callEwok(url, options) {
+    let response;
+    try {
+      response = await fetch(url, { method: 'POST', ...options });
+    } catch (err) {
+      if (err.name === 'AbortError') throw err;
+      return { ok: false, status: 0, error: NOT_RUNNING };
+    }
+    let body;
+    try {
+      body = await response.json();
+    } catch (err) {
+      if (err.name === 'AbortError') throw err;
+      body = null;
+    }
+    if (!body || typeof body !== 'object') {
+      return { ok: false, status: response.status, error: UNEXPECTED };
+    }
+    if (!response.ok || !body.success) {
+      return { ok: false, status: response.status, error: body.error || UNEXPECTED, body };
+    }
+    return { ok: true, status: response.status, body };
+  }
+
   async function handleFileUpload(file) {
     const formData = new FormData();
     formData.append('file', file);
     showStatus('Uploading image...', 'info');
 
-    try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const result = await response.json();
-
-      if (result.success) {
-        cancelPreview(); // a render of the previous image must not land on this one
-        setLoading(processBtn, false);
-        // A replaced photo keeps the current settings, so render them on the new one.
-        const hadPhoto = currentFilename !== null;
-        currentFilename = result.filename;
-        // The last result belongs to the previous photo: never show or download it.
-        processedFilename = null;
-        downloadSection.style.display = 'none';
-        compareBtn.style.display = 'none';
-        showStatus(
-          `Image uploaded — ${result.dimensions.width}\u00d7${result.dimensions.height}`,
-          'success'
-        );
-        showControls();
-        showPreview();
-        processBtn.disabled = false;
-        if (hadPhoto) schedulePreview();
-      } else {
-        showStatus('Upload failed: ' + result.error, 'error');
-      }
-    } catch (err) {
-      showStatus('Upload failed: ' + err.message, 'error');
-      showToast('Upload failed — check your connection', 'error');
+    const reply = await callEwok('/api/upload', { body: formData });
+    if (!reply.ok) {
+      showStatus('Not uploaded: ' + reply.error, 'error');
+      showToast('Not uploaded: ' + reply.error, 'error');
+      return;
     }
+    const result = reply.body;
+    cancelPreview(); // a render of the previous image must not land on this one
+    setLoading(processBtn, false);
+    // A replaced photo keeps the current settings, so render them on the new one.
+    const hadPhoto = currentFilename !== null;
+    currentFilename = result.filename;
+    // The last result belongs to the previous photo: never show or download it.
+    processedFilename = null;
+    downloadSection.style.display = 'none';
+    compareBtn.style.display = 'none';
+    showStatus(
+      `Image uploaded — ${result.dimensions.width}\u00d7${result.dimensions.height}`,
+      'success'
+    );
+    showControls();
+    showPreview();
+    processBtn.disabled = false;
+    if (hadPhoto) schedulePreview();
   }
 
   // ── Buttons ─────────────────────────────────
@@ -304,16 +330,15 @@
     }
 
     try {
-      const response = await fetch('/api/process', {
-        method: 'POST',
+      const reply = await callEwok('/api/process', {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
         signal: controller.signal,
       });
-      const result = await response.json();
+      const result = reply.body;
       if (previewAbort !== controller) return; // a newer render replaced this one
 
-      if (result.success) {
+      if (reply.ok) {
         processedFilename = result.processed_filename;
         const warnings = result.warnings || [];
         showStatus(
@@ -325,25 +350,27 @@
         showPreview();
         downloadSection.style.display = 'block';
         compareBtn.style.display = '';
-      } else if (response.status === 410) {
+      } else if (reply.status === 410) {
         // The upload was cleaned up: it cannot be processed again.
         currentFilename = null;
         previewAbort = null;
         previewDirty = false;
-        showStatus(result.error, 'error');
-        showToast(result.error, 'error');
+        showStatus(reply.error, 'error');
+        showToast(reply.error, 'error');
         setStale(false);
         setLoading(processBtn, false);
         processBtn.disabled = true;
         return;
       } else {
-        showStatus('Processing failed: ' + result.error, 'error');
-        showToast(result.error, 'error');
+        showStatus('Not processed: ' + reply.error, 'error');
+        showToast('Not processed: ' + reply.error, 'error');
       }
     } catch (err) {
       if (err.name === 'AbortError' || previewAbort !== controller) return;
-      showStatus('Processing failed: ' + err.message, 'error');
-      showToast('Processing failed — check console for details', 'error');
+      // A bug on this page, not a server reply: still one plain sentence.
+      console.error(err);
+      showStatus('Not processed: ' + UNEXPECTED, 'error');
+      showToast('Not processed: ' + UNEXPECTED, 'error');
     }
 
     previewAbort = null;
@@ -744,23 +771,14 @@
       const formData = new FormData();
       formData.append('file', file);
 
-      try {
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        const result = await response.json();
-        if (result.success) {
-          hiddenInput.value = result.filename;
-          filenameSpan.textContent = file.name;
-          schedulePreview();
-        } else {
-          filenameSpan.textContent = 'Upload failed';
-          showToast('Overlay upload failed: ' + result.error, 'error');
-        }
-      } catch (err) {
-        filenameSpan.textContent = 'Upload failed';
-        showToast('Overlay upload failed: ' + err.message, 'error');
+      const reply = await callEwok('/api/upload', { body: formData });
+      if (reply.ok) {
+        hiddenInput.value = reply.body.filename;
+        filenameSpan.textContent = file.name;
+        schedulePreview();
+      } else {
+        filenameSpan.textContent = 'Not uploaded';
+        showToast('Overlay not uploaded: ' + reply.error, 'error');
       }
     });
   }

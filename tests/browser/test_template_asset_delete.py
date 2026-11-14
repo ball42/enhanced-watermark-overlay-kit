@@ -95,4 +95,40 @@ def test_the_delete_message_outlasts_the_render_that_follows(page):
     page.click('[aria-label="Delete asset spare"]')
     page.wait_for_selector('[aria-label="Delete asset spare"]', state="detached")
     page.wait_for_function("document.querySelector('#previewStatus').textContent.startsWith('Rendered')")
-    assert page.inner_text("#assetStatus") == "Deleted asset spare."
+    assert page.inner_text("#assetStatus") == "Deleted spare. Undo"
+
+
+def test_undo_brings_back_an_unused_asset(page):
+    open_designer(page, uses_logo())
+    page.click('[aria-label="Delete asset spare"]')
+    page.wait_for_selector('[aria-label="Delete asset spare"]', state="detached")
+    assert page.inner_text("#assetStatus") == "Deleted spare. Undo"
+    page.click('[aria-label="Undo deleting spare"]')
+    page.wait_for_selector('[aria-label="Delete asset spare"]')
+    assert page.inner_text("#assetStatus") == "Restored spare."
+    assert asset_ids(page) == ["logo", "spare"]
+
+
+def test_undo_after_deleting_a_used_asset_renders_the_template_again(page):
+    open_designer(page, uses_logo())
+    page.once("dialog", lambda d: d.accept())
+    page.click('[aria-label="Delete asset logo"]')
+    page.wait_for_selector('[aria-label="Delete asset logo"]', state="detached")
+    page.click('[aria-label="Undo deleting logo"]')
+    page.wait_for_selector('[aria-label="Delete asset logo"]')
+    page.wait_for_function("document.querySelector('#previewStatus').textContent.startsWith('Rendered')")
+    assert "missing" not in page.inner_text("#previewStatus").lower()
+    assert asset_ids(page) == ["logo", "spare"]
+
+
+def test_a_template_that_uses_a_restored_asset_opens_whole(page):
+    """Delete the asset the template uses, undo, then open the template fresh."""
+    open_designer(page, uses_logo())
+    page.once("dialog", lambda d: d.accept())
+    page.click('[aria-label="Delete asset logo"]')
+    page.wait_for_selector('[aria-label="Delete asset logo"]', state="detached")
+    page.click('[aria-label="Undo deleting logo"]')
+    page.wait_for_selector('[aria-label="Delete asset logo"]')
+    page.reload()  # the init script opens the same template, which uses logo
+    page.wait_for_function("document.querySelector('#previewStatus').textContent.startsWith('Rendered')")
+    assert "missing" not in page.inner_text("main").lower()
