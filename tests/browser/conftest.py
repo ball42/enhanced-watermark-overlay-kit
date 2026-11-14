@@ -58,7 +58,7 @@ def browser():
 @pytest.fixture()
 def page(browser, live_url):
     context = browser.new_context(base_url=live_url)
-    # Stay local: fonts and icons from CDNs are not needed for these checks.
+    # Stay local: EWOK requests nothing outside 127.0.0.1 (test_offline_icons.py checks it).
     context.route("**/*", lambda route: route.continue_()
                   if route.request.url.startswith(live_url) else route.abort())
     tab = context.new_page()
