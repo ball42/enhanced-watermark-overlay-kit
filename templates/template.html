@@ -57,6 +57,13 @@
                     <button type="button" class="rb-btn" id="downloadPackage"><i class="fas fa-file-export" aria-hidden="true"></i> Download for JAWA's template store</button>
                 </div>
                 <p id="ioStatus" class="tpl-status" aria-live="polite"></p>
+                <div id="missingAssets" class="rb-alert rb-alert--warn tpl-missing" role="status" hidden>
+                    <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                    <div class="rb-alert__content">
+                        <p class="rb-alert__title">Warning: <span id="missingAssetsText"></span></p>
+                        <ul id="missingAssetList" class="tpl-missing-list"></ul>
+                    </div>
+                </div>
             </div>
             <div class="tpl-grid">
                 <div class="tpl-controls">

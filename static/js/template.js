@@ -40,6 +40,7 @@
     template: newTemplate(),
     selected: 0,
     assets: [],
+    assetsKnown: false, // the library loaded, so a missing asset can be named
     values: SAMPLE,
     stress: false,
     guide: { device: '', orientation: 'portrait', screen: 'lock' },
@@ -190,6 +191,7 @@
 
   // A new preview without marking the template edited (hiding a layer).
   function queuePreview() {
+    drawMissing(); // an edit can add or drop a use of a missing asset
     $('.tpl-preview').classList.add('is-stale');
     markFleetStale();
     scheduleFleetAuto();
@@ -224,12 +226,30 @@
     // invisible panel instead of being dropped, so wallrender's layer
     // numbers in warnings match this page's layer list.
     // A hidden layer becomes an invisible panel the same way.
+    // An asset missing from the library is left out the same way, so the
+    // rest of the template still renders: its image layers become invisible
+    // panels, a background image falls back to a color, and a role's
+    // background to the template's.
     const t = exportable();
-    t.layers = state.template.layers.map((l) => ((l.type === 'image' && !l.asset) || state.hidden.has(l)
+    t.layers = state.template.layers.map((l) => ((l.type === 'image' && (!l.asset || isMissing(l.asset)))
+      || state.hidden.has(l)
       ? { type: 'panel', box: { ...l.box }, opacity: 0 }
       : JSON.parse(JSON.stringify(l))));
+    if (t.background && isMissing(t.background.asset)) {
+      t.background = { color: t.background.color || '#000000' };
+      if (!t.canvas) t.canvas = { width: 1290, height: 2796 };
+    }
+    const roles = t.roles || {};
+    [...Object.values(roles.variants || {}), roles.empty, roles.default].forEach((v) => {
+      if (v && v.background && isMissing(v.background.asset)) delete v.background;
+    });
     return t;
   }
+
+  // wallrender's words for an asset it could not load.
+  const goneAsset = (problems) => problems.map((p) => /^asset '([^']+)' not found$/.exec(p))
+    .filter(Boolean).map((m) => m[1]);
+  let recheckedLibrary = false;
 
   async function renderPreview() {
     if (previewController) previewController.abort();
@@ -246,6 +266,17 @@
         signal: previewController.signal,
       });
       const body = await readJson(resp);
+      // An asset the library listed has gone since (deleted in another tab,
+      // or its file removed): reload the library once, so it is named as
+      // missing and left out, and render again.
+      const gone = resp.status === 422 ? goneAsset(body.problems || []) : [];
+      if (gone.length && !recheckedLibrary && gone.some((id) => !isMissing(id))) {
+        recheckedLibrary = true;
+        await loadAssets();
+        queuePreview();
+        return;
+      }
+      if (resp.ok) recheckedLibrary = false;
       if (!resp.ok) {
         $('#downloadPreview').disabled = true; // the image shown is out of date
         showWarnings(body.problems || [body.error || 'The preview failed.']);
@@ -445,8 +476,123 @@
 
   async function loadAssets() {
     const resp = await fetch('/api/template/assets');
-    state.assets = (await readJson(resp)).assets || [];
+    const body = await readJson(resp);
+    state.assets = body.assets || [];
+    // Only a library that really loaded can say an asset is missing.
+    state.assetsKnown = resp.ok && Array.isArray(body.assets);
     drawAssets();
+  }
+
+  // An asset id the template names that is not in the library (a new
+  // machine, a wiped folder, a delete in another tab).
+  function isMissing(id) {
+    return Boolean(id) && state.assetsKnown && !state.assets.some((a) => a.id === id);
+  }
+
+  // Every asset id the open template uses, in the order assetUses() reads them.
+  function usedAssetIds() {
+    const t = state.template;
+    const roles = t.roles || {};
+    const ids = [
+      t.background && t.background.asset,
+      ...t.layers.map((l) => l.type === 'image' && l.asset),
+      ...Object.values(roles.variants || {}).map((v) => v.background && v.background.asset),
+      ...['empty', 'default'].map((k) => ((roles[k] || {}).background || {}).asset),
+    ];
+    return [...new Set(ids.filter((id) => typeof id === 'string' && id))];
+  }
+
+  const missingAssetIds = () => usedAssetIds().filter(isMissing);
+
+  // Fill an asset select with the library, plus "<id> (missing)" when the
+  // template names an asset the library no longer has, so it never shows blank.
+  function setAssetSelect(select, id) {
+    select.replaceChildren(new Option('Choose an asset…', ''));
+    state.assets.forEach((a) => select.append(new Option(a.id, a.id)));
+    if (id && !state.assets.some((a) => a.id === id)) {
+      select.append(new Option(isMissing(id) ? `${id} (missing)` : id, id));
+    }
+    select.value = id || '';
+  }
+
+  // In the template bar: which assets are missing, where each is used, and
+  // a way back for each (upload it again, or take it out of the template).
+  function drawMissing() {
+    const ids = missingAssetIds();
+    const box = $('#missingAssets');
+    box.hidden = !ids.length;
+    const list = $('#missingAssetList');
+    list.replaceChildren();
+    if (!ids.length) return;
+    $('#missingAssetsText').textContent = `${ids.length === 1 ? '1 asset is' : `${ids.length} assets are`} missing: `
+      + `${ids.join(', ')}. The preview leaves ${ids.length === 1 ? 'it' : 'them'} out, and export needs `
+      + `${ids.length === 1 ? 'it' : 'them'} back or removed.`;
+    ids.forEach((id) => {
+      const li = document.createElement('li');
+      const what = document.createElement('span');
+      what.className = 'tpl-missing-what';
+      const name = document.createElement('strong');
+      name.textContent = `${id}:`;
+      what.append(name, ` used by ${inWords(assetUses(id))}`);
+      const upload = document.createElement('label');
+      upload.className = 'rb-btn rb-btn--outline rb-btn--sm ewok-btn--neutral tpl-file-btn';
+      const icon = document.createElement('i');
+      icon.className = 'fas fa-upload';
+      icon.setAttribute('aria-hidden', 'true');
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/png,image/jpeg';
+      input.setAttribute('aria-label', `Upload ${id}`);
+      input.addEventListener('change', () => {
+        const file = input.files[0];
+        input.value = '';
+        if (file) uploadMissing(id, file);
+      });
+      upload.append(icon, ` Upload ${id}`, input);
+      const remove = iconButton('Remove from template', `Remove ${id} from the template`, false,
+        () => removeAssetFromTemplate(id));
+      li.append(what, upload, remove);
+      list.append(li);
+    });
+  }
+
+  // Upload a file as the missing asset's own id, whatever the file is called.
+  async function uploadMissing(id, file) {
+    const form = new FormData();
+    form.append('id', id);
+    form.append('file', file);
+    try {
+      const resp = await fetch('/api/template/assets', { method: 'POST', body: form });
+      const body = await readJson(resp);
+      if (!resp.ok) {
+        ioStatus(`Not uploaded: ${body.error}`);
+        return;
+      }
+      await loadAssets();
+      ioStatus(`Uploaded ${id}. The preview shows it again.`);
+      queuePreview(); // the template itself did not change
+    } catch (err) {
+      ioStatus(`Not uploaded: could not reach EWOK.`);
+    }
+  }
+
+  // Take an asset out of the template: its image layers go, and each
+  // background that used it falls back (the template's to a color, a role's
+  // to the template's). Undo puts it all back.
+  function removeAssetFromTemplate(id) {
+    const uses = assetUses(id);
+    const t = state.template;
+    t.layers = t.layers.filter((l) => !(l.type === 'image' && l.asset === id));
+    if (t.background && t.background.asset === id) {
+      t.background = { color: t.background.color || '#0B2545' };
+      if (!t.canvas) t.canvas = { width: 1290, height: 2796 }; // a color background needs a size
+    }
+    const roles = t.roles || {};
+    [...Object.values(roles.variants || {}), roles.empty, roles.default].forEach((v) => {
+      if (v && v.background && v.background.asset === id) delete v.background;
+    });
+    loadTemplate(t, state.roleLabels);
+    ioStatus(`Removed ${id} from the template (${inWords(uses)}). Undo puts it back.`);
   }
 
   function drawAssets() {
@@ -469,14 +615,14 @@
       li.append(img, name, del);
       ul.append(li);
     });
-    $$('.asset-select').forEach((select) => {
-      const current = select.value;
-      select.replaceChildren(new Option('Choose an asset…', ''));
-      state.assets.forEach((a) => select.append(new Option(a.id, a.id)));
-      select.value = current;
-    });
+    // The template's own background is drawn from the template, not the
+    // select, so a missing id survives a library reload.
+    const bg = state.template.background || {};
+    setAssetSelect($('#bgAsset'), bg.asset || $('#bgAsset').value);
+    drawLayers();
     drawProperties();
     if (state.template.roles) drawVariants();
+    drawMissing();
   }
 
   // Where the open template uses an asset, in words: the same places as
@@ -583,7 +729,8 @@
     if (layer.type === 'text') return `Text: ${layer.text || '(empty)'}`;
     if (layer.type === 'qr') return `QR: ${layer.data || '(empty)'}`;
     if (layer.type === 'panel') return `Panel: ${Math.round((layer.opacity ?? 1) * 100)}% ${layer.color || '#000000'}`;
-    return `Image: ${layer.asset || '(choose an asset)'}`;
+    if (!layer.asset) return 'Image: (choose an asset)';
+    return `Image: ${layer.asset}${isMissing(layer.asset) ? ' (missing)' : ''}`;
   }
 
   // The selected layer's properties sit right under it in the list. When
@@ -763,7 +910,8 @@
     const panel = $(`#propsSection [data-kind="${layer.type}"]`);
     panel.querySelectorAll('[data-prop]').forEach((input) => {
       const value = layer[input.dataset.prop];
-      if (input.type === 'checkbox') input.checked = Boolean(value);
+      if (input.classList.contains('asset-select')) setAssetSelect(input, value || '');
+      else if (input.type === 'checkbox') input.checked = Boolean(value);
       else if (input.type === 'color') input.value = (value || defaultColor(input)).slice(0, 7);
       else input.value = value === undefined ? (PROP_DEFAULTS[input.dataset.prop] ?? '') : value;
     });
@@ -1119,12 +1267,10 @@
     const asset = document.createElement('select');
     asset.className = 'asset-select';
     asset.setAttribute('aria-label', `${title} background image`);
-    asset.append(new Option('Choose an asset…', ''));
-    state.assets.forEach((a) => asset.append(new Option(a.id, a.id)));
     const b = variant.background || {};
     bg.value = b.asset !== undefined ? 'asset' : b.color ? 'color' : '';
     color.value = (b.color || '#0b2545').slice(0, 7);
-    asset.value = b.asset || '';
+    setAssetSelect(asset, b.asset || '');
     const showBg = () => {
       color.hidden = bg.value !== 'color';
       asset.hidden = bg.value !== 'asset';
@@ -2204,7 +2350,7 @@
     $(`input[name="bgKind"][value="${isAsset ? 'asset' : 'color'}"]`).checked = true;
     $('#bgColorRow').hidden = isAsset;
     $('#bgAssetRow').hidden = !isAsset;
-    if (isAsset) $('#bgAsset').value = t.background.asset;
+    if (isAsset) setAssetSelect($('#bgAsset'), t.background.asset);
     else $('#bgColor').value = (t.background.color || '#000000').slice(0, 7).toLowerCase();
     state.roleLabels = roleLabels;
     $('#personFields').checked = t.person_fields === true;
