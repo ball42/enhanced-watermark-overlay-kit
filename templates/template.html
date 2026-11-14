@@ -13,7 +13,8 @@
     <link rel="stylesheet" href="/static/css/vendor/roster-html.css">
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="/static/css/template.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/fontawesome.min.css">
+    <link rel="stylesheet" href="/static/vendor/fontawesome/css/solid.min.css">
 </head>
 <body>
     <header class="ewok-nav">
@@ -356,6 +357,10 @@
                                 <section class="tpl-fleet-names" id="fleetNames" aria-labelledby="fleetNamesHeading" hidden>
                                     <h5 class="tpl-fleet-subhead" id="fleetNamesHeading">Name length, in characters</h5>
                                     <p class="tpl-fleet-names-say" id="fleetNamesSay"></p>
+                                    <div class="tpl-fleet-fit" id="fleetFit" hidden>
+                                        <button type="button" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--neutral" id="fleetFitButton"><i class="fas fa-text-height" aria-hidden="true"></i> Fit the longest name</button>
+                                        <p class="tpl-fleet-fit-say" id="fleetFitSay" role="status"></p>
+                                    </div>
                                     <div class="tpl-fleet-strip" id="fleetStrip" role="group" aria-label="Devices by name length. Arrow keys move between devices; Enter previews one."></div>
                                     <p class="tpl-fleet-strip-key" aria-hidden="true"><span><span class="tpl-fleet-dot is-fit"></span> Fits</span> <span><span class="tpl-fleet-dot is-shrank"></span> Shrinks or is cut off</span> <span><span class="tpl-fleet-key-line"></span> Break point</span></p>
                                 </section>

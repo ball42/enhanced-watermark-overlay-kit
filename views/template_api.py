@@ -24,7 +24,10 @@ import wallrender
 from wallrender import TemplateError, render_with_lint, required_version, validate
 from wallrender.cli import folder_assets, role_keys, stress_values
 from wallrender.devices import fit_warnings
-from wallrender.render import READABLE_MIN, _lint_warnings, _render
+from wallrender.render import (MIN_FONT_PX, READABLE_MIN, _box_px, _fit_font, _lint_warnings, _render,
+                               _Session)
+from wallrender.roles import resolve
+from wallrender.variables import substitute
 from wallrender.schema import ASSET_ID, MAX_PIXELS, MAX_SIDE, newer_than
 
 template_bp = Blueprint("template_api", __name__, url_prefix="/api/template")
@@ -145,6 +148,86 @@ def preview_batch():
     except TemplateError as err:
         return jsonify({"problems": err.problems}), 422
     return jsonify({"results": results, "readable_px": math.ceil(READABLE_MIN * template["canvas"]["height"])})
+
+
+NAME_KINDS = ("shrank", "cut_off", "too_small")
+SIZE_STEP = 1000  # the size field's step is 0.001 of canvas height
+FIT_CHECKS = 5  # the devices a fitted size is rendered for, tightest first
+
+
+def _layer_warns(template, values, assets, index):
+    """Whether lint says this text layer shrank, was shortened or is cut off."""
+    image, missing, fits, hidden, qrs = _render(template, values, assets, fits=[], hidden=[], qrs=[])
+    warnings = _lint_warnings(template, values, assets, image, missing, fits, hidden, qrs)
+    return any(re.match(rf"layer {index}:", w) and warning_kind(w) in NAME_KINDS for w in warnings)
+
+
+def _fit_layer(template, index, devices, assets):
+    """The largest size (a step of the size field) at which this text layer
+    prints every device's text without shrinking: wallrender's own fit
+    measures each text, then a real render and lint confirm the tightest."""
+    layer = template["layers"][index]
+    width, height = template["canvas"]["width"], template["canvas"]["height"]
+    _, _, bw, bh = _box_px(layer["box"], (width, height))
+    px = max(MIN_FONT_PX, round(layer["size"] * height))
+    session = _Session(assets)
+    fitted = []
+    for values in devices:
+        _, resolved = resolve(template, values)
+        text = substitute(layer["text"], resolved)
+        if text.strip():
+            font, _ = _fit_font(session, text, px, bw, bh, MIN_FONT_PX, layer.get("align", "center"),
+                                layer.get("weight", "regular"))
+            fitted.append((round(font.size), values))
+    result = {"index": index, "from": layer["size"], "readable_px": math.ceil(READABLE_MIN * height)}
+    if not fitted or min(p for p, _ in fitted) >= px:
+        return {**result, "size": layer["size"], "changed": False, "fits": True}
+    fitted.sort(key=lambda f: f[0])
+    tightest = [v for _, v in fitted[:FIT_CHECKS]]
+    size = math.floor(fitted[0][0] / height * SIZE_STEP) / SIZE_STEP
+    for _ in range(4):  # hinting can leave a pixel over; step down and look again
+        if round(size * height) < result["readable_px"]:
+            return {**result, "size": size, "changed": False, "fits": False}
+        trial = json.loads(json.dumps(template))
+        trial["layers"][index]["size"] = size
+        if "min_size" in layer:
+            trial["layers"][index]["min_size"] = min(layer["min_size"], size)
+        if not any(_layer_warns(trial, v, assets, index) for v in tightest):
+            out = {**result, "size": size, "changed": True, "fits": True}
+            if "min_size" in layer and layer["min_size"] > size:
+                out["min_size"] = size
+            return out
+        size = round(size - 1 / SIZE_STEP, 3)
+    return {**result, "size": size, "changed": False, "fits": False}
+
+
+@template_bp.route("/fit-names", methods=["POST"])
+def fit_names():
+    """For the device check's "Fit the longest name": the size each named
+    text layer needs so the devices sent (the ones whose names shrank) print
+    without shrinking. Changes nothing; the page applies the sizes."""
+    body = _json_body()
+    devices = body.get("devices") if isinstance(body, dict) else None
+    layers = body.get("layers") if isinstance(body, dict) else None
+    if not isinstance(devices, list) or not devices or "template" not in body \
+            or not all(isinstance(d, dict) for d in devices) \
+            or not isinstance(layers, list) or not all(type(i) is int for i in layers):
+        return jsonify({"error": "Send JSON with a template, a layers list and a devices list."}), 400
+    if len(devices) > MAX_BATCH:
+        return jsonify({"error": f"At most {MAX_BATCH} devices at a time."}), 400
+    template = body["template"]
+    problems = validate(template)
+    if problems:
+        return jsonify({"problems": problems}), 400
+    count = len(template["layers"])
+    if not all(0 <= i < count and template["layers"][i]["type"] == "text" for i in layers):
+        return jsonify({"error": "Each layer must be the number of a text layer."}), 400
+    assets = folder_assets(_folder())
+    try:
+        fitted = [_fit_layer(template, i, devices, assets) for i in dict.fromkeys(layers)]
+    except TemplateError as err:
+        return jsonify({"problems": err.problems}), 422
+    return jsonify({"layers": fitted})
 
 
 # What kind of problem a lint warning names, for the fleet summary. The

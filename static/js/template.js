@@ -279,8 +279,8 @@
       if (resp.ok) recheckedLibrary = false;
       if (!resp.ok) {
         $('#downloadPreview').disabled = true; // the image shown is out of date
-        showWarnings(body.problems || [body.error || 'The preview failed.']);
-        setWarningCount(1, 'Not rendered');
+        showWarnings(body.problems || [body.error || 'The preview failed.'], null, null, true);
+        setWarningCount(1, 'Not rendered', true);
         setStatus(resp.status === 400 ? 'Not rendered: the template has problems (listed below).'
           : 'Not rendered: an asset or value could not be used (listed below).');
         return;
@@ -330,13 +330,16 @@
   }
 
   // "2 warnings" beside the Preview heading, with an icon; never color alone.
-  function setWarningCount(n, text) {
+  // A blocked render ("Not rendered") gets the ✕ icon and the danger badge.
+  function setWarningCount(n, text, blocked = false) {
     const icon = document.createElement('i');
-    icon.className = n ? 'fas fa-triangle-exclamation' : 'fas fa-circle-check';
+    icon.className = blocked ? 'fas fa-circle-xmark'
+      : n ? 'fas fa-triangle-exclamation' : 'fas fa-circle-check';
     icon.setAttribute('aria-hidden', 'true');
     const el = $('#warningCount');
-    el.classList.toggle('warn', n > 0);
-    el.classList.toggle('rb-badge--warn', n > 0);
+    el.classList.toggle('warn', n > 0 && !blocked);
+    el.classList.toggle('rb-badge--warn', n > 0 && !blocked);
+    el.classList.toggle('rb-badge--danger', blocked);
     el.classList.toggle('rb-badge--ok', n === 0);
     el.replaceChildren(icon, ` ${text || (n ? `${n} warning${n > 1 ? 's' : ''}` : 'No warnings')}`);
     $('#tabWarnings').textContent = n ? `Warnings (${n})` : 'Warnings';
@@ -371,7 +374,9 @@
     });
   }
 
-  function showWarnings(list, target, okText) {
+  // blocked: the list says why the preview could not render at all, so each
+  // item reads "✕ Not rendered:" on a danger alert instead of "⚠ Warning:".
+  function showWarnings(list, target, okText, blocked = false) {
     const ul = target || $('#warningList');
     ul.replaceChildren();
     if (!list.length) {
@@ -383,7 +388,7 @@
     }
     list.forEach((w) => {
       const li = document.createElement('li');
-      li.className = 'rb-alert rb-alert--warn';
+      li.className = blocked ? 'rb-alert is-blocked' : 'rb-alert rb-alert--warn';
       // wallrender counts layers from 0; this page numbers them from 1.
       // Each "layer N" becomes a button that selects that layer's box.
       let at = 0;
@@ -2026,8 +2031,8 @@
   const NAME_KINDS = new Set(['shrank', 'cut_off', 'too_small']);
   const nameLength = (r) => [...r.values.device_name].length;
 
-  function fleetNameLayers() {
-    const layers = fleetChecked?.layers || [];
+  function fleetNameLayers(template = fleetChecked) {
+    const layers = template?.layers || [];
     return new Set(layers.map((l, i) => (l.type === 'text' && /\{\{\s*device_name\s*\}\}/.test(l.text || '') ? i : -1))
       .filter((i) => i >= 0));
   }
@@ -2046,6 +2051,85 @@
       upTo = below.length ? Math.max(...below) : shortestShrunk - 1;
     }
     return { marks, upTo, shortestShrunk, longest: Math.max(...marks.map((m) => m.len)) };
+  }
+
+  // ── Fit the longest name ──
+  // Asks EWOK for the size each name layer needs so the devices whose names
+  // shrank print at full size, applies it as one undoable step, says what
+  // changed, and checks the list again.
+  const sizeText = (n) => n.toFixed(3);
+
+  function fitSay(...parts) {
+    $('#fleetFitSay').replaceChildren(...parts);
+    $('#fleetFit').hidden = false;
+  }
+
+  async function fitLongestName() {
+    const checked = fleetNameLayers();
+    const shrinking = fleetResults.filter((r) => r.issues.some((x) => checked.has(x.layer) && NAME_KINDS.has(x.kind))
+      && typeof r.values.device_name === 'string');
+    const template = JSON.parse(fleetTemplate());
+    const layers = [...fleetNameLayers(template)];
+    if (!shrinking.length || !layers.length) return;
+    const devices = shrinking.sort((a, b) => nameLength(b) - nameLength(a)).slice(0, 200).map((r) => r.values);
+    const button = $('#fleetFitButton');
+    button.disabled = true;
+    fitSay('Working out the size…');
+    let body;
+    try {
+      const resp = await fetch('/api/template/fit-names', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template, layers, devices }),
+      });
+      body = await readJson(resp);
+      if (!resp.ok) {
+        fitSay(`Not changed: ${(body.problems || [body.error || 'EWOK could not fit the names.']).join('; ')}`);
+        return;
+      }
+    } catch (err) {
+      fitSay('Not changed: could not reach EWOK.');
+      return;
+    } finally {
+      button.disabled = false;
+    }
+    const changed = body.layers.filter((l) => l.changed && state.template.layers[l.index]);
+    const stuck = body.layers.filter((l) => !l.fits);
+    const notes = [];
+    changed.forEach((l) => {
+      const layer = state.template.layers[l.index];
+      layer.size = l.size;
+      if (l.min_size !== undefined) layer.min_size = l.min_size;
+      notes.push(`Layer ${l.index + 1} size ${sizeText(l.from)} → ${sizeText(l.size)}`
+        + (l.min_size !== undefined ? ', smallest size too' : ''));
+    });
+    const parts = [];
+    const said = document.createTextNode(`${notes.join('; ')}. Checking again… `);
+    if (changed.length) {
+      parts.push(el('strong', '', '✓ Fitted. '), said);
+      const undoFit = el('button', 'rb-btn rb-btn--ghost rb-btn--sm', 'Undo');
+      undoFit.type = 'button';
+      undoFit.addEventListener('click', () => {
+        undo();
+        fitSay('Undone: the size is back. ');
+        checkFleet();
+      });
+      parts.push(undoFit);
+    }
+    stuck.forEach((l) => {
+      parts.push(el('span', 'tpl-fleet-fit-stuck',
+        `⚠ Layer ${l.index + 1}: the longest name only fits below the smallest readable size `
+        + `(${l.readable_px}px). Make the box wider, or shorten the names.`));
+    });
+    if (!parts.length) parts.push('Every name already fits at this size.');
+    fitSay(...parts);
+    if (!changed.length) return;
+    drawLayers();
+    drawProperties();
+    schedulePreview();
+    recordHistory(); // the fit is one step of its own, so Undo takes it back
+    await checkFleet();
+    said.textContent = `${notes.join('; ')}. `; // detached (and unseen) once Undo or a newer fit replaced it
   }
 
   function drawFleetNames(results) {
@@ -2068,6 +2152,10 @@
       say.append('Names fit up to ', el('strong', '', plural(upTo, 'character')), '. ',
         `⚠ ${plural(longer, 'device')} ${longer === 1 ? 'is' : 'are'} longer.`);
     }
+    // The fix goes with the answer: shown while names shrink, or while the
+    // note of a fit just made (with its Undo) is still there.
+    $('#fleetFit').hidden = upTo === null && !$('#fleetFitSay').childNodes.length;
+    $('#fleetFitButton').hidden = upTo === null;
 
     // One mark per device on a characters axis, stacked where lengths match.
     const strip = $('#fleetStrip');
@@ -2289,6 +2377,7 @@
     fleetFileName = saved.name || 'a CSV';
     fleetNote = '';
     fleetListId += 1;
+    $('#fleetFitSay').replaceChildren(); // a new list: the last fit note is not about it
     $('#fleetRememberedText').textContent = `${plural(fleet.length, 'device')} from ${fleetFileName}, remembered in this browser.`;
     $('#fleetRemembered').hidden = false;
     $('#fleetRememberRow').hidden = false;
@@ -2327,6 +2416,7 @@
       fleet = devices.slice(0, FLEET_MAX);
       fleetFileName = file.name;
       fleetListId += 1;
+      $('#fleetFitSay').replaceChildren();
       $('#fleetRemembered').hidden = true;
       $('#fleetRememberRow').hidden = false;
       $('#fleetAutoRow').hidden = false;
@@ -2338,6 +2428,7 @@
       await checkFleet();
     });
     $('#fleetRecheck').addEventListener('click', checkFleet);
+    $('#fleetFitButton').addEventListener('click', fitLongestName);
     $('#fleetStaleRecheck').addEventListener('click', checkFleet);
     $('#fleetStop').addEventListener('click', stopFleet);
     $('#fleetReport').addEventListener('click', fleetReport);

@@ -218,6 +218,12 @@
   font-weight: 600;
 }
 
+/* The preview could not render: a danger rb-alert (roster's default) with
+   its own mark and word, so it never reads like a warning on a good render. */
+.tpl-warnings li.is-blocked::before {
+  content: "\2715  Not rendered: ";
+}
+
 /* "Layer 2 (...)" in a warning: selects that layer's box. */
 .tpl-warn-layer {
   padding: 0;
@@ -1339,6 +1345,33 @@ button.tpl-fleet-fact-link {
 
 .tpl-fleet-strip {
   padding: 0 var(--space-sm);
+}
+
+/* "Fit the longest name": the fix beside the answer, and what it changed. */
+.tpl-fleet-fit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-sm);
+  margin: 0 0 var(--space-sm);
+}
+
+.tpl-fleet-fit-say {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.tpl-fleet-fit-say:empty {
+  display: none;
+}
+
+.tpl-fleet-fit-say .rb-btn {
+  vertical-align: baseline;
+}
+
+.tpl-fleet-fit-stuck {
+  display: block;
 }
 
 .tpl-fleet-strip-plot {

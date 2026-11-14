@@ -22,7 +22,7 @@ Both modes preview through `wallrender/`, or Pillow for the photo editor. `wallr
 - **Layers** — text, QR code, image and panel (a translucent backdrop) layers. Text and QR data use device variables: `{{device_name}}`, `{{serial_number}}`, `{{asset_tag}}`, `{{jss_id}}`, `{{location.building}}`, `{{role.*}}`, and `{{user.*}}` when the template opts in to personal fields.
 - **Live preview** — renders through `wallrender` against sample devices after each change, with warnings for missing values, missing glyphs, overflow and low contrast.
 - **Stress view** — extra renders with every value long, then empty, then once per role.
-- **Your devices** — load a CSV of real devices (a Jamf Pro inventory export with value names in the header row) and see a summary (how many fit, the problems by kind and by layer) above a thumbnail of each, with the devices that have warnings first; pick one to preview it. Long lists are checked ten at a time with a progress meter and a Stop button. Check again compares the numbers with the last check (▼ fewer, ▲ more). A switch, Off by default, remembers the list in this browser.
+- **Your devices** — load a CSV of real devices (a Jamf Pro inventory export with value names in the header row) and see a summary (how many fit, the problems by kind and by layer) above a thumbnail of each, with the devices that have warnings first; pick one to preview it. Long lists are checked ten at a time with a progress meter and a Stop button. Check again compares the numbers with the last check (▼ fewer, ▲ more). A switch, Off by default, remembers the list in this browser. When names shrink, **Fit the longest name** sets the name layer's size so every name prints at full size, says what changed ("Layer 1 size 0.028 → 0.022") with Undo, and checks again.
 - **Placement** — drag boxes on the preview, or move and resize them with the arrow keys.
 - **Devices** — safe-area guides for the clock, controls and dock, and a grid that shows how each iPhone and iPad crops the canvas. The checked devices follow the canvas preset until you change them.
 - **Role variants** — one template with a background and wording per device role, read from a Jamf extension attribute.
@@ -127,6 +127,7 @@ Template designer:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/api/template/preview` | Render a template with sample values; returns images and warnings, with device warnings for the chosen devices and screen |
+| `POST` | `/api/template/fit-names` | The size each named text layer needs so the devices sent (up to 200) print without shrinking; changes nothing, and says when that size would be too small to read |
 | `POST` | `/api/template/preview-batch` | Render a template for up to 200 devices (rows of a CSV loaded in the browser); returns a 240 px thumbnail and the warnings for each, and keeps nothing; optional `first` numbers unnamed devices when the page sends a long list in chunks |
 | `GET` | `/api/template/assets` | List the asset library |
 | `POST` | `/api/template/assets` | Add a PNG or JPEG to the asset library |
@@ -156,7 +157,7 @@ Template designer:
 | Backend | Flask 3.1, Python 3.12+ |
 | Rendering | Pillow 11.3 (pinned below 12, the same as JAWA), qrcode |
 | Frontend | HTML, CSS, vanilla JavaScript |
-| Icons | Font Awesome 6 |
+| Icons | Font Awesome Free 6 (solid), vendored in `static/vendor/fontawesome/`, so no page loads anything from the internet |
 | Testing | pytest, pytest-flask, Playwright |
 
 ## Troubleshooting
