@@ -62,7 +62,9 @@ def test_hide_leaves_the_panel_out_of_the_preview_but_not_the_export(page):
     sent = preview_after(page, toggle.click)
     assert sent["layers"][0] == PANEL
     assert toggle.inner_text() == "Hide"
-    assert page.inner_text("#ioStatus") == "Downloaded panel.brander.json: upload it to JAWA's template store."
+    status = page.inner_text("#ioStatus")
+    assert status.startswith("Downloaded panel.brander.json · sha256 ")
+    assert status.endswith(": upload it to JAWA's template store, which shows the same sha256.")
 
 
 def test_hiding_is_not_an_edit(page):

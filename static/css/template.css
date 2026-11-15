@@ -1523,3 +1523,285 @@ button.tpl-fleet-fact-link {
     min-height: 44px;
   }
 }
+
+/* ── Low contrast carries its fix ──────────────── */
+
+.tpl-warn-fixes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  margin-top: var(--space-xs);
+}
+
+.tpl-warn-fixes .rb-btn {
+  min-height: 36px;
+}
+
+.tpl-fix-say {
+  margin: 0 0 var(--space-sm);
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.tpl-fix-say .rb-btn {
+  vertical-align: baseline;
+}
+
+/* ── Snap guides: where the box lines up, in words ── */
+
+.tpl-guide-v span {
+  top: 4px;
+  left: 4px;
+}
+
+.tpl-guide-v.is-far span {
+  left: auto;
+  right: 4px;
+}
+
+.tpl-guide-h span {
+  left: 4px;
+  top: 4px;
+}
+
+.tpl-guide-h.is-far span {
+  top: auto;
+  bottom: 4px;
+}
+
+/* ── Ready for JAWA? The download's preflight ──── */
+
+.tpl-jawa {
+  position: relative;
+}
+
+.tpl-jawa-split {
+  display: flex;
+}
+
+.tpl-jawa-split #downloadPackage {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.tpl-jawa-toggle {
+  min-width: 44px;
+  padding-left: var(--space-sm);
+  padding-right: var(--space-sm);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+}
+
+.tpl-jawa-toggle[aria-expanded="true"] i {
+  transform: rotate(180deg);
+}
+
+.tpl-preflight {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 30;
+  width: min(360px, calc(100vw - 2 * var(--space-md)));
+  margin-top: var(--space-xs);
+  padding: var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+/* The hover bridge: the pointer can cross the gap to the card without it closing. */
+.tpl-preflight::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(-1 * var(--space-xs) - 1px);
+  height: var(--space-xs);
+}
+
+.tpl-preflight-heading {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.tpl-preflight-verdict {
+  margin: 2px 0 var(--space-sm);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.tpl-preflight-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tpl-preflight-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  font-size: 0.9rem;
+}
+
+.tpl-preflight-line + .tpl-preflight-line {
+  border-top: 1px solid var(--color-border);
+}
+
+.tpl-preflight-line > i {
+  flex: none;
+  width: 1.1em;
+  text-align: center;
+}
+
+/* Blue for passing, orange for a warning (never red against green);
+   the icon and the words carry the state. */
+.tpl-preflight-line.is-ok > i { color: var(--color-info-text); }
+.tpl-preflight-line.is-warn > i { color: var(--color-warning); }
+.tpl-preflight-line.is-fail > i { color: var(--color-error); }
+.tpl-preflight-line.is-info > i { color: var(--color-text-muted); }
+
+.tpl-preflight-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tpl-preflight-action {
+  flex: none;
+  min-height: 32px;
+}
+
+@media (max-width: 600px) {
+  .tpl-jawa {
+    flex: 1 1 100%;
+  }
+
+  .tpl-jawa-split #downloadPackage {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .tpl-preflight {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+}
+
+/* ── Downloads for JAWA ────────────────────────── */
+
+.tpl-downloads {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  height: fit-content;
+  width: min(560px, calc(100vw - 2 * var(--space-md)));
+  max-height: min(80vh, 720px);
+  padding: var(--space-md) var(--space-lg);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.tpl-downloads::backdrop {
+  background: color-mix(in srgb, var(--roster-gray-900) 50%, transparent);
+}
+
+.tpl-downloads-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.tpl-downloads-head h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.tpl-downloads-head .rb-btn {
+  min-height: 44px;
+}
+
+.tpl-downloads-list {
+  list-style: none;
+  margin: var(--space-sm) 0;
+  padding: 0;
+}
+
+.tpl-download {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  padding: var(--space-sm) 0;
+}
+
+.tpl-download + .tpl-download {
+  border-top: 1px solid var(--color-border);
+}
+
+.tpl-download-thumb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 64px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+}
+
+.tpl-download-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tpl-download-what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tpl-download-file {
+  overflow-wrap: anywhere;
+}
+
+.tpl-download-when {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.tpl-download-sharow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.tpl-download-sha {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+.tpl-download-copy {
+  min-height: 36px;
+}
+
+.tpl-downloads-empty {
+  padding: var(--space-md) 0;
+  color: var(--color-text-muted);
+}
+
+.tpl-downloads-foot {
+  margin: 0;
+  text-align: right;
+}

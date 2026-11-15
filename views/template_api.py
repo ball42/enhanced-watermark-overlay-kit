@@ -7,6 +7,7 @@ asset ids follow wallrender's pattern, and only PNG and JPEG are kept.
 """
 
 import base64
+import hashlib
 import io
 import json
 import math
@@ -24,8 +25,8 @@ import wallrender
 from wallrender import TemplateError, render_with_lint, required_version, validate
 from wallrender.cli import folder_assets, role_keys, stress_values
 from wallrender.devices import fit_warnings
-from wallrender.render import (MIN_FONT_PX, READABLE_MIN, _box_px, _fit_font, _lint_warnings, _render,
-                               _Session)
+from wallrender.render import (LARGE_TEXT, MIN_FONT_PX, READABLE_MIN, _box_px, _fit_font, _lint_warnings,
+                               _over, _render, _rgba, _Session, contrast_ratio)
 from wallrender.roles import resolve
 from wallrender.variables import substitute
 from wallrender.schema import ASSET_ID, MAX_PIXELS, MAX_SIDE, newer_than
@@ -83,10 +84,46 @@ def _json_body():
 
 
 def _render_one(template, values, assets, label, devices=(), screen="lock"):
-    image, warnings = render_with_lint(template, values, assets)
+    # render_with_lint(), keeping the text fits so low contrast can carry its fix.
+    image, missing, fits, hidden, qrs = _render(template, values, assets, fits=[], hidden=[], qrs=[])
+    warnings = _lint_warnings(template, values, assets, image, missing, fits, hidden, qrs)
     return {"label": label, "image": _preview_data_url(image, template, values),
-            "warnings": warnings,
+            "warnings": warnings, "kinds": [warning_kind(w) for w in warnings],
+            "contrast": _contrast_fixes(fits, image.height),
             "device_warnings": fit_warnings(template, image.size, list(devices), screen)}
+
+
+# The fixes a low-contrast warning offers. Text colours are opaque, so the
+# ratio after the change is exact: what is behind the text does not move.
+FIX_TEXT = (("white", "#FFFFFF"), ("dark", "#111111"))
+BACKDROP_COLORS = ("#000000", "#FFFFFF")
+BACKDROP_STEP = 0.05  # the opacity field's step
+BACKDROP_MARGIN = 0.015  # of the canvas around the text, as Add panel behind uses (template.js PANEL_MARGIN)
+BACKDROP_RADIUS = 0.12
+BACKDROP_TRIES = 6  # real renders to confirm one; the mean colour behind is almost always exact
+
+
+def _needed(fit, height):
+    return 3.0 if fit.used >= LARGE_TEXT * height else 4.5
+
+
+def _text_ratio(fit, behind):
+    return contrast_ratio(_over(fit.color, behind), behind)
+
+
+def _contrast_fixes(fits, height):
+    """For each text layer below WCAG's ratio: its ratio, the ratio it needs,
+    and the plain text colour that passes (the better of white and dark), if one does."""
+    fixes = []
+    for fit in fits:
+        ratio, needed = _text_ratio(fit, fit.behind), _needed(fit, height)
+        if ratio >= needed:
+            continue
+        name, color, best = max(((n, c, contrast_ratio(_rgba(c, (0, 0, 0, 255))[:3], fit.behind))
+                                 for n, c in FIX_TEXT), key=lambda option: option[2])
+        fixes.append({"index": fit.index, "ratio": round(ratio, 2), "needed": needed,
+                      "text": {"name": name, "color": color, "ratio": round(best, 2)} if best >= needed else None})
+    return fixes
 
 
 @template_bp.route("/preview", methods=["POST"])
@@ -116,8 +153,12 @@ def preview():
                    for label, v in variants]
     except TemplateError as err:
         return jsonify({"problems": err.problems}), 422
-    renders[0]["warnings"] = newer_than(template, config.WALLRENDER_TARGET) + renders[0]["warnings"]
-    return jsonify({"renders": renders})
+    newer = newer_than(template, config.WALLRENDER_TARGET)
+    renders[0]["warnings"] = newer + renders[0]["warnings"]
+    renders[0]["kinds"] = ["target"] * len(newer) + renders[0]["kinds"]
+    # For the JAWA preflight: whether the release JAWA runs renders this template.
+    target = ".".join(config.WALLRENDER_TARGET.split(".")[:2])
+    return jsonify({"renders": renders, "target": {"version": target, "renders": not newer}})
 
 
 @template_bp.route("/preview.png", methods=["POST"])
@@ -139,6 +180,71 @@ def preview_png():
     image.save(buffer, "PNG")
     buffer.seek(0)
     return send_file(buffer, mimetype="image/png")
+
+
+def _backdrop_box(box):
+    x, y = max(0.0, box["x"] - BACKDROP_MARGIN), max(0.0, box["y"] - BACKDROP_MARGIN)
+    return {"x": round(x, 4), "y": round(y, 4),
+            "w": round(min(1.0, box["x"] + box["w"] + BACKDROP_MARGIN) - x, 4),
+            "h": round(min(1.0, box["y"] + box["h"] + BACKDROP_MARGIN) - y, 4)}
+
+
+def _backdrop_options(fit, needed):
+    """(opacity, colour) pairs that reach the ratio on the mean colour behind
+    the text, lowest opacity first: what to try for real, in order."""
+    options = []
+    for color in BACKDROP_COLORS:
+        rgb = _rgba(color, (0, 0, 0, 255))[:3]
+        for step in range(1, round(1 / BACKDROP_STEP) + 1):
+            opacity = round(step * BACKDROP_STEP, 2)
+            seen = _over((*rgb, round(255 * opacity)), fit.behind)
+            if _text_ratio(fit, seen) >= needed:
+                options += [(o / 100, color) for o in range(round(opacity * 100), 101, round(BACKDROP_STEP * 100))]
+                break
+    return sorted(options)
+
+
+@template_bp.route("/backdrop", methods=["POST"])
+def backdrop():
+    """For a low-contrast warning's "Add a backdrop": the panel to put just
+    behind a text layer, at the lowest opacity a real render confirms reaches
+    WCAG's ratio. Changes nothing; the page inserts the panel."""
+    body = _json_body()
+    if not isinstance(body, dict) or not isinstance(body.get("values"), dict) \
+            or "template" not in body or type(body.get("index")) is not int:
+        return jsonify({"error": "Send JSON with a template, a values object and a layer index."}), 400
+    template, values, index = body["template"], body["values"], body["index"]
+    problems = validate(template)
+    if problems:
+        return jsonify({"problems": problems}), 400
+    if not 0 <= index < len(template["layers"]) or template["layers"][index]["type"] != "text":
+        return jsonify({"error": "The index must be the number of a text layer."}), 400
+    assets = folder_assets(_folder())
+    try:
+        image, _, fits, _, _ = _render(template, values, assets, fits=[])
+        fit = next((f for f in fits if f.index == index), None)
+        if fit is None:
+            return jsonify({"error": f"Layer {index + 1} prints no text for this device."}), 422
+        needed, before = _needed(fit, image.height), _text_ratio(fit, fit.behind)
+        result = {"index": index, "from": round(before, 2), "needed": needed}
+        if before >= needed:
+            return jsonify({**result, "panel": None, "to": round(before, 2)})
+        box = _backdrop_box(template["layers"][index]["box"])
+        for opacity, color in _backdrop_options(fit, needed)[:BACKDROP_TRIES]:
+            panel = {"type": "panel", "box": box, "color": color, "opacity": opacity, "radius": BACKDROP_RADIUS}
+            trial = json.loads(json.dumps(template))
+            trial["layers"].insert(index, panel)
+            if validate(trial):
+                return jsonify({"error": "The template has no room for another layer."}), 422
+            _, _, trial_fits, _, _ = _render(trial, values, assets, fits=[])
+            after = next(f for f in trial_fits if f.index == index + 1)
+            ratio = _text_ratio(after, after.behind)
+            if ratio >= needed:
+                return jsonify({**result, "panel": panel, "to": round(ratio, 2)})
+    except TemplateError as err:
+        return jsonify({"problems": err.problems}), 422
+    return jsonify({**result, "panel": None, "to": round(before, 2),
+                    "error": "No backdrop reaches the ratio with this text color; change the text color instead."})
 
 
 MAX_BATCH = 200
@@ -503,8 +609,17 @@ def export_package():
                "wallrender": wallrender.__version__, "requires_wallrender": required_version(template),
                "template": template, "assets": assets}
     data = io.BytesIO((json.dumps(package, indent=1) + "\n").encode())
-    return send_file(data, mimetype="application/json", as_attachment=True,
-                     download_name=f"{_slug(name)}.brander.json")
+    response = send_file(data, mimetype="application/json", as_attachment=True,
+                         download_name=f"{_slug(name)}.brander.json")
+    response.headers["X-Template-SHA256"] = template_sha256(template)
+    return response
+
+
+def template_sha256(template):
+    """The digest JAWA's template store shows for this upload: it hashes the
+    template.json it writes, the template dumped with indent 2 and a newline
+    (brander_store.save_version), not the package file."""
+    return hashlib.sha256((json.dumps(template, indent=2) + "\n").encode()).hexdigest()
 
 
 def _load_template(raw):

@@ -37,7 +37,7 @@ config.py               # Settings, canvas presets and their devices, sample dev
 views/
   main.py               # Pages: / (photo editor) and /template (template designer)
   api.py                # Photo API: upload, process, download, preview (path traversal protection)
-  template_api.py       # Template API: preview (wallrender), device check and name fit, asset library, .zip and .brander.json export, import
+  template_api.py       # Template API: preview (wallrender, with contrast fixes), backdrop, device check and name fit, asset library, .zip and .brander.json export (sha256 header), import
 utils/
   image_processing.py   # Photo editor: resize, text overlays, image overlays, backgrounds, watermarks
   cleanup.py            # Removes uploads and results an hour after last use (before_request hook)

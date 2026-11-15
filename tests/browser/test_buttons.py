@@ -43,7 +43,9 @@ def test_adds_are_neutral_outlines_and_buttons_have_no_margin(page):
     assert a["bg"] == "rgba(0, 0, 0, 0)" and s["bg"] != a["bg"]
     for el in (add, solid, page.locator('[aria-label="Delete layer 1"]')):
         assert el.evaluate(WEIGHT)["margin"] == "0px"
-    assert page.locator("#templateEditor .rb-btn:not(.rb-btn--outline):not(.rb-btn--ghost)").count() == 1
+    # The download's ▾ preflight toggle is the other half of the same split button.
+    assert page.locator("#templateEditor .rb-btn:not(.rb-btn--outline):not(.rb-btn--ghost)"
+                        ":not(.tpl-jawa-toggle)").count() == 1
 
 
 def test_photo_editor_has_one_solid_button(page, tmp_path):
