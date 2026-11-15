@@ -340,6 +340,20 @@
                             </div>
                         </details>
                         <small id="sampleError" class="tpl-error" hidden></small>
+                        <div class="tpl-saved-samples">
+                            <button type="button" class="rb-btn rb-btn--outline ewok-btn--neutral" id="saveSample"><i class="fas fa-bookmark" aria-hidden="true"></i> Save as a sample device</button>
+                            <form id="saveSampleForm" class="tpl-save-sample" hidden>
+                                <label for="saveSampleName">Name for "Preview with"</label>
+                                <div class="tpl-sample-field">
+                                    <input type="text" id="saveSampleName" maxlength="60" spellcheck="false" autocomplete="off">
+                                    <button type="submit" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--neutral"><i class="fas fa-check" aria-hidden="true"></i> Save</button>
+                                    <button type="button" class="rb-btn rb-btn--ghost rb-btn--sm" id="saveSampleCancel">Cancel</button>
+                                </div>
+                            </form>
+                            <ul id="savedSampleList" class="tpl-saved-list" aria-label="Saved sample devices"></ul>
+                            <p id="savedSampleStatus" class="tpl-status" aria-live="polite"></p>
+                            <p class="tpl-hint">Saved devices stay in this browser. They are never part of a download.</p>
+                        </div>
                         <h4 class="tpl-subheading">Your devices</h4>
                         <p class="tpl-hint">Check the template against a device list, such as a Jamf Pro inventory export. The header row names the values (<code>device_name</code>, <code>asset_tag</code>, <code>location.building</code>). Up to 200 rows. EWOK keeps nothing from the file unless you turn on Remember, which keeps it in this browser only.</p>
                         <div class="tpl-row">

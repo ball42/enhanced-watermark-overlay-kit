@@ -119,8 +119,12 @@
                                     <div class="control-group">
                                         <label for="wallpaperPreset">Preset Dimensions:</label>
                                         <select id="wallpaperPreset">
-                                            {% for preset_name, dimensions in wallpaper_presets.items() %}
-                                            <option value="{{ preset_name }}">{{ preset_name }}{% if dimensions != 'auto' %} ({{ dimensions[0] }}&times;{{ dimensions[1] }}){% endif %}</option>
+                                            {% for group, presets in wallpaper_preset_groups %}
+                                            <optgroup label="{{ group }}">
+                                                {% for preset_name, dimensions in presets.items() %}
+                                                <option value="{{ preset_name }}">{{ preset_name }}{% if dimensions != 'auto' %} {{ dimensions[0] }}&times;{{ dimensions[1] }}{% endif %}</option>
+                                                {% endfor %}
+                                            </optgroup>
                                             {% endfor %}
                                         </select>
                                     </div>

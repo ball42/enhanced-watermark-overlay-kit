@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template
 
 from config import (BRANDER_VARIABLES, CANVAS_DEVICES, SAMPLE_DEVICES, TEMPLATE_CANVASES,
-                    WALLPAPER_PRESETS)
+                    WALLPAPER_PRESET_GROUPS)
 from wallrender.devices import device_profiles
 
 main_bp = Blueprint('main', __name__)
@@ -9,7 +9,7 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/')
 def index():
     """Main page with image editor interface"""
-    return render_template('index.html', wallpaper_presets=WALLPAPER_PRESETS)
+    return render_template('index.html', wallpaper_preset_groups=WALLPAPER_PRESET_GROUPS)
 
 
 @main_bp.route('/template')
