@@ -20,14 +20,15 @@ Both modes preview through `wallrender/`, or Pillow for the photo editor. `wallr
 
 - **Canvas and background** — iPhone and iPad presets or a custom size, and a color or an image background.
 - **Layers** — text, QR code, image and panel (a translucent backdrop) layers. Text and QR data use device variables: `{{device_name}}`, `{{serial_number}}`, `{{asset_tag}}`, `{{jss_id}}`, `{{location.building}}`, `{{role.*}}`, and `{{user.*}}` when the template opts in to personal fields.
-- **Live preview** — renders through `wallrender` against sample devices after each change, with warnings for missing values, missing glyphs, overflow and low contrast.
+- **Live preview** — renders through `wallrender` against sample devices after each change, with warnings for missing values, missing glyphs, overflow and low contrast. A low-contrast warning on a text layer carries its fix: **Use white text** (or dark, whichever passes) or **Add a backdrop**, a panel just behind the text at the lowest opacity that reaches WCAG's ratio. Either says the ratio before and after ("✓ Contrast 1.5:1 → 5.0:1") with Undo.
 - **Stress view** — extra renders with every value long, then empty, then once per role.
 - **Your devices** — load a CSV of real devices (a Jamf Pro inventory export with value names in the header row) and see a summary (how many fit, the problems by kind and by layer) above a thumbnail of each, with the devices that have warnings first; pick one to preview it. Long lists are checked ten at a time with a progress meter and a Stop button. Check again compares the numbers with the last check (▼ fewer, ▲ more). A switch, Off by default, remembers the list in this browser. When names shrink, **Fit the longest name** sets the name layer's size so every name prints at full size, says what changed ("Layer 1 size 0.028 → 0.022") with Undo, and checks again.
-- **Placement** — drag boxes on the preview, or move and resize them with the arrow keys.
+- **Placement** — drag boxes on the preview, or move and resize them with the arrow keys. While dragging, a box snaps to the canvas center lines, the guide device's safe areas and the edges and middles of other layers, with a labelled guide ("aligns with Layer 1"); hold Option (Alt) to drag freely.
 - **Devices** — safe-area guides for the clock, controls and dock, and a grid that shows how each iPhone and iPad crops the canvas. The checked devices follow the canvas preset until you change them.
 - **Role variants** — one template with a background and wording per device role, read from a Jamf extension attribute.
 - **Asset library** — PNG and JPEG images that backgrounds and image layers use.
-- **Export** — a `.brander.json` package for JAWA's template store, or a `.zip` bundle for Brander's assets folder. Both open again in EWOK.
+- **Ready for JAWA?** — hovering Download for JAWA, or its ▾ button, shows a preflight: whether JAWA's wallrender renders it, how many of your devices fit, the sample render's warnings by kind, and whether the assets are there, each with the way to it. When all pass, the button reads "Ready: Download for JAWA".
+- **Export** — a `.brander.json` package for JAWA's template store, or a `.zip` bundle for Brander's assets folder. Both open again in EWOK. After a package download the top bar says its sha256, the one JAWA's store shows for the upload, and More › Downloads lists the last 20 with a thumbnail.
 - **Renderer version** — a package records the wallrender it was made with (`wallrender`) and the lowest release that renders every feature it uses (`requires_wallrender`). The preview warns when a feature is newer than the release JAWA runs.
 - **Draft** — the template is kept in the browser, so a reload does not lose it.
 
@@ -135,7 +136,8 @@ Template designer:
 | `DELETE` | `/api/template/assets/<asset_id>` | Delete one asset (it waits a day in `template_assets/.trash/`) |
 | `POST` | `/api/template/assets/<asset_id>/restore` | Undo a delete: bring the asset back from the trash |
 | `POST` | `/api/template/export` | Download a `.zip` bundle: the template JSON, its assets and a README |
-| `POST` | `/api/template/package` | Download a `.brander.json` package for JAWA's template store |
+| `POST` | `/api/template/backdrop` | For a low-contrast text layer: the panel to put just behind it, at the lowest opacity a real render confirms reaches WCAG's ratio; changes nothing |
+| `POST` | `/api/template/package` | Download a `.brander.json` package for JAWA's template store; the `X-Template-SHA256` header is the sha256 JAWA's store shows for it (of the template dumped with indent 2 and a newline) |
 | `POST` | `/api/template/import` | Open a template `.json`, a `.zip` bundle or a `.brander.json` package |
 
 ## Configuration

@@ -49,6 +49,9 @@
     lastImage: null, // the preview shown (a JPEG over a photo background)
     lastRendered: null, // the template and values it shows, for the lossless download
     hidden: new Set(), // layer objects left out of the preview (editor only, never exported)
+    contrastFixes: [], // the sample render's low-contrast text layers and the colour that passes
+    preflight: null, // the last preview, for "Ready for JAWA?": { rendered, target, warnings, kinds }
+    safeLines: { x: [], y: [] }, // safe-area and crop edges of the guide device, for snapping
   };
 
   // ── Preview ────────────────────────────────────────
@@ -280,8 +283,11 @@
       if (resp.ok) recheckedLibrary = false;
       if (!resp.ok) {
         $('#downloadPreview').disabled = true; // the image shown is out of date
+        state.contrastFixes = [];
+        state.preflight = { rendered: false };
         showWarnings(body.problems || [body.error || 'The preview failed.'], null, null, true);
         setWarningCount(1, 'Not rendered', true);
+        drawPreflight();
         setStatus(resp.status === 400 ? 'Not rendered: the template has problems (listed below).'
           : 'Not rendered: an asset or value could not be used (listed below).');
         return;
@@ -291,6 +297,8 @@
       img.src = render.image;
       img.hidden = false;
       $('.tpl-preview').classList.remove('is-stale');
+      state.contrastFixes = render.contrast || [];
+      state.preflight = { rendered: true, target: body.target, warnings: render.warnings, kinds: render.kinds || [] };
       showWarnings(render.warnings);
       showStress(body.renders.slice(1));
       state.lastImage = render.image;
@@ -307,10 +315,13 @@
       $('#tabDevices').textContent = nd ? `Devices and safe areas (${nd})` : 'Devices and safe areas';
       const size = state.template.canvas ? `${state.template.canvas.width}×${state.template.canvas.height} ` : '';
       setStatus(`Rendered ${size}with ${previewSubject()}.`);
+      drawPreflight();
     } catch (err) {
       if (err.name !== 'AbortError') {
         $('#downloadPreview').disabled = true;
         setStatus('Not rendered: could not reach EWOK.');
+        state.preflight = { rendered: false, offline: true };
+        drawPreflight();
       }
     }
   }
@@ -403,8 +414,99 @@
         return m;
       });
       li.append(w.slice(at));
+      if (!target && !blocked) li.append(...contrastFixButtons(w));
       ul.append(li);
     });
+  }
+
+  // ── Contrast: a low-contrast warning carries its fix ──
+  // "Use white text" (or dark, whichever passes; the preview worked it out)
+  // and "Add a backdrop" (EWOK works out the panel). Either is one undoable
+  // step, and says the ratio before and after.
+
+  const ratioText = (r) => `${r.toFixed(1)}:1`;
+
+  function contrastSay(...parts) {
+    const say = $('#contrastSay');
+    say.replaceChildren(...parts);
+    say.hidden = !parts.length;
+  }
+
+  function fixButton(iconName, text, run) {
+    const b = el('button', 'rb-btn rb-btn--outline rb-btn--sm ewok-btn--neutral');
+    b.type = 'button';
+    b.append(icon(iconName), ` ${text}`);
+    b.addEventListener('click', () => run(b));
+    return b;
+  }
+
+  function contrastFixButtons(warning) {
+    const m = /^layer (\d+): low contrast/.exec(warning);
+    if (!m) return [];
+    const i = Number(m[1]);
+    const fix = state.contrastFixes.find((f) => f.index === i);
+    const layer = state.template.layers[i];
+    if (!fix || !layer || layer.type !== 'text') return [];
+    const box = el('span', 'tpl-warn-fixes');
+    if (fix.text) box.append(fixButton('fa-palette', `Use ${fix.text.name} text`, () => useTextColor(i, fix)));
+    box.append(fixButton('fa-square', 'Add a backdrop', (b) => addBackdrop(i, b)));
+    return [box];
+  }
+
+  function applyContrastFix(change, from, to, what) {
+    recordHistory(); // an edit still waiting is a step of its own
+    change();
+    drawLayers();
+    drawProperties();
+    schedulePreview();
+    recordHistory(); // the fix is one step, so Undo takes it back
+    const undoFix = el('button', 'rb-btn rb-btn--ghost rb-btn--sm', 'Undo');
+    undoFix.type = 'button';
+    undoFix.addEventListener('click', () => {
+      undo();
+      contrastSay(`Undone: the contrast is back to ${ratioText(from)}.`);
+    });
+    contrastSay(el('strong', '', `✓ Contrast ${ratioText(from)} → ${ratioText(to)}.`), ` ${what}. `, undoFix);
+  }
+
+  function useTextColor(i, fix) {
+    const layer = state.template.layers[i];
+    if (!layer) return;
+    applyContrastFix(() => { layer.color = fix.text.color; }, fix.ratio, fix.text.ratio,
+      `Layer ${i + 1} is now ${fix.text.name} text`);
+  }
+
+  async function addBackdrop(i, button) {
+    button.disabled = true;
+    contrastSay('Working out the backdrop…');
+    let body;
+    try {
+      const resp = await fetch('/api/template/backdrop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template: previewable(), values: previewValues(), index: i }),
+      });
+      body = await readJson(resp);
+      if (!resp.ok) {
+        contrastSay(`Not changed: ${(body.problems || [body.error || 'EWOK could not work out a backdrop.']).join('; ')}`);
+        return;
+      }
+    } catch (err) {
+      contrastSay('Not changed: could not reach EWOK.');
+      return;
+    } finally {
+      button.disabled = false;
+    }
+    if (!body.panel) {
+      contrastSay(body.error ? `Not changed: ${body.error}` : `Layer ${i + 1} already reaches ${ratioText(body.to)}.`);
+      return;
+    }
+    const shade = body.panel.color === '#000000' ? 'dark' : 'light';
+    applyContrastFix(() => {
+      state.template.layers.splice(i, 0, body.panel);
+      if (state.selected >= i) state.selected += 1;
+    }, body.from, body.to, `Added a ${shade} backdrop at ${Math.round(body.panel.opacity * 100)}% opacity as layer ${i + 1}, `
+      + `just behind the text (now layer ${i + 2})`);
   }
 
   function warnLayerButton(i, layer) {
@@ -525,6 +627,7 @@
   // In the template bar: which assets are missing, where each is used, and
   // a way back for each (upload it again, or take it out of the template).
   function drawMissing() {
+    drawPreflight();
     const ids = missingAssetIds();
     const box = $('#missingAssets');
     box.hidden = !ids.length;
@@ -1022,20 +1125,74 @@
     };
   }
 
+  // Keyboard nudges snap to the center lines only.
   function snapBox(box) {
     const snapped = { ...box };
     const v = Math.abs(box.x + box.w / 2 - 0.5) < SNAP;
     const h = Math.abs(box.y + box.h / 2 - 0.5) < SNAP;
     if (v) snapped.x = round(0.5 - box.w / 2);
     if (h) snapped.y = round(0.5 - box.h / 2);
-    $('.tpl-guide-v').hidden = !v;
-    $('.tpl-guide-h').hidden = !h;
+    showGuide('v', v && { at: 0.5, label: 'center' });
+    showGuide('h', h && { at: 0.5, label: 'center' });
     return snapped;
   }
 
+  // Dragging snaps an edge or the middle of the box to the canvas center
+  // lines, the guide device's safe-area and crop edges, and the edges and
+  // middles of the other shown layers, within SNAP_PX on screen (one screen
+  // pixel is about five device pixels). Option (Alt) drags freely.
+  const SNAP_PX = 6;
+
+  function snapTargets(i) {
+    const xs = [{ at: 0.5, label: 'center' }];
+    const ys = [{ at: 0.5, label: 'center' }];
+    xs.push(...state.safeLines.x);
+    ys.push(...state.safeLines.y);
+    state.template.layers.forEach((l, j) => {
+      if (j === i || state.hidden.has(l)) return;
+      const b = l.box;
+      const label = `aligns with Layer ${j + 1}`;
+      [b.x, b.x + b.w / 2, b.x + b.w].forEach((at) => xs.push({ at, label }));
+      [b.y, b.y + b.h / 2, b.y + b.h].forEach((at) => ys.push({ at, label }));
+    });
+    return { xs, ys };
+  }
+
+  // The closest target to the box's start, middle or end, if one is near.
+  function nearestSnap(start, size, targets, tolerance) {
+    let best = null;
+    [start, start + size / 2, start + size].forEach((pos) => targets.forEach((t) => {
+      const d = Math.abs(pos - t.at);
+      if (d <= tolerance && (!best || d < best.d - 1e-9)) best = { d, shift: t.at - pos, ...t };
+    }));
+    return best;
+  }
+
+  function snapDrag(box, stage, i) {
+    const { xs, ys } = snapTargets(i);
+    const sx = nearestSnap(box.x, box.w, xs, SNAP_PX / stage.width);
+    const sy = nearestSnap(box.y, box.h, ys, SNAP_PX / stage.height);
+    const snapped = { ...box };
+    if (sx) snapped.x = round(box.x + sx.shift);
+    if (sy) snapped.y = round(box.y + sy.shift);
+    showGuide('v', sx);
+    showGuide('h', sy);
+    return snapped;
+  }
+
+  // A dashed line where the box snapped, labelled with what it lines up with.
+  function showGuide(axis, snap) {
+    const guide = $(`.tpl-guide-${axis}`);
+    guide.hidden = !snap;
+    if (!snap) return;
+    guide.style[axis === 'v' ? 'left' : 'top'] = `${snap.at * 100}%`;
+    guide.querySelector('span').textContent = snap.label;
+    guide.classList.toggle('is-far', snap.at > 0.75); // keep the label inside the stage
+  }
+
   function hideGuides() {
-    $('.tpl-guide-v').hidden = true;
-    $('.tpl-guide-h').hidden = true;
+    showGuide('v', null);
+    showGuide('h', null);
   }
 
   function placeFrame(frame, layer, i) {
@@ -1116,7 +1273,8 @@
       let box = resizing
         ? clampBox({ ...start, w: start.w + dx, h: start.h + dy })
         : clampBox({ ...start, x: start.x + dx, y: start.y + dy });
-      if (!resizing) box = clampBox(snapBox(box));
+      if (!resizing && !e.altKey) box = clampBox(snapDrag(box, stage, i));
+      else hideGuides();
       commitBox(i, box);
     }
 
@@ -1199,6 +1357,7 @@
   function drawSafeAreas() {
     const layer = $('#safeAreas');
     layer.replaceChildren();
+    state.safeLines = { x: [], y: [] };
     const img = $('#previewImage');
     const p = profile(state.guide.device);
     $('#guideOrientation').disabled = !p || !p.rotates;
@@ -1209,11 +1368,16 @@
     const cut = 'Cropped off';
     if (vy0 > 0) layer.append(hatch('tpl-cropped', cut, [0, 0, 1, vy0]), hatch('tpl-cropped', cut, [0, vy1, 1, 1]));
     if (vx0 > 0) layer.append(hatch('tpl-cropped', cut, [0, vy0, vx0, vy1]), hatch('tpl-cropped', cut, [vx1, vy0, 1, vy1]));
+    const edge = `${p.name} visible edge`;
+    if (vx0 > 0) state.safeLines.x.push({ at: vx0, label: edge }, { at: vx1, label: edge });
+    if (vy0 > 0) state.safeLines.y.push({ at: vy0, label: edge }, { at: vy1, label: edge });
     p.zones[orientation][state.guide.screen].forEach((z) => {
       const [x0, y0, x1, y1] = z.box;
-      layer.append(hatch('tpl-zone', z.label, [
-        vx0 + x0 * (vx1 - vx0), vy0 + y0 * (vy1 - vy0), vx0 + x1 * (vx1 - vx0), vy0 + y1 * (vy1 - vy0),
-      ]));
+      const box = [vx0 + x0 * (vx1 - vx0), vy0 + y0 * (vy1 - vy0), vx0 + x1 * (vx1 - vx0), vy0 + y1 * (vy1 - vy0)];
+      layer.append(hatch('tpl-zone', z.label, box));
+      const label = `safe area: ${z.label}`;
+      [box[0], box[2]].filter((at) => at > 0 && at < 1).forEach((at) => state.safeLines.x.push({ at, label }));
+      [box[1], box[3]].filter((at) => at > 0 && at < 1).forEach((at) => state.safeLines.y.push({ at, label }));
     });
   }
 
@@ -1672,6 +1836,7 @@
   // Called on every preview: dims the results once the template differs
   // from the one they were checked against (and undims them after an undo).
   function markFleetStale() {
+    drawPreflight();
     if (fleetSignature === null) return;
     const stale = fleetTemplate() !== fleetSignature;
     $('#fleetStale').hidden = !stale;
@@ -1763,6 +1928,7 @@
         $('#fleetProgress').hidden = true;
         $('#fleetRecheck').disabled = false;
         $('#fleetStaleRecheck').disabled = false;
+        drawPreflight();
       }
     }
     const n = results.length;
@@ -1796,6 +1962,7 @@
     drawFleetSummary(sorted, readablePx, previous);
     setFleetFilter(fleetFilter in fleetCounts(sorted) ? fleetFilter : 'all');
     markFleetStale();
+    drawPreflight();
   }
 
   // Devices per filter: all, fit (no warnings), attention, and each kind.
@@ -2404,6 +2571,7 @@
       setFleetAuto(false);
       $('#fleetRecheck').hidden = true;
       fleetStatus('Forgotten: this browser no longer keeps the device list.');
+      drawPreflight();
     });
     restoreFleet();
     $('#fleetFile').addEventListener('change', async (e) => {
@@ -2552,6 +2720,7 @@
     const exportVia = (url, ext, done) => async () => {
       const t = exportable();
       let resp;
+      let sha256 = null;
       try {
         resp = await fetch(url, {
           method: 'POST',
@@ -2563,22 +2732,295 @@
           ioStatus(`Not exported: ${(body.problems || [body.error]).join('; ')}`);
           return;
         }
+        sha256 = resp.headers.get('X-Template-SHA256');
         saveBlob(await resp.blob(), `${slug(t.name)}.${ext}`);
       } catch (err) {
         ioStatus('Not exported: could not reach EWOK. Is it still running?');
         return;
       }
       dirty = false;
-      ioStatus(`Downloaded ${slug(t.name)}.${ext}: ${done}`);
+      const file = `${slug(t.name)}.${ext}`;
+      if (sha256) {
+        rememberDownload(file, sha256);
+        ioStatus(`Downloaded ${file} · sha256 ${sha256.slice(0, 12)} · ${clock(Date.now())}: ${done}`);
+      } else {
+        ioStatus(`Downloaded ${file}: ${done}`);
+      }
     };
     $('#downloadPackage').addEventListener('click', exportVia('/api/template/package', 'brander.json',
-      "upload it to JAWA's template store."));
+      "upload it to JAWA's template store, which shows the same sha256."));
     $('#downloadBundle').addEventListener('click', exportVia('/api/template/export', 'zip',
       "copy its files into Brander's assets folder."));
     $('#downloadJson').addEventListener('click', () => {
       const t = exportable();
       saveBlob(new Blob([JSON.stringify(t, null, 2) + '\n'], { type: 'application/json' }), `${slug(t.name)}.json`);
       dirty = false;
+    });
+  }
+
+  // ── Ready for JAWA? ─────────────────────────────────
+  // One look before the download: does JAWA's renderer draw it, do the
+  // devices fit, what does the sample render warn about, are the assets
+  // there. Each line is an icon and words, with the way to it. The download
+  // works whatever the lines say.
+
+  const PREFLIGHT_ICONS = {
+    ok: ['fa-circle-check', '✓'], warn: ['fa-triangle-exclamation', '!'],
+    fail: ['fa-circle-xmark', '✕'], info: ['fa-circle-info', 'ⓘ'],
+  };
+  const KIND_WORDS = {
+    contrast: 'contrast', shrank: 'text shrank', cut_off: 'text cut off', too_small: 'text too small',
+    missing: 'missing value', qr: 'QR', glyph: 'missing glyph', role: 'role', other: 'other',
+  };
+
+  function showWarningsTab() {
+    $('#tabWarnings').click();
+    $('#stage').scrollIntoView({ block: 'nearest' });
+    const first = $('#warningList button');
+    if (first) first.focus({ preventScroll: true });
+    closePreflight();
+  }
+
+  function showFleet(filter) {
+    $('#valuesSection').open = true;
+    if (filter) setFleetFilter(filter);
+    $('#fleetSummary').hidden ? $('#fleetFile').closest('label, .control-group, div').scrollIntoView({ block: 'center' })
+      : $('#fleetSummary').scrollIntoView({ block: 'start' });
+    closePreflight();
+  }
+
+  function fleetLine() {
+    if (!fleet.length) {
+      return { state: 'info', text: 'Not checked against your devices', action: ['Load CSV', () => {
+        showFleet();
+        $('#fleetFile').click();
+      }] };
+    }
+    if (fleetRun) return { state: 'info', text: `Checking ${plural(fleet.length, 'device')}…` };
+    const n = fleetResults.length;
+    if (n < fleet.length) {
+      return { state: 'info', text: `Checked ${n.toLocaleString()} of ${plural(fleet.length, 'device')}`,
+        action: ['Check all', checkFleet] };
+    }
+    if (fleetSignature !== fleetTemplate()) {
+      return { state: 'info', text: 'Device check is out of date', action: ['Check again', checkFleet] };
+    }
+    const fit = fleetResults.filter((r) => !r.warnings.length).length;
+    return fit === n
+      ? { state: 'ok', text: `${fit.toLocaleString()} of ${plural(n, 'device')} fit` }
+      : { state: 'warn', text: `${fit.toLocaleString()} of ${plural(n, 'device')} fit`, action: ['Show', () => showFleet('attention')] };
+  }
+
+  function warningLine(p) {
+    const kinds = p.kinds.length === p.warnings.length ? p.kinds : p.warnings.map(() => 'other');
+    const counts = {};
+    kinds.filter((k) => k !== 'target').forEach((k) => { counts[k] = (counts[k] || 0) + 1; });
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    if (!total) return { state: 'ok', text: 'No warnings on the sample device' };
+    const keys = Object.keys(counts);
+    const text = keys.length === 1
+      ? `${total} ${KIND_WORDS[keys[0]] || keys[0]} warning${total === 1 ? '' : 's'}`
+      : `${plural(total, 'warning')}: ${keys.map((k) => `${counts[k]} ${KIND_WORDS[k] || k}`).join(', ')}`;
+    return { state: 'warn', text, action: ['Show', showWarningsTab] };
+  }
+
+  function preflightLines() {
+    const p = state.preflight;
+    const lines = [];
+    if (!p) {
+      lines.push({ state: 'info', text: 'Waiting for the first render' });
+    } else if (!p.rendered) {
+      lines.push({ state: 'fail', text: p.offline ? 'Not rendered: could not reach EWOK' : 'Not rendered: the template has problems',
+        action: p.offline ? null : ['Show', showWarningsTab] });
+    } else if (p.target.renders) {
+      lines.push({ state: 'ok', text: `Renders on JAWA's wallrender ${p.target.version}` });
+    } else {
+      lines.push({ state: 'fail', text: `Uses features JAWA's wallrender ${p.target.version} does not draw`,
+        action: ['Show', showWarningsTab] });
+    }
+    lines.push(fleetLine());
+    if (p && p.rendered) lines.push(warningLine(p));
+    const missing = missingAssetIds();
+    if (!state.assetsKnown) lines.push({ state: 'info', text: 'Asset library not loaded yet' });
+    else if (missing.length) {
+      lines.push({ state: 'fail', text: `${missing.length === 1 ? '1 asset' : `${missing.length} assets`} missing: ${missing.join(', ')}`,
+        action: ['Show', () => { closePreflight(); $('#missingAssets').scrollIntoView({ block: 'nearest' }); }] });
+    } else {
+      lines.push({ state: 'ok', text: usedAssetIds().length ? 'All assets present' : 'No assets to include' });
+    }
+    return lines;
+  }
+
+  function drawPreflight() {
+    const lines = preflightLines();
+    const ready = lines.every((l) => l.state === 'ok');
+    $('#downloadPackageText').textContent = ready ? 'Ready: Download for JAWA' : "Download for JAWA's template store";
+    $('#downloadPackage').classList.toggle('is-ready', ready);
+    $('#downloadPackage i').className = `fas ${ready ? 'fa-circle-check' : 'fa-file-export'}`;
+    const passed = lines.filter((l) => l.state === 'ok').length;
+    $('#preflightVerdict').textContent = ready ? '✓ Ready to send to JAWA.'
+      : `${passed} of ${lines.length} checks pass. The download still works.`;
+    $('#preflightList').replaceChildren(...lines.map((l) => {
+      const li = el('li', `tpl-preflight-line is-${l.state}`);
+      const [name, glyph] = PREFLIGHT_ICONS[l.state];
+      const mark = icon(name);
+      mark.title = glyph;
+      li.append(mark, el('span', 'tpl-preflight-text', l.text));
+      if (l.action) {
+        const b = el('button', 'tpl-warn-layer tpl-preflight-action', l.action[0]);
+        b.type = 'button';
+        b.addEventListener('click', l.action[1]);
+        li.append(b);
+      }
+      return li;
+    }));
+  }
+
+  let preflightPinned = false;
+
+  function openPreflight(pinned) {
+    if (pinned) preflightPinned = true;
+    drawPreflight();
+    $('#preflight').hidden = false;
+    $('#preflightToggle').setAttribute('aria-expanded', 'true');
+  }
+
+  function closePreflight() {
+    preflightPinned = false;
+    $('#preflight').hidden = true;
+    $('#preflightToggle').setAttribute('aria-expanded', 'false');
+  }
+
+  function bindPreflight() {
+    const group = $('#jawaGroup');
+    $('#preflightToggle').addEventListener('click', () => {
+      if (preflightPinned) closePreflight(); else openPreflight(true);
+    });
+    // Hovering the button shows it too, where there is a pointer that hovers.
+    const hovers = window.matchMedia && window.matchMedia('(hover: hover)').matches;
+    if (hovers) {
+      group.addEventListener('mouseenter', () => openPreflight(false));
+      group.addEventListener('mouseleave', () => { if (!preflightPinned) closePreflight(); });
+    }
+    group.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !$('#preflight').hidden) {
+        closePreflight();
+        $('#preflightToggle').focus();
+      }
+    });
+    document.addEventListener('click', (e) => {
+      if (preflightPinned && !group.contains(e.target)) closePreflight();
+    });
+    drawPreflight();
+  }
+
+  // ── Downloads: which package is which ───────────────
+  // Each download for JAWA is kept in this browser with its sha256: the
+  // digest JAWA's store shows for the upload, so the two can be matched.
+
+  const DOWNLOADS_KEY = 'ewok-downloads';
+  const DOWNLOADS_MAX = 20;
+  const THUMB_PX = 64;
+
+  function readDownloads() {
+    try {
+      const list = JSON.parse(localStorage.getItem(DOWNLOADS_KEY) || '[]');
+      return Array.isArray(list) ? list.filter((d) => d && typeof d.sha256 === 'string') : [];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function previewThumb() {
+    const img = $('#previewImage');
+    if (!img.naturalWidth) return '';
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = THUMB_PX;
+      canvas.height = Math.round((THUMB_PX * img.naturalHeight) / img.naturalWidth);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.7);
+    } catch (err) {
+      return '';
+    }
+  }
+
+  function rememberDownload(file, sha256) {
+    const list = readDownloads();
+    list.unshift({ file, sha256, at: Date.now(), name: state.template.name || '', thumb: previewThumb() });
+    try {
+      localStorage.setItem(DOWNLOADS_KEY, JSON.stringify(list.slice(0, DOWNLOADS_MAX)));
+    } catch (err) {
+      // Storage full or blocked: the top bar still says the sha256.
+    }
+  }
+
+  const clock = (at) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  function when(at) {
+    const d = new Date(at);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) return `Today ${clock(at)}`;
+    return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${clock(at)}`;
+  }
+
+  function drawDownloads() {
+    const list = readDownloads();
+    const ol = $('#downloadsList');
+    $('#downloadsClear').hidden = !list.length;
+    if (!list.length) {
+      const empty = el('li', 'tpl-downloads-empty', "No packages downloaded in this browser yet. Download for JAWA's template store adds each one here.");
+      ol.replaceChildren(empty);
+      return;
+    }
+    ol.replaceChildren(...list.map((d) => {
+      const li = el('li', 'tpl-download');
+      const thumb = el('div', 'tpl-download-thumb');
+      if (d.thumb) {
+        const img = el('img');
+        img.src = d.thumb;
+        img.alt = '';
+        thumb.append(img);
+      } else thumb.append(icon('fa-file-export'));
+      const what = el('div', 'tpl-download-what');
+      what.append(el('strong', 'tpl-download-file', d.file), el('span', 'tpl-download-when', when(d.at)));
+      const sha = el('code', 'tpl-download-sha', `sha256 ${d.sha256.slice(0, 12)}`);
+      sha.title = d.sha256;
+      const copy = el('button', 'rb-btn rb-btn--ghost rb-btn--sm tpl-download-copy');
+      copy.type = 'button';
+      copy.append(icon('fa-copy'), ' Copy');
+      copy.setAttribute('aria-label', `Copy the sha256 of ${d.file}`);
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(d.sha256);
+          copy.replaceChildren(icon('fa-check'), ' Copied');
+        } catch (err) {
+          copy.replaceChildren('Not copied');
+        }
+      });
+      const shaRow = el('div', 'tpl-download-sharow');
+      shaRow.append(sha, copy);
+      what.append(shaRow);
+      li.append(thumb, what);
+      return li;
+    }));
+  }
+
+  function bindDownloads() {
+    const dialog = $('#downloadsDialog');
+    $('#showDownloads').addEventListener('click', () => {
+      drawDownloads();
+      dialog.showModal();
+    });
+    $('#downloadsClose').addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); }); // the backdrop
+    $('#downloadsClear').addEventListener('click', () => {
+      try {
+        localStorage.removeItem(DOWNLOADS_KEY);
+      } catch (err) {
+        // nothing kept, nothing to clear
+      }
+      drawDownloads();
     });
   }
 
@@ -2653,6 +3095,8 @@
     bindTemplateScreen();
     bindHistory();
     bindFleet();
+    bindPreflight();
+    bindDownloads();
     bindTabs();
     trackBarHeight();
     trackStageRoom();
