@@ -101,15 +101,15 @@ class TestProcess:
             data=json.dumps({
                 "filename": filename,
                 "wallpaper_mode": True,
-                "wallpaper_preset": "iPhone 15 Pro",
+                "wallpaper_preset": "Template canvas: iPhone (portrait)",
                 "fit_mode": "fit",
             }),
             content_type="application/json",
         )
         data = resp.get_json()
         assert data["success"] is True
-        assert data["dimensions"]["width"] == 1179
-        assert data["dimensions"]["height"] == 2556
+        assert data["dimensions"]["width"] == 1290
+        assert data["dimensions"]["height"] == 2796
 
     def test_process_missing_file(self, client):
         resp = client.post(

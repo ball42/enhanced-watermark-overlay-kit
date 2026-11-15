@@ -328,8 +328,7 @@
 
   // What the preview shows: the picked sample device and role, in words.
   function previewSubject() {
-    const pick = $('#samplePreset').value;
-    const preset = pick === 'custom' ? null : PRESETS[Number(pick)];
+    const preset = pickedSample($('#samplePreset').value);
     let text = preset ? `${preset.name} (${preset.values.device_name || 'no device name'})` : 'custom values';
     if (state.template.roles && state.previewRole !== null) {
       text += state.previewRole === '' ? ', no role set'
@@ -1711,7 +1710,7 @@
         $('.sample-field').focus();
         return;
       }
-      state.values = PRESETS[Number(e.target.value)].values;
+      state.values = JSON.parse(JSON.stringify(pickedSample(e.target.value).values));
       area.value = JSON.stringify(state.values, null, 2);
       $('#sampleError').hidden = true;
       drawSampleFields();
@@ -1753,6 +1752,215 @@
       } catch (err) {
         showSampleError(err.message);
       }
+    });
+  }
+
+  // ── Saved sample devices ───────────────────────────
+  // The designer's own test devices, named and kept in this browser only.
+  // They join "Preview with" below the built-ins. Values here never go into
+  // the template, the draft or a download.
+
+  const SAMPLES_KEY = 'ewok-sample-devices';
+  const SAMPLES_MAX = 30;
+  let savedSamples = readSavedSamples();
+  let removedSample = null; // { sample, index } for Undo
+
+  function readSavedSamples() {
+    try {
+      const list = JSON.parse(localStorage.getItem(SAMPLES_KEY) || '[]');
+      if (!Array.isArray(list)) return [];
+      return list.filter((d) => d && typeof d.name === 'string' && d.name.trim()
+        && d.values && typeof d.values === 'object' && !Array.isArray(d.values)).slice(0, SAMPLES_MAX);
+    } catch (err) {
+      return [];
+    }
+  }
+
+  // Returns false when the browser will not keep it.
+  function writeSavedSamples(list) {
+    try {
+      if (list.length) localStorage.setItem(SAMPLES_KEY, JSON.stringify(list));
+      else localStorage.removeItem(SAMPLES_KEY);
+      savedSamples = list;
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  // "0", "1", … are the built-ins; "saved-N" a saved device; "custom" neither.
+  function pickedSample(pick) {
+    if (pick === 'custom') return null;
+    if (pick.startsWith('saved-')) return savedSamples[Number(pick.slice(6))] || null;
+    return PRESETS[Number(pick)] || null;
+  }
+
+  function savedSay(...parts) {
+    $('#savedSampleStatus').replaceChildren(...parts);
+  }
+
+  // Redraw the "Preview with" group and the list under Sample device.
+  function drawSavedSamples(select) {
+    const picker = $('#samplePreset');
+    picker.querySelector('optgroup[data-saved]')?.remove();
+    if (savedSamples.length) {
+      const group = document.createElement('optgroup');
+      group.label = 'Saved in this browser';
+      group.dataset.saved = '';
+      savedSamples.forEach((d, i) => {
+        const opt = el('option', '', d.name);
+        opt.value = `saved-${i}`;
+        group.append(opt);
+      });
+      picker.insertBefore(group, picker.querySelector('option[value="custom"]'));
+    }
+    if (select !== undefined) picker.value = select;
+    const list = $('#savedSampleList');
+    list.replaceChildren(...savedSamples.map((d, i) => savedSampleRow(d, i)));
+    list.hidden = !savedSamples.length;
+  }
+
+  function savedSampleRow(d, i) {
+    const li = el('li', 'tpl-saved-item');
+    const text = el('span', 'tpl-saved-text');
+    text.append(icon('fa-bookmark'), ' ', el('strong', 'tpl-saved-name', d.name));
+    const sub = el('span', 'tpl-saved-sub', d.values.device_name ? String(d.values.device_name) : 'no device name');
+    text.append(sub);
+    const actions = el('span', 'tpl-saved-actions');
+    const rename = el('button', 'rb-btn rb-btn--ghost rb-btn--sm tpl-icon-btn');
+    rename.type = 'button';
+    rename.append(icon('fa-pen'), ' Rename');
+    rename.setAttribute('aria-label', `Rename ${d.name}`);
+    rename.addEventListener('click', () => startRename(li, i));
+    const remove = el('button', 'rb-btn rb-btn--outline rb-btn--sm ewok-btn--danger tpl-icon-btn');
+    remove.type = 'button';
+    remove.append(icon('fa-trash'), ' Remove');
+    remove.setAttribute('aria-label', `Remove ${d.name}`);
+    remove.addEventListener('click', () => removeSample(i));
+    actions.append(rename, remove);
+    li.append(text, actions);
+    return li;
+  }
+
+  function startRename(li, i) {
+    const form = el('form', 'tpl-sample-field tpl-saved-rename');
+    const input = el('input');
+    input.type = 'text';
+    input.maxLength = 60;
+    input.value = savedSamples[i].name;
+    input.setAttribute('aria-label', `New name for ${savedSamples[i].name}`);
+    const ok = el('button', 'rb-btn rb-btn--outline rb-btn--sm ewok-btn--neutral');
+    ok.type = 'submit';
+    ok.append(icon('fa-check'), ' Save');
+    const cancel = el('button', 'rb-btn rb-btn--ghost rb-btn--sm', 'Cancel');
+    cancel.type = 'button';
+    cancel.addEventListener('click', () => drawSavedSamples());
+    form.append(input, ok, cancel);
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = input.value.trim();
+      const old = savedSamples[i].name;
+      if (!name) { savedSay('Not renamed: a saved device needs a name.'); return; }
+      if (savedSamples.some((d, j) => j !== i && d.name === name)) {
+        savedSay(`Not renamed: "${name}" is already saved.`);
+        return;
+      }
+      const pick = $('#samplePreset').value;
+      const list = savedSamples.map((d, j) => (j === i ? { ...d, name } : d));
+      if (!writeSavedSamples(list)) { savedSay('Not renamed: this browser does not allow EWOK to keep it.'); return; }
+      drawSavedSamples(pick);
+      savedSay(`Renamed "${old}" to "${name}".`);
+      schedulePreview(); // the status line names it
+    });
+    li.replaceChildren(form);
+    input.focus();
+    input.select();
+  }
+
+  function removeSample(i) {
+    const pick = $('#samplePreset').value;
+    const sample = savedSamples[i];
+    if (!writeSavedSamples(savedSamples.filter((_, j) => j !== i))) {
+      savedSay('Not removed: this browser does not allow EWOK to change it.');
+      return;
+    }
+    removedSample = { sample, index: i };
+    // Keep the preview on the same values; a removed pick becomes Custom.
+    let next = pick;
+    if (pick === `saved-${i}`) next = 'custom';
+    else if (pick.startsWith('saved-') && Number(pick.slice(6)) > i) next = `saved-${Number(pick.slice(6)) - 1}`;
+    drawSavedSamples(next);
+    const undoBtn = el('button', 'rb-btn rb-btn--ghost rb-btn--sm tpl-status-action', 'Undo');
+    undoBtn.type = 'button';
+    undoBtn.setAttribute('aria-label', `Undo removing ${sample.name}`);
+    undoBtn.addEventListener('click', undoRemoveSample);
+    savedSay(`Removed "${sample.name}" from this browser.`, undoBtn);
+  }
+
+  function undoRemoveSample() {
+    if (!removedSample) return;
+    const { sample, index } = removedSample;
+    const list = savedSamples.slice();
+    list.splice(Math.min(index, list.length), 0, sample);
+    if (!writeSavedSamples(list)) { savedSay('Not restored: this browser does not allow EWOK to keep it.'); return; }
+    removedSample = null;
+    const pick = $('#samplePreset').value;
+    const next = pick.startsWith('saved-') && Number(pick.slice(6)) >= index
+      ? `saved-${Number(pick.slice(6)) + 1}` : pick;
+    drawSavedSamples(next);
+    savedSay(`Restored "${sample.name}".`);
+  }
+
+  function saveSample(name) {
+    const values = JSON.parse(JSON.stringify(state.values));
+    const at = savedSamples.findIndex((d) => d.name === name);
+    const list = savedSamples.slice();
+    if (at >= 0) list[at] = { name, values };
+    else if (list.length >= SAMPLES_MAX) {
+      savedSay(`Not saved: ${SAMPLES_MAX} devices are saved already. Remove one first.`);
+      return false;
+    } else list.push({ name, values });
+    if (!writeSavedSamples(list)) {
+      savedSay('Not saved: this browser does not allow EWOK to keep it.');
+      return false;
+    }
+    const index = at >= 0 ? at : list.length - 1;
+    drawSavedSamples(`saved-${index}`);
+    savedSay(el('strong', '', at >= 0 ? `✓ Updated "${name}".` : `✓ Saved "${name}".`),
+      ' It is in Preview with, under Saved in this browser.');
+    schedulePreview(); // the status line now names it
+    return true;
+  }
+
+  function bindSavedSamples() {
+    drawSavedSamples();
+    const form = $('#saveSampleForm');
+    const input = $('#saveSampleName');
+    const open = (on) => {
+      form.hidden = !on;
+      $('#saveSample').hidden = on;
+      if (on) {
+        const picked = pickedSample($('#samplePreset').value);
+        input.value = picked && $('#samplePreset').value.startsWith('saved-')
+          ? picked.name : String(state.values.device_name || '').slice(0, 60);
+        input.focus();
+        input.select();
+      } else {
+        $('#saveSample').focus();
+      }
+    };
+    $('#saveSample').addEventListener('click', () => open(true));
+    $('#saveSampleCancel').addEventListener('click', () => open(false));
+    form.addEventListener('keydown', (e) => { if (e.key === 'Escape') open(false); });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = input.value.trim();
+      if (!name) {
+        savedSay('Not saved: give the device a name.');
+        input.focus();
+        return;
+      }
+      if (saveSample(name)) open(false);
     });
   }
 
@@ -3087,6 +3295,7 @@
     bindLayerButtons();
     bindProperties();
     bindValues();
+    bindSavedSamples();
     bindExport();
     bindDevices();
     bindRoles();
