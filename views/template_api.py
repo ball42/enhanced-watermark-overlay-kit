@@ -41,9 +41,13 @@ MAX_BUNDLE_BYTES = 64 * 1024 * 1024  # uncompressed, checked before reading
 # A deleted asset waits in <assets>/.trash for a day, so Delete can be undone
 # (and a template that still names it can get it back). An asset replaced by
 # an upload or an opened template waits in .trash/replaced the same way.
+# Each copy keeps its own stamped name, so a second replace or delete of the
+# same id within the day keeps the first; restore takes the newest.
 TRASH = ".trash"
 REPLACED = "replaced"
 TRASH_DAYS = 1
+TRASHED_NAME = re.compile(
+    rf"(?P<id>{ASSET_ID.pattern})(?:\.(?P<stamp>[0-9]{{1,20}}))?\.(?:{'|'.join(EXTENSIONS)})")
 
 
 def _folder():
@@ -431,24 +435,36 @@ def _replaced():
     return path
 
 
+def _trashed_copies(asset_id, folder):
+    """Every copy of an id in one trash slot, newest first. A copy is kept as
+    <id>.<stamp>.<ext>, the stamp being when it went in; a plain <id>.<ext>
+    from before stamps counts as the oldest."""
+    copies = []
+    for name in os.listdir(folder):
+        match = TRASHED_NAME.fullmatch(name)
+        if match and match["id"] == asset_id and os.path.isfile(os.path.join(folder, name)):
+            copies.append((int(match["stamp"] or 0), name))
+    return [os.path.join(folder, name) for _stamp, name in sorted(copies, reverse=True)]
+
+
 def _trashed_path(asset_id, folder=None):
-    """The trashed file for an id (in the deleted or the replaced slot), or None."""
+    """The newest trashed copy of an id (in the deleted or the replaced slot), or None."""
     if not ASSET_ID.fullmatch(asset_id or ""):
         return None
-    for ext in EXTENSIONS:
-        path = os.path.join(folder or _trash(), f"{asset_id}.{ext}")
-        if os.path.isfile(path):
-            return path
-    return None
+    copies = _trashed_copies(asset_id, folder or _trash())
+    return copies[0] if copies else None
 
 
 def _to_trash(path, folder):
-    """Move a library file into a trash slot, which keeps the latest copy of an id."""
-    asset_id = os.path.splitext(os.path.basename(path))[0]
-    old = _trashed_path(asset_id, folder)
-    if old:
-        os.remove(old)
-    kept = os.path.join(folder, os.path.basename(path))
+    """Move a library file into a trash slot under a new stamp, so earlier
+    copies of the same id stay there too until their day is up."""
+    asset_id, ext = os.path.splitext(os.path.basename(path))
+    stamp = time.time_ns()
+    while True:
+        kept = os.path.join(folder, f"{asset_id}.{stamp}{ext}")
+        if not os.path.exists(kept):
+            break
+        stamp += 1
     shutil.move(path, kept)
     os.utime(kept)  # the day in the trash counts from now
 
@@ -576,7 +592,7 @@ def restore_asset(asset_id):
         return jsonify({"error": f"Nothing to undo: {asset_id} is no longer in the trash."}), 404
     if _asset_path(asset_id):
         return jsonify({"error": f"Not restored: a newer {asset_id} is in the library."}), 409
-    path = os.path.join(_folder(), os.path.basename(kept))
+    path = os.path.join(_folder(), f"{asset_id}{os.path.splitext(kept)[1]}")
     shutil.move(kept, path)
     return jsonify(_image_info(asset_id, path))
 
