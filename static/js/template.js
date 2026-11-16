@@ -774,7 +774,10 @@
   // status line is rewritten by the render that follows.
   // The asset message line; an optional action (Undo) follows the words.
   function assetStatus(text, action) {
-    const line = $('#assetStatus');
+    statusLine($('#assetStatus'), text, action);
+  }
+
+  function statusLine(line, text, action) {
     line.textContent = text;
     if (!action) return;
     const b = document.createElement('button');
@@ -789,7 +792,7 @@
   // A deleted asset waits a day in EWOK's trash, so Delete can be undone.
   async function undoDelete(id) {
     try {
-      const resp = await fetch(`/api/template/assets/${id}/restore`, { method: 'POST' });
+      const resp = await fetch(`/api/template/assets/${id}/restore?from=deleted`, { method: 'POST' });
       if (!resp.ok) {
         assetStatus((await readJson(resp)).error || `Not restored: EWOK answered ${resp.status}.`);
         return;
@@ -2838,8 +2841,52 @@
     URL.revokeObjectURL(a.href);
   }
 
-  function ioStatus(text) {
-    $('#ioStatus').textContent = text;
+  function ioStatus(text, action) {
+    statusLine($('#ioStatus'), text, action);
+  }
+
+  // Opening a template replaced library assets: their old copies wait in
+  // EWOK's trash, so put them back (the opened ones go to the trash instead).
+  async function undoReplace(ids) {
+    try {
+      for (const id of ids) {
+        const gone = await fetch(`/api/template/assets/${id}`, { method: 'DELETE' });
+        const back = gone.ok && await fetch(`/api/template/assets/${id}/restore`, { method: 'POST' });
+        if (!back || !back.ok) {
+          ioStatus(`Not restored: ${back ? (await readJson(back)).error : `could not move the opened ${id} aside.`}`);
+          await loadAssets();
+          return;
+        }
+      }
+      ioStatus(`Restored your library ${ids.length > 1 ? 'assets' : 'asset'} ${inWords(ids)}.`);
+      await loadAssets();
+      schedulePreview();
+    } catch (err) {
+      ioStatus('Not restored: could not reach EWOK.');
+    }
+  }
+
+  // Post an opened file. A 409 names library assets the file would replace:
+  // ask, then post again saying whether to replace them or keep the library's.
+  async function postImport(file) {
+    const send = async (replace) => {
+      const form = new FormData();
+      form.append('file', file);
+      if (replace) form.append('replace', replace);
+      const resp = await fetch('/api/template/import', { method: 'POST', body: form });
+      return { resp, body: await readJson(resp) };
+    };
+    let sent = await send(null);
+    if (sent.resp.status === 409 && sent.body.conflicts) {
+      const ids = sent.body.conflicts;
+      const uses = ids.flatMap((id) => assetUses(id));
+      const where = uses.length ? `, used by ${inWords(uses)},` : '';
+      const many = ids.length > 1;
+      const yes = confirm(`${file.name} has its own ${inWords(ids)}. Replace the library's ${inWords(ids)}${where} `
+        + `for every template on this computer? Cancel keeps the library's ${many ? 'copies' : 'copy'}.`);
+      sent = await send(yes ? 'yes' : 'no');
+    }
+    return sent;
   }
 
   // Put a loaded template into the form: name, canvas, background, layers.
@@ -2915,12 +2962,11 @@
       const file = e.target.files[0];
       e.target.value = '';
       if (!file) return;
-      const form = new FormData();
-      form.append('file', file);
       let body;
       try {
-        const resp = await fetch('/api/template/import', { method: 'POST', body: form });
-        body = await readJson(resp);
+        const sent = await postImport(file);
+        const resp = sent.resp;
+        body = sent.body;
         if (!resp.ok) {
           ioStatus(`Not opened: ${body.error}${body.problems ? ' ' + body.problems.join('; ') : ''}`);
           return;
@@ -2931,10 +2977,16 @@
         return;
       }
       loadTemplate(body.template);
-      const added = body.assets.length ? ` Added assets: ${body.assets.join(', ')}.` : '';
-      const replaced = body.replaced && body.replaced.length ? ` Replaced library assets: ${body.replaced.join(', ')}.` : '';
+      const newIds = body.assets.filter((id) => !(body.replaced || []).includes(id));
+      const added = newIds.length ? ` Added assets: ${newIds.join(', ')}.` : '';
+      const replacedIds = body.replaced || [];
+      const replaced = replacedIds.length
+        ? ` Replaced library assets: ${replacedIds.join(', ')} (the old copies stay in the trash for a day).` : '';
+      const kept = body.kept && body.kept.length ? ` Kept your library assets: ${body.kept.join(', ')}.` : '';
       const skipped = body.skipped && body.skipped.length ? ` Skipped: ${body.skipped.join('; ')}.` : '';
-      ioStatus(`Opened ${file.name}.${added}${replaced}${skipped}`);
+      ioStatus(`Opened ${file.name}.${added}${replaced}${kept}${skipped}`, replacedIds.length ? {
+        text: 'Undo', label: `Put back the library's ${inWords(replacedIds)}`, run: () => undoReplace(replacedIds),
+      } : null);
     });
     // Both server exports: the template goes to EWOK, a file comes back.
     // A failure, including EWOK no longer running, is said in words.

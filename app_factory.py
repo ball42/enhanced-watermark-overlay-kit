@@ -81,6 +81,15 @@ def create_app(config_name=None):
             if site not in (None, "same-origin", "none"):
                 abort(403)
 
+    # No other site may frame EWOK's pages: inside a frame, a tricked click
+    # would be a same-origin request and pass the check above.
+    @app.after_request
+    def no_framing(response):
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
+
     @app.before_request
     def run_cleanup():
         # The same folders the routes in views/api.py use.
