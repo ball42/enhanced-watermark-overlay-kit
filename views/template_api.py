@@ -39,8 +39,10 @@ GONE = "That asset is no longer in the library."
 MAX_BUNDLE_ENTRIES = 60
 MAX_BUNDLE_BYTES = 64 * 1024 * 1024  # uncompressed, checked before reading
 # A deleted asset waits in <assets>/.trash for a day, so Delete can be undone
-# (and a template that still names it can get it back).
+# (and a template that still names it can get it back). An asset replaced by
+# an upload or an opened template waits in .trash/replaced the same way.
 TRASH = ".trash"
+REPLACED = "replaced"
 TRASH_DAYS = 1
 
 
@@ -423,30 +425,47 @@ def _trash():
     return path
 
 
-def _trashed_path(asset_id):
-    """The trashed file for an id, or None."""
+def _replaced():
+    path = os.path.join(_trash(), REPLACED)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _trashed_path(asset_id, folder=None):
+    """The trashed file for an id (in the deleted or the replaced slot), or None."""
     if not ASSET_ID.fullmatch(asset_id or ""):
         return None
     for ext in EXTENSIONS:
-        path = os.path.join(_trash(), f"{asset_id}.{ext}")
+        path = os.path.join(folder or _trash(), f"{asset_id}.{ext}")
         if os.path.isfile(path):
             return path
     return None
 
 
+def _to_trash(path, folder):
+    """Move a library file into a trash slot, which keeps the latest copy of an id."""
+    asset_id = os.path.splitext(os.path.basename(path))[0]
+    old = _trashed_path(asset_id, folder)
+    if old:
+        os.remove(old)
+    kept = os.path.join(folder, os.path.basename(path))
+    shutil.move(path, kept)
+    os.utime(kept)  # the day in the trash counts from now
+
+
 def _empty_trash():
     """Remove what has been in the trash longer than TRASH_DAYS."""
-    folder = os.path.join(_folder(), TRASH)
-    if not os.path.isdir(folder):
-        return
     cutoff = time.time() - TRASH_DAYS * 24 * 3600
-    for name in os.listdir(folder):
-        path = os.path.join(folder, name)
-        try:
-            if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
-                os.remove(path)
-        except OSError:
-            pass  # gone already, from another request
+    for folder in (os.path.join(_folder(), TRASH), os.path.join(_folder(), TRASH, REPLACED)):
+        if not os.path.isdir(folder):
+            continue
+        for name in os.listdir(folder):
+            path = os.path.join(folder, name)
+            try:
+                if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                    os.remove(path)
+            except OSError:
+                pass  # gone already, from another request
 
 
 def _image_info(asset_id, path):
@@ -483,25 +502,45 @@ def upload_asset():
     return jsonify(stored), 201
 
 
-def _store_asset(asset_id, data):
-    """Keep data as <id>.png or .jpg if it really is a PNG or JPEG within
-    wallrender's limits. Returns (info, None) or (None, error)."""
+def _check_asset(data):
+    """(format, width, height) if data really is a PNG or JPEG within
+    wallrender's limits, else an error sentence."""
     try:
         with Image.open(io.BytesIO(data), formats=tuple(FORMATS)) as img:
             fmt, width, height = img.format, img.width, img.height
             img.verify()
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
-        return None, "That file is not a readable PNG or JPEG image."
+        return "That file is not a readable PNG or JPEG image."
     if fmt not in FORMATS:
-        return None, "Assets must be PNG or JPEG."
+        return "Assets must be PNG or JPEG."
     if max(width, height) > MAX_SIDE or width * height > MAX_PIXELS:
-        return None, f"Assets are limited to {MAX_SIDE}px per side."
+        return f"Assets are limited to {MAX_SIDE}px per side."
+    return fmt, width, height
+
+
+def _same_bytes(path, data):
+    with open(path, "rb") as handle:
+        return handle.read() == data
+
+
+def _store_asset(asset_id, data):
+    """Keep data as <id>.png or .jpg. A different file already under that id
+    moves to the trash's replaced slot for a day, so restore can bring it
+    back. Returns (info, None) or (None, error)."""
+    checked = _check_asset(data)
+    if isinstance(checked, str):
+        return None, checked
+    fmt, width, height = checked
+    info = {"id": asset_id, "width": width, "height": height}
     old = _asset_path(asset_id)
+    if old and _same_bytes(old, data):
+        return info, None
+    _empty_trash()
     if old:
-        os.remove(old)
+        _to_trash(old, _replaced())
     with open(os.path.join(_folder(), f"{asset_id}.{FORMATS[fmt]}"), "wb") as handle:
         handle.write(data)
-    return {"id": asset_id, "width": width, "height": height}, None
+    return info, None
 
 
 @template_bp.route("/assets/<asset_id>", methods=["GET"])
@@ -518,21 +557,21 @@ def delete_asset(asset_id):
     if not path:
         return jsonify({"error": GONE}), 404
     _empty_trash()
-    old = _trashed_path(asset_id)
-    if old:
-        os.remove(old)  # the trash keeps the latest delete of an id
-    kept = os.path.join(_trash(), os.path.basename(path))
-    shutil.move(path, kept)
-    os.utime(kept)  # the day in the trash counts from now
+    _to_trash(path, _trash())
     return "", 204
 
 
 @template_bp.route("/assets/<asset_id>/restore", methods=["POST"])
 def restore_asset(asset_id):
-    """Undo a delete: move the asset back from the trash. An asset uploaded
-    under the same id since is never overwritten."""
+    """Move an asset back from the trash. By default that is the copy a
+    replace pushed out (the library's own version from before), else the
+    deleted copy; ?from=deleted (Undo after Delete) takes only the deleted
+    copy. An asset uploaded under the same id since is never overwritten."""
     _empty_trash()
-    kept = _trashed_path(asset_id)
+    if request.args.get("from") == "deleted":
+        kept = _trashed_path(asset_id)
+    else:
+        kept = _trashed_path(asset_id, _replaced()) or _trashed_path(asset_id)
     if not kept:
         return jsonify({"error": f"Nothing to undo: {asset_id} is no longer in the trash."}), 404
     if _asset_path(asset_id):
@@ -691,25 +730,41 @@ def import_bundle():
 
 def _store_imported(template, found):
     """Keep only the assets the template uses (so a bundle cannot quietly
-    replace unrelated library assets), and say which ones it replaced."""
+    replace unrelated library assets). A different file under an id the
+    library already has is a conflict: without replace=yes or replace=no
+    the answer is a 409 naming them, and nothing is written. replace=no
+    keeps the library's copies; replace=yes moves them to the trash."""
     used = set(asset_ids(template))
-    added, replaced, skipped = [], [], []
+    choice = request.form.get("replace")
+    usable, skipped = {}, []
     for asset_id, (name, data) in found.items():
         if asset_id not in used:
             skipped.append(f"{name}: not used by the template")
-            continue
-        if not ASSET_ID.fullmatch(asset_id):
+        elif not ASSET_ID.fullmatch(asset_id):
             skipped.append(f"{name}: not a valid asset id")
+        else:
+            usable[asset_id] = (name, data)
+    conflicts = sorted(
+        asset_id for asset_id, (_, data) in usable.items()
+        if (path := _asset_path(asset_id)) and not _same_bytes(path, data)
+        and not isinstance(_check_asset(data), str))
+    if conflicts and choice not in ("yes", "no"):
+        return jsonify({"error": "That template has assets with the same ids as library assets.",
+                        "conflicts": conflicts}), 409
+    added, replaced, kept = [], [], []
+    for asset_id, (name, data) in usable.items():
+        if asset_id in conflicts and choice == "no":
+            kept.append(asset_id)
             continue
-        existed = _asset_path(asset_id) is not None
         stored, error = _store_asset(asset_id, data)
         if error:
             skipped.append(f"{name}: {error}")
-        else:
-            added.append(stored["id"])
-            if existed:
-                replaced.append(stored["id"])
-    return jsonify({"template": template, "assets": added, "replaced": replaced, "skipped": skipped})
+            continue
+        added.append(stored["id"])
+        if asset_id in conflicts:
+            replaced.append(asset_id)
+    return jsonify({"template": template, "assets": added, "replaced": replaced,
+                    "kept": kept, "skipped": skipped})
 
 
 def _import_package(package):
@@ -727,6 +782,8 @@ def _import_package(package):
         except (ValueError, TypeError):
             bad.append(f"{asset_id}: not valid base64")
     response = _store_imported(template, found)
+    if isinstance(response, tuple):
+        return response  # the 409: nothing was written
     body = response.get_json()
     body["skipped"] = bad + body["skipped"]
     return jsonify(body)

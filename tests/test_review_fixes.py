@@ -71,7 +71,9 @@ def test_import_ignores_assets_the_template_does_not_use(client):
 def test_import_reports_replaced_assets(client):
     upload(client, "logo.png")
     data = bundle(logo_template(), {"logo.png": make_test_image(12, 12).getvalue()})
-    body = import_file(client, data, "x.zip").get_json()
+    assert import_file(client, data, "x.zip").status_code == 409  # asks first
+    body = client.post("/api/template/import", content_type="multipart/form-data",
+                       data={"file": (io.BytesIO(data), "x.zip"), "replace": "yes"}).get_json()
     assert body["replaced"] == ["logo"]
 
 
