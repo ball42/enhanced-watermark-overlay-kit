@@ -28,7 +28,7 @@ It renders the template with the sample values, writes the PNG, and prints warni
 - characters the font cannot draw;
 - text that shrank below half its set size, or is cut off even at the minimum size;
 - text that shrank below 1.2% of the canvas height (34 px on a 2796 px iPhone canvas), too small to read on the device;
-- text whose contrast against what is behind it is below WCAG's 4.5:1, or 3:1 for large text.
+- text whose contrast against what is behind it is below WCAG's 4.5:1, or 3:1 for large text. It is judged against the worst part of the box, not its average: white text over a photo that is half sky and half trees is held to the sky. The brightest and darkest 5% of a 16x16 sample of the box are ignored, so a star or a logo corner does not fail it (from 0.13.1).
 - QR codes whose box is too small to draw them, whose modules are under 3 px, or whose colors have a contrast below 3:1, any of which phones may fail to scan.
 
 It numbers layers from 1 and names each one as EWOK's layer list does, for example `layer 1 (text: {{device_name}})`. The library's own messages (`lint`, `fit_warnings`) number layers from 0.

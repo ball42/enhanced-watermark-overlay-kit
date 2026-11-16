@@ -131,3 +131,50 @@ def test_the_package_names_the_sha256_jawas_store_shows(client):
     stored = (json.dumps(package["template"], indent=2) + "\n").encode()
     assert digest == hashlib.sha256(stored).hexdigest()
     assert len(digest) == 64
+
+
+SPLIT = copy.deepcopy(TEMPLATE)
+SPLIT["background"] = {"color": "#000000"}
+SPLIT["layers"] = [{"type": "panel", "box": {"x": 0, "y": 0, "w": 0.5, "h": 1}, "color": "#FFFFFF"},
+                   dict(TEMPLATE["layers"][1], text="{{device_name}}")]
+
+
+def test_a_split_background_is_judged_by_its_worst_half(client):
+    """White text over half white, half black: the mean is mid grey (about
+    4:1 for white), but the white half reads at 1:1. Neither text colour
+    passes over both halves, so the fix is a backdrop."""
+    fix = preview(client, SPLIT)["renders"][0]["contrast"][0]
+    assert fix["index"] == 1 and fix["ratio"] < 1.5 and fix["text"] is None
+
+
+def test_a_backdrop_over_a_split_background_covers_the_bright_half(client):
+    body = client.post("/api/template/backdrop",
+                       json={"template": SPLIT, "values": VALUES, "index": 1}).get_json()
+    panel = body["panel"]
+    assert body["from"] < 1.5 and body["to"] >= 4.5
+    # White text over white needs a dark panel at most of its strength;
+    # the mean alone (mid grey) would have been satisfied by a faint one.
+    assert panel["color"] == "#000000" and panel["opacity"] >= 0.5
+    fixed = copy.deepcopy(SPLIT)
+    fixed["layers"].insert(1, panel)
+    assert contrast_warnings(fixed, VALUES, layer=2) == []
+
+
+def test_each_role_render_carries_its_own_contrast_fix_and_values(client):
+    """A role on a white background: its render's fix is worked out against
+    white (dark text), not the sample's grey, and it says which values it used."""
+    template = copy.deepcopy(TEMPLATE)
+    template["layers"] = [dict(TEMPLATE["layers"][1], text="{{device_name}}")]
+    template["background"] = {"color": "#0B2545"}
+    template["roles"] = {"attribute": "Role", "variants": {"lobby": {"background": {"color": "#FFFFFF"}}}}
+    resp = client.post("/api/template/preview",
+                       json={"template": template, "values": VALUES, "stress": True})
+    renders = {r["label"]: r for r in resp.get_json()["renders"]}
+    assert renders["sample"]["contrast"] == [] and "values" not in renders["sample"]
+    role = renders["role lobby"]
+    assert role["values"] == dict(VALUES, role="lobby")
+    assert role["contrast"][0]["text"]["name"] == "dark"
+    assert renders["empty"]["values"] == {}
+    body = client.post("/api/template/backdrop",
+                       json={"template": template, "values": role["values"], "index": 0}).get_json()
+    assert body["panel"]["color"] == "#000000" and body["to"] >= 4.5
