@@ -59,6 +59,30 @@ def test_contrast_is_measured_against_what_is_behind_the_box():
     assert any("layer 1: low contrast" in w for w in warnings), warnings
 
 
+HALF_WHITE = {"type": "panel", "box": {"x": 0, "y": 0, "w": 0.5, "h": 1}, "color": "#FFFFFF"}
+
+
+def test_contrast_is_judged_against_the_worst_part_of_a_busy_background():
+    """White text over a half-white, half-black background: the mean behind
+    it is mid grey, but half of the text is white on white."""
+    warnings = lint(tpl(HALF_WHITE, text_layer("Front Desk iPad")), {}, no_assets)
+    low = [w for w in warnings if w.startswith("layer 1: low contrast")]
+    assert low, warnings
+    assert low[0].startswith("layer 1: low contrast 1.0:1"), low
+
+
+def test_dark_text_over_the_same_split_is_reported_too():
+    warnings = lint(tpl(HALF_WHITE, text_layer("Front Desk iPad", color="#111111")), {}, no_assets)
+    assert any(w.startswith("layer 1: low contrast") for w in warnings), warnings
+
+
+def test_a_few_bright_specks_do_not_fail_white_text():
+    """One small bright mark in a dark box (a star, a logo corner) is under
+    the 5% of the box the check ignores."""
+    speck = {"type": "panel", "box": {"x": 0.1, "y": 0.5, "w": 0.02, "h": 0.01}, "color": "#FFFFFF"}
+    assert not any("contrast" in w for w in lint(tpl(speck, text_layer("Hi")), {}, no_assets))
+
+
 def test_good_contrast_is_quiet():
     assert not any("contrast" in w for w in lint(tpl(text_layer("Hi")), {}, no_assets))
 

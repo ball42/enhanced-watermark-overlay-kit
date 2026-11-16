@@ -370,6 +370,7 @@
     const box = $('#stressRenders');
     box.hidden = !renders.length;
     box.replaceChildren();
+    if (!renders.length) contrastSay($('#stressSay')); // stress off: its last fix message goes too
     renders.forEach((r) => {
       const fig = document.createElement('figure');
       const cap = document.createElement('figcaption');
@@ -382,13 +383,18 @@
       ul.className = 'tpl-warnings';
       fig.append(cap, img, ul);
       box.append(fig);
-      showWarnings(r.warnings, ul);
+      // A low-contrast warning here carries the fix worked out against this
+      // render's background (a role's own colour or photo), with its values.
+      showWarnings(r.warnings, ul, null, false,
+        { fixes: r.contrast || [], values: () => r.values || {}, say: $('#stressSay'), where: stressCaption(r.label) });
     });
   }
 
   // blocked: the list says why the preview could not render at all, so each
   // item reads "✕ Not rendered:" on a danger alert instead of "⚠ Warning:".
-  function showWarnings(list, target, okText, blocked = false) {
+  // fix: where a low-contrast warning's fix buttons come from. The main list
+  // gets the sample render's; a stress render passes its own.
+  function showWarnings(list, target, okText, blocked = false, fix = null) {
     const ul = target || $('#warningList');
     ul.replaceChildren();
     if (!list.length) {
@@ -413,7 +419,8 @@
         return m;
       });
       li.append(w.slice(at));
-      if (!target && !blocked) li.append(...contrastFixButtons(w));
+      const fixFrom = fix || (!target && !blocked ? sampleFix() : null);
+      if (fixFrom) li.append(...contrastFixButtons(w, fixFrom));
       ul.append(li);
     });
   }
@@ -425,8 +432,10 @@
 
   const ratioText = (r) => `${r.toFixed(1)}:1`;
 
-  function contrastSay(...parts) {
-    const say = $('#contrastSay');
+  // The sample render's fixes, for the main warning list.
+  const sampleFix = () => ({ fixes: state.contrastFixes, values: previewValues, say: $('#contrastSay') });
+
+  function contrastSay(say, ...parts) {
     say.replaceChildren(...parts);
     say.hidden = !parts.length;
   }
@@ -439,20 +448,20 @@
     return b;
   }
 
-  function contrastFixButtons(warning) {
+  function contrastFixButtons(warning, from) {
     const m = /^layer (\d+): low contrast/.exec(warning);
     if (!m) return [];
     const i = Number(m[1]);
-    const fix = state.contrastFixes.find((f) => f.index === i);
+    const fix = from.fixes.find((f) => f.index === i);
     const layer = state.template.layers[i];
     if (!fix || !layer || layer.type !== 'text') return [];
     const box = el('span', 'tpl-warn-fixes');
-    if (fix.text) box.append(fixButton('fa-palette', `Use ${fix.text.name} text`, () => useTextColor(i, fix)));
-    box.append(fixButton('fa-square', 'Add a backdrop', (b) => addBackdrop(i, b)));
+    if (fix.text) box.append(fixButton('fa-palette', `Use ${fix.text.name} text`, () => useTextColor(i, fix, from)));
+    box.append(fixButton('fa-square', 'Add a backdrop', (b) => addBackdrop(i, b, from)));
     return [box];
   }
 
-  function applyContrastFix(change, from, to, what) {
+  function applyContrastFix(say, change, from, to, what) {
     recordHistory(); // an edit still waiting is a step of its own
     change();
     drawLayers();
@@ -463,49 +472,53 @@
     undoFix.type = 'button';
     undoFix.addEventListener('click', () => {
       undo();
-      contrastSay(`Undone: the contrast is back to ${ratioText(from)}.`);
+      contrastSay(say, `Undone: the contrast is back to ${ratioText(from)}.`);
     });
-    contrastSay(el('strong', '', `✓ Contrast ${ratioText(from)} → ${ratioText(to)}.`), ` ${what}. `, undoFix);
+    contrastSay(say, el('strong', '', `✓ Contrast ${ratioText(from)} → ${ratioText(to)}.`), ` ${what}. `, undoFix);
   }
 
-  function useTextColor(i, fix) {
+  // "… on Role: Lobby": which render a stress fix was worked out against.
+  const fixWhere = (from) => (from.where ? ` (on ${from.where})` : '');
+
+  function useTextColor(i, fix, from) {
     const layer = state.template.layers[i];
     if (!layer) return;
-    applyContrastFix(() => { layer.color = fix.text.color; }, fix.ratio, fix.text.ratio,
-      `Layer ${i + 1} is now ${fix.text.name} text`);
+    applyContrastFix(from.say, () => { layer.color = fix.text.color; }, fix.ratio, fix.text.ratio,
+      `Layer ${i + 1} is now ${fix.text.name} text${fixWhere(from)}`);
   }
 
-  async function addBackdrop(i, button) {
+  async function addBackdrop(i, button, from) {
+    const { say } = from;
     button.disabled = true;
-    contrastSay('Working out the backdrop…');
+    contrastSay(say, 'Working out the backdrop…');
     let body;
     try {
       const resp = await fetch('/api/template/backdrop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template: previewable(), values: previewValues(), index: i }),
+        body: JSON.stringify({ template: previewable(), values: from.values(), index: i }),
       });
       body = await readJson(resp);
       if (!resp.ok) {
-        contrastSay(`Not changed: ${(body.problems || [body.error || 'EWOK could not work out a backdrop.']).join('; ')}`);
+        contrastSay(say, `Not changed: ${(body.problems || [body.error || 'EWOK could not work out a backdrop.']).join('; ')}`);
         return;
       }
     } catch (err) {
-      contrastSay('Not changed: could not reach EWOK.');
+      contrastSay(say, 'Not changed: could not reach EWOK.');
       return;
     } finally {
       button.disabled = false;
     }
     if (!body.panel) {
-      contrastSay(body.error ? `Not changed: ${body.error}` : `Layer ${i + 1} already reaches ${ratioText(body.to)}.`);
+      contrastSay(say, body.error ? `Not changed: ${body.error}` : `Layer ${i + 1} already reaches ${ratioText(body.to)}.`);
       return;
     }
     const shade = body.panel.color === '#000000' ? 'dark' : 'light';
-    applyContrastFix(() => {
+    applyContrastFix(say, () => {
       state.template.layers.splice(i, 0, body.panel);
       if (state.selected >= i) state.selected += 1;
     }, body.from, body.to, `Added a ${shade} backdrop at ${Math.round(body.panel.opacity * 100)}% opacity as layer ${i + 1}, `
-      + `just behind the text (now layer ${i + 2})`);
+      + `just behind the text (now layer ${i + 2})${fixWhere(from)}`);
   }
 
   function warnLayerButton(i, layer) {

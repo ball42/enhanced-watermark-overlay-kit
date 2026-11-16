@@ -158,9 +158,12 @@ class _TextFit:
 
     def __init__(self, index: int, requested: int, used: int, clipped: bool,
                  behind: tuple[int, int, int], color: tuple[int, int, int, int],
-                 shortened: bool = False):
+                 shortened: bool = False, cells: list[tuple[int, int, int]] | None = None):
         self.index, self.requested, self.used, self.clipped = index, requested, used, clipped
         self.behind, self.color, self.shortened = behind, color, shortened
+        # The colours behind the text that the contrast check holds it to
+        # (see behind_cells); just the mean when none were sampled.
+        self.cells = cells or [behind]
 
 
 class _QrFit:
@@ -263,12 +266,13 @@ def _draw_text(img: Image.Image, session: _Session, layer: dict[str, Any],
         width, height = right - left, bottom - top
     color = _rgba(layer.get("color"), (255, 255, 255, 255))
     if fits is not None:
-        # A 16x16 box-filtered sample: the mean colour behind the text at a
+        # A 16x16 box-filtered sample of what is behind the text, at a
         # fraction of the cost of converting the whole box.
-        sample = img.crop((bx, by, bx + bw, by + bh)).resize((16, 16), Image.Resampling.BOX)
-        behind = ImageStat.Stat(sample.convert("RGB")).mean
+        sample = img.crop((bx, by, bx + bw, by + bh)).resize((16, 16), Image.Resampling.BOX).convert("RGB")
+        behind = ImageStat.Stat(sample).mean
         fits.append(_TextFit(index, px, round(f.size), width > bw or height > bh,
-                             tuple(round(c) for c in behind), color, shortened))
+                             tuple(round(c) for c in behind), color, shortened,
+                             behind_cells(sample)))
     x = 0 if align == "left" else bw - width if align == "right" else (bw - width) // 2
     y = (bh - height) // 2
     # Draw into a box-sized layer: bounded memory, and nothing spills outside the box.
@@ -426,6 +430,31 @@ def _over(fg: tuple[int, int, int, int], bg: tuple[int, int, int]) -> tuple[int,
     return tuple(round(f * alpha + b * (1 - alpha)) for f, b in zip(fg[:3], bg))
 
 
+# Of a text box's 256 sample cells, the share at each end of the brightness
+# range that the contrast check ignores: a star or a logo corner should not
+# fail the layer, but a bright half of the photo should.
+CONTRAST_IGNORE = 0.05
+
+
+def behind_cells(sample: Image.Image) -> list[tuple[int, int, int]]:
+    """The distinct colours of a small RGB sample of what is behind a text
+    box, darkest to lightest, without the darkest and lightest CONTRAST_IGNORE
+    of the cells. Contrast is judged against the worst of these, so white text
+    over a photo that is half sky and half trees is held to the sky, not to
+    the mid grey the two average to."""
+    data = sample.tobytes()
+    cells = sorted((tuple(data[i:i + 3]) for i in range(0, len(data), 3)), key=_luminance)
+    trim = int(len(cells) * CONTRAST_IGNORE)
+    kept = cells[trim:len(cells) - trim] or cells
+    return list(dict.fromkeys(kept))
+
+
+def worst_contrast(color: tuple[int, int, int, int], cells: list[tuple[int, int, int]]) -> float:
+    """The lowest WCAG ratio of a (possibly translucent) colour drawn over
+    any of the cells behind it."""
+    return min(contrast_ratio(_over(color, cell), cell) for cell in cells)
+
+
 def _fit_warnings(fits: list[_TextFit], height: int) -> list[str]:
     warnings = []
     for fit in fits:
@@ -439,7 +468,7 @@ def _fit_warnings(fits: list[_TextFit], height: int) -> list[str]:
             warnings.append(f"{where}: text shortened with \u2026 to fit its box")
         elif fit.used < fit.requested * SHRINK_WARNING:
             warnings.append(f"{where}: text shrank from {fit.requested}px to {fit.used}px to fit its box")
-        ratio = contrast_ratio(_over(fit.color, fit.behind), fit.behind)
+        ratio = worst_contrast(fit.color, fit.cells)
         needed = 3.0 if fit.used >= LARGE_TEXT * height else 4.5
         if ratio < needed:
             warnings.append(f"{where}: low contrast {ratio:.1f}:1 against what is behind it "

@@ -8,4 +8,4 @@ from .schema import SCHEMA_VERSION, TemplateError, required_version, validate
 
 __all__ = ["SCHEMA_VERSION", "TemplateError", "lint", "render", "render_with_lint", "render_with_report",
            "required_version", "validate"]
-__version__ = "0.13.0"
+__version__ = "0.13.1"

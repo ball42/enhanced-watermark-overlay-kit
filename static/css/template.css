@@ -208,6 +208,7 @@
    "No warnings"). Block, not flex: "Layer 2" buttons sit inside the sentence. */
 .tpl-warnings li.rb-alert {
   display: block;
+  overflow-wrap: anywhere; /* a long role value ("WWWW…") must not widen the page */
   padding: var(--space-xs) var(--space-sm);
   margin-bottom: var(--space-xs);
   font-size: 0.9rem;
@@ -413,7 +414,7 @@ input[type="color"] {
 
 .tpl-stress {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-md);
   margin-top: var(--space-md);
 }

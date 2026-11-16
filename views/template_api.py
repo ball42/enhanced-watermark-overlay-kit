@@ -26,7 +26,7 @@ from wallrender import TemplateError, render_with_lint, required_version, valida
 from wallrender.cli import folder_assets, role_keys, stress_values
 from wallrender.devices import fit_warnings
 from wallrender.render import (LARGE_TEXT, MIN_FONT_PX, READABLE_MIN, _box_px, _fit_font, _lint_warnings,
-                               _over, _render, _rgba, _Session, contrast_ratio)
+                               _over, _render, _rgba, _Session, worst_contrast)
 from wallrender.roles import resolve
 from wallrender.variables import substitute
 from wallrender.schema import ASSET_ID, MAX_PIXELS, MAX_SIDE, newer_than
@@ -93,22 +93,24 @@ def _render_one(template, values, assets, label, devices=(), screen="lock"):
             "device_warnings": fit_warnings(template, image.size, list(devices), screen)}
 
 
-# The fixes a low-contrast warning offers. Text colours are opaque, so the
-# ratio after the change is exact: what is behind the text does not move.
+# The fixes a low-contrast warning offers. Each is held to the worst part of
+# what is behind the text (wallrender's behind_cells), as lint is. Text
+# colours are opaque, so the ratio after the change is exact: what is behind
+# the text does not move.
 FIX_TEXT = (("white", "#FFFFFF"), ("dark", "#111111"))
 BACKDROP_COLORS = ("#000000", "#FFFFFF")
 BACKDROP_STEP = 0.05  # the opacity field's step
 BACKDROP_MARGIN = 0.015  # of the canvas around the text, as Add panel behind uses (template.js PANEL_MARGIN)
 BACKDROP_RADIUS = 0.12
-BACKDROP_TRIES = 6  # real renders to confirm one; the mean colour behind is almost always exact
+BACKDROP_TRIES = 6  # real renders to confirm one; the sampled cells are almost always exact
 
 
 def _needed(fit, height):
     return 3.0 if fit.used >= LARGE_TEXT * height else 4.5
 
 
-def _text_ratio(fit, behind):
-    return contrast_ratio(_over(fit.color, behind), behind)
+def _text_ratio(fit, cells=None):
+    return worst_contrast(fit.color, fit.cells if cells is None else cells)
 
 
 def _contrast_fixes(fits, height):
@@ -116,10 +118,10 @@ def _contrast_fixes(fits, height):
     and the plain text colour that passes (the better of white and dark), if one does."""
     fixes = []
     for fit in fits:
-        ratio, needed = _text_ratio(fit, fit.behind), _needed(fit, height)
+        ratio, needed = _text_ratio(fit), _needed(fit, height)
         if ratio >= needed:
             continue
-        name, color, best = max(((n, c, contrast_ratio(_rgba(c, (0, 0, 0, 255))[:3], fit.behind))
+        name, color, best = max(((n, c, worst_contrast(_rgba(c, (0, 0, 0, 255)), fit.cells))
                                  for n, c in FIX_TEXT), key=lambda option: option[2])
         fixes.append({"index": fit.index, "ratio": round(ratio, 2), "needed": needed,
                       "text": {"name": name, "color": color, "ratio": round(best, 2)} if best >= needed else None})
@@ -153,6 +155,10 @@ def preview():
                    for label, v in variants]
     except TemplateError as err:
         return jsonify({"problems": err.problems}), 422
+    # The values each stress render used, so a low-contrast fix under it
+    # (Add a backdrop) works out the panel for that render, not the sample.
+    for render, (_, v) in zip(renders[1:], variants[1:]):
+        render["values"] = v
     newer = newer_than(template, config.WALLRENDER_TARGET)
     renders[0]["warnings"] = newer + renders[0]["warnings"]
     renders[0]["kinds"] = ["target"] * len(newer) + renders[0]["kinds"]
@@ -190,14 +196,14 @@ def _backdrop_box(box):
 
 
 def _backdrop_options(fit, needed):
-    """(opacity, colour) pairs that reach the ratio on the mean colour behind
-    the text, lowest opacity first: what to try for real, in order."""
+    """(opacity, colour) pairs that reach the ratio over every sampled cell
+    behind the text, lowest opacity first: what to try for real, in order."""
     options = []
     for color in BACKDROP_COLORS:
         rgb = _rgba(color, (0, 0, 0, 255))[:3]
         for step in range(1, round(1 / BACKDROP_STEP) + 1):
             opacity = round(step * BACKDROP_STEP, 2)
-            seen = _over((*rgb, round(255 * opacity)), fit.behind)
+            seen = [_over((*rgb, round(255 * opacity)), cell) for cell in fit.cells]
             if _text_ratio(fit, seen) >= needed:
                 options += [(o / 100, color) for o in range(round(opacity * 100), 101, round(BACKDROP_STEP * 100))]
                 break
@@ -225,7 +231,7 @@ def backdrop():
         fit = next((f for f in fits if f.index == index), None)
         if fit is None:
             return jsonify({"error": f"Layer {index + 1} prints no text for this device."}), 422
-        needed, before = _needed(fit, image.height), _text_ratio(fit, fit.behind)
+        needed, before = _needed(fit, image.height), _text_ratio(fit)
         result = {"index": index, "from": round(before, 2), "needed": needed}
         if before >= needed:
             return jsonify({**result, "panel": None, "to": round(before, 2)})
@@ -238,7 +244,7 @@ def backdrop():
                 return jsonify({"error": "The template has no room for another layer."}), 422
             _, _, trial_fits, _, _ = _render(trial, values, assets, fits=[])
             after = next(f for f in trial_fits if f.index == index + 1)
-            ratio = _text_ratio(after, after.behind)
+            ratio = _text_ratio(after)
             if ratio >= needed:
                 return jsonify({**result, "panel": panel, "to": round(ratio, 2)})
     except TemplateError as err:
