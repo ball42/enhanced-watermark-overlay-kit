@@ -170,8 +170,12 @@ class _QrFit:
     """How one QR code came out, for lint: never affects the pixels."""
 
     def __init__(self, index: int, side: int, modules: int,
-                 dark: tuple[int, int, int], light: tuple[int, int, int]):
-        self.index, self.side, self.modules, self.dark, self.light = index, side, modules, dark, light
+                 dark: tuple[int, int, int, int], light: tuple[int, int, int, int],
+                 cells: list[tuple[int, int, int]]):
+        self.index, self.side, self.modules = index, side, modules
+        # The layer's own (possibly translucent) colours, and the colours
+        # behind the box that the scan check holds them to (see behind_cells).
+        self.dark, self.light, self.cells = dark, light, cells
 
 
 def _ellipsize(text: str, font, bw: int) -> str:
@@ -305,11 +309,10 @@ def _draw_qr(img: Image.Image, layer: dict[str, Any], values: dict[str, Any], mi
     bx, by, bw, bh = _box_px(layer["box"], img.size)
     side = min(bw, bh) // modules * modules  # whole pixels per module keeps edges crisp
     if qrs is not None:
-        # The colours a scanner sees: light over what is behind the box, dark over light.
+        # A 16x16 sample of what is behind the box: the scan check is held
+        # to its worst part, not its mean (see qr_worst_contrast).
         sample = img.crop((bx, by, bx + max(1, bw), by + max(1, bh))).resize((16, 16), Image.Resampling.BOX)
-        behind = tuple(round(c) for c in ImageStat.Stat(sample.convert("RGB")).mean)
-        seen_light = _over(light, behind)
-        qrs.append(_QrFit(index, side, modules, _over(dark, seen_light), seen_light))
+        qrs.append(_QrFit(index, side, modules, dark, light, behind_cells(sample.convert("RGB"))))
     if side <= 0:
         return
     code = Image.new("RGBA", (modules, modules), light)
@@ -455,6 +458,17 @@ def worst_contrast(color: tuple[int, int, int, int], cells: list[tuple[int, int,
     return min(contrast_ratio(_over(color, cell), cell) for cell in cells)
 
 
+def qr_worst_contrast(dark: tuple[int, int, int, int], light: tuple[int, int, int, int],
+                      cells: list[tuple[int, int, int]]) -> float:
+    """The lowest ratio a scanner sees between a QR code's modules over any
+    of the cells behind it: light over the cell, dark over that light."""
+    ratios = []
+    for cell in cells:
+        seen_light = _over(light, cell)
+        ratios.append(contrast_ratio(_over(dark, seen_light), seen_light))
+    return min(ratios)
+
+
 def _fit_warnings(fits: list[_TextFit], height: int) -> list[str]:
     warnings = []
     for fit in fits:
@@ -486,7 +500,7 @@ def _qr_warnings(qrs: list[_QrFit]) -> list[str]:
         module = qr.side // qr.modules
         if module < QR_MIN_MODULE_PX:
             warnings.append(f"{where}: QR modules are only {module} px; phones may not scan it")
-        ratio = contrast_ratio(qr.dark, qr.light)
+        ratio = qr_worst_contrast(qr.dark, qr.light, qr.cells)
         if ratio < QR_MIN_CONTRAST:
             warnings.append(f"{where}: QR colors have low contrast {ratio:.1f}:1; "
                             f"phones need at least {QR_MIN_CONTRAST:g}:1 to scan it")
