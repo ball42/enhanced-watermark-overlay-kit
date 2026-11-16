@@ -1,4 +1,4 @@
-/* roster-bridge 0.1.0 from @blakesteve/roster 5.17.0 roster-web.css sha256:1ef9544d3cd6 */
+/* roster-bridge 0.1.0 from @blakesteve/roster 5.17.0 roster-web.css sha256:5aad3670d69f */
 
 /* Palette (tokens.css) and theme variables (roster.css :root/.dark). Dark mode: .dark on <html>. */
 
@@ -203,24 +203,36 @@
   }
 }
 
-/* Portfolio layer: --rb-* semantic colours (references to the palette above) and size scales. */
+/* Portfolio layer: --rb-danger-* (roster orange turned from hue 11 to 20 at the same luminance, so
+   danger is not read as red), --rb-* semantic colours (references to the palette) and size scales. */
 
 :root {
   color-scheme: light;
+  --rb-danger-50: #fff5f1;
+  --rb-danger-100: #ffe9dd;
+  --rb-danger-200: #ffd1bb;
+  --rb-danger-300: #ffb38c;
+  --rb-danger-400: #ff8143;
+  --rb-danger-500: #e35914;
+  --rb-danger-600: #c44d11;
+  --rb-danger-700: #a03c0a;
+  --rb-danger-800: #82330b;
+  --rb-danger-900: #6b2d0e;
+  --rb-danger-950: #3a1604;
   --rb-surface: var(--roster-gray-50);
   --rb-surface-raised: var(--roster-white);
   --rb-border: var(--roster-gray-200);
   --rb-text: var(--roster-gray-900);
   --rb-text-soft: var(--roster-gray-600);
-  --rb-status-ok: var(--roster-success-600);
-  --rb-status-ok-bg: var(--roster-success-50);
-  --rb-status-ok-ink: var(--roster-success-600);
+  --rb-status-ok: var(--roster-primary-600);
+  --rb-status-ok-bg: var(--roster-primary-50);
+  --rb-status-ok-ink: var(--roster-primary-600);
   --rb-status-warn: var(--roster-amber-600);
   --rb-status-warn-bg: var(--roster-amber-50);
   --rb-status-warn-ink: var(--roster-amber-700);
-  --rb-status-danger: var(--roster-error-600);
-  --rb-status-danger-bg: var(--roster-error-50);
-  --rb-status-danger-ink: var(--roster-error-600);
+  --rb-status-danger: var(--rb-danger-600);
+  --rb-status-danger-bg: var(--rb-danger-50);
+  --rb-status-danger-ink: var(--rb-danger-700);
   --rb-status-info: var(--roster-info-600);
   --rb-status-info-bg: var(--roster-info-50);
   --rb-status-info-ink: var(--roster-info-700);
@@ -259,15 +271,15 @@
   --rb-border: var(--roster-gray-800);
   --rb-text: var(--roster-gray-100);
   --rb-text-soft: var(--roster-gray-400);
-  --rb-status-ok: var(--roster-success-400);
-  --rb-status-ok-bg: var(--roster-success-900);
-  --rb-status-ok-ink: var(--roster-success-300);
+  --rb-status-ok: var(--roster-primary-400);
+  --rb-status-ok-bg: var(--roster-primary-950);
+  --rb-status-ok-ink: var(--roster-primary-300);
   --rb-status-warn: var(--roster-amber-400);
   --rb-status-warn-bg: var(--roster-amber-950);
   --rb-status-warn-ink: var(--roster-amber-300);
-  --rb-status-danger: var(--roster-error-400);
-  --rb-status-danger-bg: var(--roster-error-900);
-  --rb-status-danger-ink: var(--roster-error-300);
+  --rb-status-danger: var(--rb-danger-400);
+  --rb-status-danger-bg: var(--rb-danger-950);
+  --rb-status-danger-ink: var(--rb-danger-300);
   --rb-status-info: var(--roster-info-400);
   --rb-status-info-bg: var(--roster-info-900);
   --rb-status-info-ink: var(--roster-info-300);
