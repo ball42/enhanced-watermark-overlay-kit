@@ -1,16 +1,15 @@
-/* roster-bridge 0.1.0 from @blakesteve/roster 5.17.0 roster-html.css sha256:6486d5f3823f */
-/* Plain-CSS primitives for server-rendered pages. Load roster-web.css first; every colour here is one of its
-   variables. Dark mode: .dark on <html> (theme.js). Icons: icons.svg. Recipes ported from roster's
-   button/card/badge/alert/empty-state/table variants. */
+/* roster-bridge 0.1.0 from @blakesteve/roster 5.17.0 roster-html.css sha256:285a18849c24 */
+/* Plain-CSS primitives for server-rendered pages, from roster's variants. Load roster-web.css first; every
+   colour is one of its variables. Dark mode: .dark on <html> (theme.js). Icons: icons.svg. */
 
 .rb-btn, .rb-badge, .rb-status, .rb-alert, .rb-table, .rb-empty { font-family: var(--roster-font-ui); box-sizing: border-box; }
 .rb-btn svg, .rb-badge svg, .rb-status svg, .rb-alert svg, .rb-empty svg { width: 1em; height: 1em; flex-shrink: 0; fill: currentColor; }
 
-/* Button: solid primary by default; --outline, --ghost, --error; --sm, --lg. */
+/* Button: solid primary; --outline, --ghost, --error (orange); --sm, --lg. */
 .rb-btn {
   --_bg: var(--roster-primary-600);
   --_bg-hover: var(--roster-primary-700);
-  --_fg: var(--roster-white);
+  --_fg: var(--roster-primary-600-ink, var(--roster-white));
   --_bd: transparent;
   --_shadow: 0 1px 3px 0 color-mix(in srgb, var(--roster-black) 10%, transparent), 0 1px 2px -1px color-mix(in srgb, var(--roster-black) 10%, transparent);
   display: inline-flex; align-items: center; justify-content: center; gap: var(--rb-space-2);
@@ -21,12 +20,12 @@
   white-space: nowrap; text-decoration: none; cursor: pointer;
   transition: color .15s, background-color .15s, border-color .15s;
 }
-.rb-btn:hover { background: var(--_bg-hover); }
-.rb-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--roster-ring-offset), 0 0 0 4px var(--roster-ring); }
+.rb-btn:hover { background: var(--_bg-hover); color: var(--_fg-hover, var(--_fg)); }
+.rb-btn:focus-visible { outline: 2px solid transparent; outline-offset: 2px; box-shadow: 0 0 0 2px var(--roster-ring-offset), 0 0 0 4px var(--roster-ring); }
 .rb-btn:disabled, .rb-btn[aria-disabled="true"] { pointer-events: none; opacity: .5; }
 .rb-btn--sm { height: calc(var(--rb-space-1) * 9); padding: 0 var(--rb-space-3); }
 .rb-btn--lg { height: calc(var(--rb-space-1) * 11); padding: 0 var(--rb-space-8); }
-.rb-btn--error { --_bg: var(--roster-error-600); --_bg-hover: var(--roster-error-700); }
+.rb-btn--error { --_bg: var(--rb-danger-700); --_bg-hover: var(--rb-danger-800); --_fg: var(--rb-danger-700-ink, var(--roster-white)); }
 .rb-btn--outline {
   --_bg: transparent; --_bg-hover: var(--roster-primary-50);
   --_fg: var(--roster-primary-600); --_bd: var(--roster-primary-600);
@@ -35,15 +34,15 @@
   --_bg: transparent; --_bg-hover: color-mix(in srgb, var(--roster-primary-500) 10%, transparent);
   --_fg: var(--roster-primary-600); --_shadow: none;
 }
-.dark .rb-btn { --_bg-hover: var(--roster-primary-500); }
-.dark .rb-btn--error { --_bg-hover: var(--roster-error-500); }
+.dark .rb-btn { --_bg-hover: var(--roster-primary-500); --_fg-hover: var(--roster-primary-500-ink, var(--roster-white)); }
+.dark .rb-btn--error { --_bg-hover: var(--rb-danger-600); --_fg-hover: var(--rb-danger-600-ink, var(--roster-white)); }
 .dark .rb-btn--outline {
   --_bg-hover: color-mix(in srgb, var(--roster-primary-500) 10%, transparent);
-  --_fg: var(--roster-primary-400); --_bd: var(--roster-primary-500);
+  --_fg: var(--roster-primary-400); --_fg-hover: var(--_fg); --_bd: var(--roster-primary-500);
 }
-.dark .rb-btn--ghost { --_bg-hover: color-mix(in srgb, var(--roster-primary-400) 15%, transparent); --_fg: var(--roster-primary-400); }
+.dark .rb-btn--ghost { --_bg-hover: color-mix(in srgb, var(--roster-primary-400) 15%, transparent); --_fg: var(--roster-primary-400); --_fg-hover: var(--_fg); }
 
-/* Card: roster's default "white" card, driven by --roster-card-*. */
+/* Card: roster's "white" card, from --roster-card-*. */
 .rb-card {
   position: relative; box-sizing: border-box; width: 100%; overflow: hidden;
   padding: var(--rb-space-6); border: 1px solid var(--roster-card-border); border-radius: var(--rb-radius-xl);
@@ -64,10 +63,12 @@
   font-size: var(--rb-text-xs); line-height: var(--rb-leading-xs); font-weight: 500; white-space: nowrap;
 }
 .rb-badge svg { width: .75rem; height: .75rem; opacity: .7; }
+/* A long label ends in an ellipsis inside the border; the whole label is still the element's text. */
+.rb-badge__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .rb-badge--primary { --_bg: var(--roster-primary-50); --_bd: var(--roster-primary-200); --_fg: var(--roster-primary-700); }
-.rb-badge--ok { --_bg: var(--roster-success-50); --_bd: var(--roster-success-200); --_fg: var(--roster-success-700); }
+.rb-badge--ok { --_bg: var(--roster-primary-50); --_bd: var(--roster-primary-200); --_fg: var(--roster-primary-700); }
 .rb-badge--warn { --_bg: var(--roster-amber-50); --_bd: var(--roster-amber-200); --_fg: var(--roster-amber-800); }
-.rb-badge--danger { --_bg: var(--roster-error-50); --_bd: var(--roster-error-200); --_fg: var(--roster-error-700); }
+.rb-badge--danger { --_bg: var(--rb-danger-50); --_bd: var(--rb-danger-200); --_fg: var(--rb-danger-700); }
 .rb-badge--info { --_bg: var(--roster-info-50); --_bd: var(--roster-info-200); --_fg: var(--roster-info-700); }
 .dark .rb-badge {
   --_bg: color-mix(in srgb, var(--roster-gray-800) 50%, transparent);
@@ -78,23 +79,23 @@
   --_bd: color-mix(in srgb, var(--roster-primary-800) 50%, transparent); --_fg: var(--roster-primary-300);
 }
 .dark .rb-badge--ok {
-  --_bg: color-mix(in srgb, var(--roster-success-900) 30%, transparent);
-  --_bd: color-mix(in srgb, var(--roster-success-800) 50%, transparent); --_fg: var(--roster-success-300);
+  --_bg: color-mix(in srgb, var(--roster-primary-900) 30%, transparent);
+  --_bd: color-mix(in srgb, var(--roster-primary-800) 50%, transparent); --_fg: var(--roster-primary-300);
 }
 .dark .rb-badge--warn {
   --_bg: color-mix(in srgb, var(--roster-amber-900) 30%, transparent);
   --_bd: color-mix(in srgb, var(--roster-amber-800) 50%, transparent); --_fg: var(--roster-amber-300);
 }
 .dark .rb-badge--danger {
-  --_bg: color-mix(in srgb, var(--roster-error-900) 30%, transparent);
-  --_bd: color-mix(in srgb, var(--roster-error-800) 50%, transparent); --_fg: var(--roster-error-300);
+  --_bg: color-mix(in srgb, var(--rb-danger-900) 30%, transparent);
+  --_bd: color-mix(in srgb, var(--rb-danger-800) 50%, transparent); --_fg: var(--rb-danger-300);
 }
 .dark .rb-badge--info {
   --_bg: color-mix(in srgb, var(--roster-info-900) 30%, transparent);
   --_bd: color-mix(in srgb, var(--roster-info-800) 50%, transparent); --_fg: var(--roster-info-300);
 }
 
-/* Status: icon + text, inline. Always both; colour is never the only cue. */
+/* Status: icon + text, always both; colour is never the only cue. */
 .rb-status {
   display: inline-flex; align-items: center; gap: calc(var(--rb-space-1) * 1.5);
   font-size: var(--rb-text-sm); line-height: var(--rb-leading-sm); font-weight: 500;
@@ -110,7 +111,7 @@
 
 /* Alert: icon, title, body. --ok, --warn, --danger (default), --info. */
 .rb-alert {
-  --_bd: var(--roster-error-500); --_bg: var(--roster-error-50); --_fg: var(--roster-error-800);
+  --_bd: var(--rb-danger-500); --_bg: var(--rb-danger-50); --_fg: var(--rb-danger-800);
   display: flex; align-items: flex-start; gap: calc(var(--rb-space-1) * 2.5);
   padding: var(--rb-space-3) var(--rb-space-4); border-left: 4px solid var(--_bd); border-radius: var(--rb-radius-lg);
   background: var(--_bg); color: var(--_fg); font-size: var(--rb-text-sm); line-height: var(--rb-leading-sm);
@@ -120,14 +121,14 @@
 .rb-alert__title { margin: 0; font-weight: 600; }
 .rb-alert__body { margin: 0; }
 .rb-alert__title + .rb-alert__body { margin-top: .125rem; opacity: .9; }
-.rb-alert--ok { --_bd: var(--roster-success-500); --_bg: var(--roster-success-50); --_fg: var(--roster-success-800); }
+.rb-alert--ok { --_bd: var(--roster-primary-500); --_bg: var(--roster-primary-50); --_fg: var(--roster-primary-800); }
 .rb-alert--warn { --_bd: var(--roster-amber-500); --_bg: var(--roster-amber-50); --_fg: var(--roster-amber-900); }
 .rb-alert--info { --_bd: var(--roster-info-500); --_bg: var(--roster-info-50); --_fg: var(--roster-info-800); }
 .dark .rb-alert {
-  --_bd: var(--roster-error-400); --_bg: color-mix(in srgb, var(--roster-error-500) 10%, transparent); --_fg: var(--roster-error-200);
+  --_bd: var(--rb-danger-400); --_bg: color-mix(in srgb, var(--rb-danger-500) 10%, transparent); --_fg: var(--rb-danger-200);
 }
 .dark .rb-alert--ok {
-  --_bd: var(--roster-success-400); --_bg: color-mix(in srgb, var(--roster-success-500) 10%, transparent); --_fg: var(--roster-success-200);
+  --_bd: var(--roster-primary-400); --_bg: color-mix(in srgb, var(--roster-primary-500) 10%, transparent); --_fg: var(--roster-primary-200);
 }
 .dark .rb-alert--warn {
   --_bd: var(--roster-amber-400); --_bg: color-mix(in srgb, var(--roster-amber-500) 10%, transparent); --_fg: var(--roster-amber-200);
@@ -136,7 +137,7 @@
   --_bd: var(--roster-info-400); --_bg: color-mix(in srgb, var(--roster-info-500) 10%, transparent); --_fg: var(--roster-info-200);
 }
 
-/* Table: <div class="rb-table"><table>...</table></div>. --zebra, --hover; .rb-num for numbers. */
+/* Table: a <table> wrapped in <div class="rb-table">. --zebra, --hover; .rb-num for numbers. */
 .rb-table {
   width: 100%; overflow: auto; border: 1px solid var(--roster-gray-200); border-radius: var(--rb-radius-md);
   background: var(--roster-white);
@@ -151,6 +152,8 @@
 }
 .rb-table td { padding: var(--rb-space-4); vertical-align: middle; color: var(--roster-gray-700); }
 .rb-table caption { padding: var(--rb-space-3); color: var(--roster-gray-500); font-size: var(--rb-text-xs); }
+.rb-table .rb-table__empty td { padding: var(--rb-space-8) var(--rb-space-4); text-align: center; color: var(--roster-gray-500); }
+.dark .rb-table .rb-table__empty td { color: var(--roster-gray-400); }
 .rb-table .rb-num { text-align: right; font-variant-numeric: tabular-nums; }
 .rb-table--zebra tbody tr:nth-child(even) { background: var(--roster-gray-50); }
 .rb-table--hover tbody tr:hover { background: color-mix(in srgb, var(--roster-gray-100) 60%, transparent); }
@@ -159,6 +162,7 @@
 .dark .rb-table tr { border-color: var(--roster-gray-800); }
 .dark .rb-table th { color: var(--roster-gray-400); }
 .dark .rb-table td { color: var(--roster-gray-300); }
+.dark .rb-table caption { color: var(--roster-gray-400); }
 .dark .rb-table--zebra tbody tr:nth-child(even) { background: color-mix(in srgb, var(--roster-gray-900) 60%, transparent); }
 .dark .rb-table--hover tbody tr:hover { background: color-mix(in srgb, var(--roster-gray-800) 50%, transparent); }
 
@@ -181,8 +185,7 @@
 .dark .rb-empty__title { color: var(--roster-gray-100); }
 .dark .rb-empty__desc { color: var(--roster-gray-400); }
 
-/* Skeleton: block (default), --line, --circle. Shimmer stops under prefers-reduced-motion.
-   Colours and block radius follow roster's --roster-skeleton* tokens (5.11+); the fallbacks are the pre-5.11 values. */
+/* Skeleton: block, --line, --circle; no shimmer under reduced motion. Colours follow --roster-skeleton* (5.11+). */
 .rb-skeleton {
   --_base: var(--roster-skeleton, var(--roster-gray-200)); --_hi: var(--roster-skeleton-highlight, var(--roster-gray-100));
   display: block; height: calc(var(--rb-space-1) * 24); border-radius: var(--roster-skeleton-radius, var(--rb-radius-lg));
@@ -199,6 +202,131 @@
   .rb-skeleton { animation: none; background: var(--_base); }
 }
 
+/* Visually hidden, still read by screen readers (rb.skeleton's loading label). */
+.rb-sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* Theme switch (rb.theme_switch, theme.js): Light / Dark / System. The current choice is raised, outlined and bold,
+   so it reads without colour; theme.js sets aria-pressed. */
+.rb-theme-switch {
+  display: inline-flex; gap: 2px; padding: 2px; box-sizing: border-box; max-width: 100%;
+  border: 1px solid var(--rb-border); border-radius: var(--rb-radius-lg); background: var(--rb-surface);
+  font-family: var(--roster-font-ui);
+}
+.rb-theme-switch__opt {
+  display: inline-flex; align-items: center; gap: calc(var(--rb-space-1) * 1.5); min-height: 2rem;
+  padding: 0 var(--rb-space-3); border: 1px solid transparent; border-radius: var(--rb-radius-md);
+  background: transparent; color: var(--rb-text-soft); font: inherit; font-size: var(--rb-text-sm); cursor: pointer;
+}
+.rb-theme-switch__opt svg { width: 1em; height: 1em; flex-shrink: 0; fill: currentColor; }
+.rb-theme-switch__opt:hover { color: var(--rb-text); }
+.rb-theme-switch__opt[aria-pressed="true"] {
+  border-color: var(--rb-border); background: var(--rb-surface-raised); color: var(--rb-text); font-weight: 600;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .08);
+}
+.rb-theme-switch__opt:focus-visible { outline: 2px solid transparent; outline-offset: 2px; box-shadow: 0 0 0 2px var(--roster-ring-offset), 0 0 0 4px var(--roster-ring); }
+@media (forced-colors: active) {
+  .rb-theme-switch__opt[aria-pressed="true"] { border-color: Highlight; }
+}
+
+/* Stat tile (rb.stat): label, value, signed delta with an arrow icon, sparkline. Good is blue, bad orange; the icon
+   and sign carry direction. */
+.rb-stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); gap: var(--rb-space-3); }
+.rb-stat {
+  --_line: var(--roster-primary-500); --_now: var(--roster-primary-700);
+  --_good: var(--roster-primary-600); --_bad: var(--roster-amber-700);
+  display: flex; flex-direction: column; gap: var(--rb-space-1); box-sizing: border-box; min-width: 0;
+  padding: var(--rb-space-4) var(--rb-space-4) var(--rb-space-3);
+  border: 1px solid var(--roster-card-border); border-radius: var(--rb-radius-xl);
+  background: var(--roster-card-bg); color: var(--roster-card-text); box-shadow: var(--roster-elevation-raised);
+  font-family: var(--roster-font-ui);
+}
+.dark .rb-stat { --_line: var(--roster-primary-400); --_now: var(--roster-primary-300); --_good: var(--roster-primary-300); --_bad: var(--roster-amber-300); }
+.rb-stat p { margin: 0; }
+.rb-stat__label { color: var(--rb-text-soft); font-size: var(--rb-text-sm); line-height: var(--rb-leading-sm); font-weight: 500; }
+.rb-stat__value {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: clamp(1.625rem, 1.2rem + 1.6vw, 2rem); line-height: 1.15; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+  color: var(--rb-text);
+}
+.rb-stat__value--none { color: var(--rb-text-soft); }
+.rb-stat__unit { margin-left: .125em; font-size: .55em; font-weight: 500; letter-spacing: 0; color: var(--rb-text-soft); }
+.rb-stat__delta {
+  display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--rb-space-1);
+  font-size: var(--rb-text-sm); line-height: var(--rb-leading-sm); font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.rb-stat__delta svg { width: .85em; height: .85em; flex-shrink: 0; fill: currentColor; }
+.rb-stat__delta--good { color: var(--_good); }
+.rb-stat__delta--bad { color: var(--_bad); }
+.rb-stat__delta--flat { color: var(--rb-text-soft); }
+.rb-stat__period { color: var(--rb-text-soft); font-weight: 400; }
+.rb-stat__spark { position: relative; height: 2.5rem; margin-top: var(--rb-space-2); }
+.rb-stat__spark svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.rb-stat__area { fill: color-mix(in srgb, var(--_line) 12%, transparent); stroke: none; }
+.rb-stat__line { fill: none; stroke: var(--_line); stroke-width: 2px; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.rb-stat__hit { fill: transparent; }
+.rb-stat__hit:hover { fill: color-mix(in srgb, var(--_line) 14%, transparent); }
+/* The latest point: a dot ringed in the card colour, so it reads against the line. */
+.rb-stat__now {
+  position: absolute; right: 0; width: 8px; height: 8px; margin: -4px -4px 0 0; border-radius: 50%;
+  background: var(--_now); box-shadow: 0 0 0 2px var(--roster-card-bg); pointer-events: none;
+}
+@media (forced-colors: active) {
+  .rb-stat__line { stroke: CanvasText; }
+  .rb-stat__area { fill: none; }
+  .rb-stat__now { background: CanvasText; }
+}
+
+/* Stat skeleton (rb.stat_skeleton): the tile's own label, value, delta and spark boxes, so it is exactly as tall as a
+   loaded rb.stat and an HTMX swap does not shift the row. */
+.rb-stat--loading .rb-skeleton { display: inline-block; vertical-align: middle; height: .7em; }
+.rb-stat--loading .rb-stat__delta { display: block; }
+.rb-stat--loading .rb-stat__spark .rb-skeleton { display: block; width: 100%; height: 100%; }
+
+/* Meter (rb.meter, rb-meter-list): value against a limit. Blue, amber past warn_at, darker orange past danger_at;
+   the icon and its word carry the state. Fills reach 3:1 on the card. */
+.rb-meter {
+  --_fill: var(--roster-primary-500); --_track: var(--roster-primary-100); --_ink: var(--roster-primary-700);
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: calc(var(--rb-space-1) * 1.5) var(--rb-space-3); min-width: 0;
+  font-family: var(--roster-font-ui); font-size: var(--rb-text-sm); line-height: var(--rb-leading-sm); color: var(--rb-text);
+}
+.rb-meter--warn { --_fill: var(--roster-amber-600); --_track: var(--roster-amber-100); --_ink: var(--roster-amber-800); }
+.rb-meter--danger { --_fill: var(--rb-danger-700); --_track: var(--rb-danger-100); --_ink: var(--rb-danger-700); }
+.rb-meter--none { --_track: var(--roster-gray-100); }
+.dark .rb-meter { --_fill: var(--roster-primary-400); --_track: var(--roster-primary-900); --_ink: var(--roster-primary-300); }
+.dark .rb-meter--warn { --_fill: var(--roster-amber-300); --_track: color-mix(in srgb, var(--roster-amber-700) 35%, transparent); --_ink: var(--roster-amber-300); }
+.dark .rb-meter--danger { --_fill: var(--rb-danger-500); --_track: var(--rb-danger-950); --_ink: var(--rb-danger-400); }
+.dark .rb-meter--none { --_track: var(--roster-gray-800); }
+.rb-meter__label { grid-area: label; flex: 1 1 auto; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.rb-meter__text {
+  grid-area: text; display: inline-flex; align-items: center; gap: var(--rb-space-1); justify-self: end; margin-left: auto;
+  white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--rb-text-soft);
+}
+.rb-meter--warn .rb-meter__text, .rb-meter--danger .rb-meter__text { color: var(--_ink); font-weight: 600; }
+.rb-meter__text svg { width: 1em; height: 1em; flex-shrink: 0; fill: currentColor; }
+.rb-meter__track {
+  grid-area: track; flex: 1 0 100%; position: relative; display: block; align-self: center; height: .5rem;
+  border-radius: 999px; background: var(--_track); overflow: hidden;
+}
+.rb-meter__fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--_fill); }
+/* Threshold ticks: a notch in the card colour, so they show on the fill and the track alike. */
+.rb-meter__tick { position: absolute; top: 0; bottom: 0; z-index: 1; width: 2px; margin-left: -1px; background: var(--roster-card-bg); }
+.rb-meter-list { display: grid; gap: var(--rb-space-4); container-type: inline-size; }
+/* Wide lists: one row per meter, with the same label and text widths in every row, so the bars share one column.
+   --rb-meter-label and --rb-meter-text set those widths. */
+@container (min-width: 30rem) {
+  .rb-meter-list > .rb-meter {
+    display: grid; grid-template-columns: var(--rb-meter-label, 9rem) minmax(0, 1fr) var(--rb-meter-text, 9.5rem);
+    grid-template-areas: "label track text"; align-items: center; column-gap: var(--rb-space-4);
+  }
+}
+@media (forced-colors: active) {
+  .rb-meter__track { border: 1px solid CanvasText; }
+  .rb-meter__fill { background: CanvasText; }
+}
+
 /* Forms: .rb-field > .rb-label + .rb-input (input, select, textarea) or .rb-check, .rb-field__hint, .rb-field__error. */
 .rb-field { display: block; margin-bottom: var(--rb-space-4); font-family: var(--roster-font-ui); }
 .rb-field--check { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rb-space-2); }
@@ -212,13 +340,21 @@
 }
 textarea.rb-input { min-height: 80px; height: auto; padding: calc(var(--rb-space-1) * 2.5) var(--rb-space-4); }
 select.rb-input { cursor: pointer; }
-.rb-input::placeholder { color: color-mix(in srgb, var(--roster-control-text) 55%, transparent); }
-.rb-input:focus-visible, .rb-check:focus-visible { outline: none; border-color: var(--roster-control-border-focus); box-shadow: 0 0 0 2px var(--roster-ring-offset), 0 0 0 4px var(--roster-ring); }
+.rb-input::placeholder { color: color-mix(in srgb, var(--roster-control-text) 65%, transparent); }
+.rb-input:focus-visible, .rb-check:focus-visible { outline: 2px solid transparent; outline-offset: 2px; border-color: var(--roster-control-border-focus); box-shadow: 0 0 0 2px var(--roster-ring-offset), 0 0 0 4px var(--roster-ring); }
 .rb-input:disabled, .rb-check:disabled { cursor: not-allowed; opacity: .5; }
 .rb-check { width: 1rem; height: 1rem; margin: 0; accent-color: var(--roster-ring); }
-.rb-input[aria-invalid="true"] { border-color: var(--roster-error-500); }
+.rb-input[aria-invalid="true"] { border-color: var(--rb-danger-600); }
 .rb-field__hint, .rb-field__error { flex-basis: 100%; margin: calc(var(--rb-space-1) * 1.5) 0 0; font-size: var(--rb-text-xs); line-height: var(--rb-leading-xs); color: var(--roster-gray-500); }
-.rb-field__error { display: flex; align-items: center; gap: var(--rb-space-1); font-weight: 500; color: var(--roster-error-600); }
+.rb-field__error { display: flex; align-items: center; gap: var(--rb-space-1); font-weight: 500; color: var(--rb-danger-700); }
 .rb-field__error svg { width: 1em; height: 1em; flex-shrink: 0; fill: currentColor; }
 .dark .rb-field__hint { color: var(--roster-gray-400); }
-.dark .rb-field__error { color: var(--roster-error-400); }
+.dark .rb-field__error { color: var(--rb-danger-400); }
+
+/* Touch: 44px targets; 16px field text so iOS does not zoom on focus. Desktop is unchanged. */
+@media (pointer: coarse) {
+  .rb-btn, .rb-theme-switch__opt, .rb-input { min-height: 2.75rem; min-width: 2.75rem; }
+  .rb-input { font-size: 1rem; }
+  .rb-check { width: 1.5rem; height: 1.5rem; }
+  .rb-field--check .rb-label { display: flex; align-items: center; min-height: 2.75rem; padding-right: var(--rb-space-2); }
+}
