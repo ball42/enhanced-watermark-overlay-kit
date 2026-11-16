@@ -13,6 +13,12 @@ def trash():
     return os.path.join(config.TEMPLATE_ASSETS_FOLDER, ".trash")
 
 
+def trashed_ids():
+    """Ids in the deleted slot; each copy is kept as <id>.<stamp>.<ext>."""
+    names = [n for n in os.listdir(trash()) if os.path.isfile(os.path.join(trash(), n))]
+    return sorted(n.split(".")[0] for n in names)
+
+
 def ids(client):
     return [a["id"] for a in client.get("/api/template/assets").get_json()["assets"]]
 
@@ -37,7 +43,7 @@ def test_the_trash_is_not_part_of_the_library(client):
     upload(client, "spare.png")
     client.delete("/api/template/assets/logo")
     assert ids(client) == ["spare"]
-    assert os.listdir(trash()) == ["logo.png"]
+    assert trashed_ids() == ["logo"]
 
 
 def test_undo_twice_says_there_is_nothing_to_undo(client):
@@ -72,9 +78,10 @@ def test_the_trash_is_emptied_after_a_day(client):
     upload(client, "new.png")
     client.delete("/api/template/assets/old")
     stale = time.time() - DAY - 60
-    os.utime(os.path.join(trash(), "old.png"), (stale, stale))
+    (old,) = os.listdir(trash())
+    os.utime(os.path.join(trash(), old), (stale, stale))
     client.delete("/api/template/assets/new")  # any delete empties what is over a day old
-    assert sorted(os.listdir(trash())) == ["new.png"]
+    assert trashed_ids() == ["new"]
     resp = client.post("/api/template/assets/old/restore")
     assert resp.status_code == 404
 
