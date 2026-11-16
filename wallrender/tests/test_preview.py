@@ -116,6 +116,22 @@ def test_grey_on_grey_qr_colors_are_reported():
     assert any(w.startswith("layer 0: QR colors have low contrast 1.") for w in warnings), warnings
 
 
+def test_a_translucent_qr_background_is_judged_against_the_worst_part_behind_it():
+    """A quarter-opaque white QR background over a half-white, half-black
+    canvas: over the mean grey it passes (about 8:1), but over the black half
+    the light modules are dark grey and that half of the code will not scan."""
+    qr = qr_layer((0.35, 0.7, 0.3, 0.14), background="#FFFFFF40")
+    warnings = lint(tpl(HALF_WHITE, qr, **PHONE), {}, no_assets)
+    low = [w for w in warnings if w.startswith("layer 1: QR colors have low contrast")]
+    assert low, warnings
+    assert low[0].startswith("layer 1: QR colors have low contrast 2."), low
+
+
+def test_an_opaque_qr_background_over_the_same_split_is_quiet():
+    qr = qr_layer((0.35, 0.7, 0.3, 0.14))
+    assert lint(tpl(HALF_WHITE, qr, **PHONE), {}, no_assets) == []
+
+
 def test_a_default_black_on_white_qr_is_quiet():
     assert lint(tpl(qr_layer((0.35, 0.7, 0.3, 0.14)), **PHONE), {}, no_assets) == []
 
