@@ -15,6 +15,8 @@ warnings = lint(template, values, asset_resolver) # missing values, missing glyp
 - `values` is a dict of device data, for example built from the verified Jamf record. Nested dicts are addressed with dots: `{{location.building}}`.
 - `asset_resolver(asset_id)` returns PNG or JPEG bytes, or a PIL image; raise `KeyError` for an unknown id. Templates never contain file paths, only asset ids.
 - Every failure, whether from the template, the values or the assets, raises `TemplateError`, never another exception.
+- Rendering one template many times (a batch of devices, a preview after each edit)? Pass one `AssetCache()` as `cache=` to `render`, `render_with_report` or `render_with_lint`. Decoded assets and resized image layers are then reused across calls instead of decoded and resized again: a 2000 px logo over 200 devices costs one decode, not 200. Entries are keyed by a digest of the resolver's bytes, so a changed asset is decoded again; the cache is thread-safe and bounded (256 MB by default, least recently used out first). Assets the resolver returns as PIL images are not cached. Without a cache nothing changes (from 0.14.0).
+- A canvas that is opaque everywhere (a solid colour, or a photo with no transparency) is no longer composited over black at the end; the pixels are the same and a render is about twice as fast. A background with any transparency still renders black there (from 0.14.0).
 
 ## Preview from the command line
 

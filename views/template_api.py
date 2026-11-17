@@ -22,7 +22,7 @@ from PIL import Image, UnidentifiedImageError
 
 import config
 import wallrender
-from wallrender import TemplateError, render_with_lint, required_version, validate
+from wallrender import AssetCache, TemplateError, render_with_lint, required_version, validate
 from wallrender.cli import folder_assets, role_keys, stress_values
 from wallrender.devices import fit_warnings
 from wallrender.render import (LARGE_TEXT, MIN_FONT_PX, READABLE_MIN, _box_px, _fit_font, _lint_warnings,
@@ -48,6 +48,11 @@ REPLACED = "replaced"
 TRASH_DAYS = 1
 TRASHED_NAME = re.compile(
     rf"(?P<id>{ASSET_ID.pattern})(?:\.(?P<stamp>[0-9]{{1,20}}))?\.(?:{'|'.join(EXTENSIONS)})")
+# Decoded assets and resized image layers, shared by every render: a preview
+# after each edit and each device of a check reuse them instead of decoding a
+# 2000 px logo again. Keyed by a digest of the file's bytes, so a replaced
+# asset is never drawn stale.
+ASSET_CACHE = AssetCache()
 
 
 def _folder():
@@ -91,7 +96,8 @@ def _json_body():
 
 def _render_one(template, values, assets, label, devices=(), screen="lock"):
     # render_with_lint(), keeping the text fits so low contrast can carry its fix.
-    image, missing, fits, hidden, qrs = _render(template, values, assets, fits=[], hidden=[], qrs=[])
+    image, missing, fits, hidden, qrs = _render(template, values, assets, fits=[], hidden=[], qrs=[],
+                                                cache=ASSET_CACHE)
     warnings = _lint_warnings(template, values, assets, image, missing, fits, hidden, qrs)
     return {"label": label, "image": _preview_data_url(image, template, values),
             "warnings": warnings, "kinds": [warning_kind(w) for w in warnings],
@@ -185,7 +191,8 @@ def preview_png():
     if problems:
         return jsonify({"problems": problems}), 400
     try:
-        image, _ = render_with_lint(body["template"], body["values"], folder_assets(_folder()))
+        image, _ = render_with_lint(body["template"], body["values"], folder_assets(_folder()),
+                                    cache=ASSET_CACHE)
     except TemplateError as err:
         return jsonify({"problems": err.problems}), 422
     buffer = io.BytesIO()
@@ -233,7 +240,7 @@ def backdrop():
         return jsonify({"error": "The index must be the number of a text layer."}), 400
     assets = folder_assets(_folder())
     try:
-        image, _, fits, _, _ = _render(template, values, assets, fits=[])
+        image, _, fits, _, _ = _render(template, values, assets, fits=[], cache=ASSET_CACHE)
         fit = next((f for f in fits if f.index == index), None)
         if fit is None:
             return jsonify({"error": f"Layer {index + 1} prints no text for this device."}), 422
@@ -248,7 +255,7 @@ def backdrop():
             trial["layers"].insert(index, panel)
             if validate(trial):
                 return jsonify({"error": "The template has no room for another layer."}), 422
-            _, _, trial_fits, _, _ = _render(trial, values, assets, fits=[])
+            _, _, trial_fits, _, _ = _render(trial, values, assets, fits=[], cache=ASSET_CACHE)
             after = next(f for f in trial_fits if f.index == index + 1)
             ratio = _text_ratio(after)
             if ratio >= needed:
@@ -290,8 +297,8 @@ def preview_batch():
         for n, values in enumerate(devices, first):
             # The same render and lint as render_with_lint(), keeping the text
             # sizes it measured so the summary can name the smallest one.
-            image, missing, fits, hidden, qrs = _render(template, values, assets,
-                                                        fits=[], hidden=[], qrs=[])
+            image, missing, fits, hidden, qrs = _render(template, values, assets, fits=[], hidden=[],
+                                                        qrs=[], cache=ASSET_CACHE)
             warnings = _lint_warnings(template, values, assets, image, missing, fits, hidden, qrs)
             smallest = min(fits, key=lambda f: f.used, default=None)
             image.thumbnail((THUMB_WIDTH, THUMB_WIDTH * 8))
@@ -313,7 +320,8 @@ FIT_CHECKS = 5  # the devices a fitted size is rendered for, tightest first
 
 def _layer_warns(template, values, assets, index):
     """Whether lint says this text layer shrank, was shortened or is cut off."""
-    image, missing, fits, hidden, qrs = _render(template, values, assets, fits=[], hidden=[], qrs=[])
+    image, missing, fits, hidden, qrs = _render(template, values, assets, fits=[], hidden=[], qrs=[],
+                                                cache=ASSET_CACHE)
     warnings = _lint_warnings(template, values, assets, image, missing, fits, hidden, qrs)
     return any(re.match(rf"layer {index}:", w) and warning_kind(w) in NAME_KINDS for w in warnings)
 
