@@ -2057,13 +2057,14 @@
     return JSON.stringify(t);
   }
 
-  // Called on every preview: dims the results once the template differs
-  // from the one they were checked against (and undims them after an undo).
+  // Called on every preview: marks the results out of date once the template
+  // differs from the one they were checked against (and clears it after an undo).
   function markFleetStale() {
     drawPreflight();
     if (fleetSignature === null) return;
     const stale = fleetTemplate() !== fleetSignature;
     $('#fleetStale').hidden = !stale;
+    $('#fleetFitStale').hidden = !stale;
     $('#fleetSummary').classList.toggle('is-stale', stale);
     $('#fleetSheet').classList.toggle('is-stale', stale);
   }

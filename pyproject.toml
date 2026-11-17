@@ -16,7 +16,11 @@ ewok = "app:main"
 [dependency-groups]
 dev = ["pytest>=8", "pytest-flask>=1.3"]
 # Browser tests (tests/browser); also run `uv run playwright install chromium`.
-browser = ["playwright>=1.58"]
+# axe-playwright-python ships axe-core, injected from disk (no network).
+browser = [
+    "axe-playwright-python>=0.1.8",
+    "playwright>=1.58",
+]
 
 [tool.uv.sources]
 wallrender = { path = "wallrender", editable = true }

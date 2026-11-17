@@ -694,13 +694,25 @@ input[type="color"] {
   box-shadow: var(--shadow-sm, none);
 }
 
-.tpl-fleet-body {
-  transition: opacity var(--transition-base);
+/* Out of date: the words ("Out of date" alert and the tag on the hero number)
+   say it, and the frames turn dashed. The text keeps full contrast; only the
+   thumbnails, which are pictures of the old template, fade. */
+.tpl-fleet-summary.is-stale,
+.tpl-fleet.is-stale .tpl-fleet-pick {
+  border-style: dashed;
+  border-color: var(--color-text-muted);
 }
 
-.tpl-fleet-summary.is-stale .tpl-fleet-body,
-.tpl-fleet.is-stale {
+.tpl-fleet.is-stale .tpl-fleet-pick img {
   opacity: 0.45;
+}
+
+.tpl-fleet-hero-stale {
+  align-self: center;
+}
+
+.tpl-fleet-hero-stale[hidden] {
+  display: none;
 }
 
 .tpl-fleet-stale {
