@@ -18,7 +18,7 @@ import time
 import zipfile
 
 from flask import Blueprint, jsonify, request, send_file
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 import config
 import wallrender
@@ -573,6 +573,61 @@ def serve_asset(asset_id):
     if not path:
         return jsonify({"error": GONE}), 404
     return send_file(path)
+
+
+# The library shows each asset at 40 px, so it gets a small thumbnail rather
+# than the original (a phone photo is 2 MB, a 12 MP one 7 MB, and the page
+# loads them all with the Assets panel closed). Each thumbnail is made once
+# and kept in <assets>/.thumbs under the original's mtime and size, so a
+# replaced or restored asset gets a new one. Rendering, Download and the
+# exports still read the original.
+THUMBS = ".thumbs"
+THUMB_SIDE = 96
+THUMB_JPEG_QUALITY = 85
+
+
+def _thumb_path(asset_id, path):
+    """The cached thumbnail of an asset file, made on first use."""
+    folder = os.path.join(_folder(), THUMBS)
+    os.makedirs(folder, exist_ok=True)
+    stat = os.stat(path)
+    key = f"{asset_id}.{stat.st_mtime_ns}-{stat.st_size}"
+    for ext in ("png", "jpg"):
+        cached = os.path.join(folder, f"{key}.{ext}")
+        if os.path.isfile(cached):
+            return cached
+    with Image.open(path, formats=tuple(FORMATS)) as img:
+        img.draft("RGB", (THUMB_SIDE * 2, THUMB_SIDE * 2))  # JPEG: decode at a fraction of full size
+        thumb = ImageOps.exif_transpose(img)  # as wallrender draws it
+    alpha = thumb.mode in ("RGBA", "LA", "PA") or "transparency" in thumb.info
+    thumb = thumb.convert("RGBA" if alpha else "RGB")
+    thumb.thumbnail((THUMB_SIDE, THUMB_SIDE), Image.LANCZOS)
+    ext = "png" if alpha else "jpg"
+    cached = os.path.join(folder, f"{key}.{ext}")
+    partial = f"{cached}.{os.getpid()}.{time.time_ns()}.part"
+    if alpha:
+        thumb.save(partial, "PNG", optimize=True)
+    else:
+        thumb.save(partial, "JPEG", quality=THUMB_JPEG_QUALITY)
+    os.replace(partial, cached)  # another request making the same one is harmless
+    for name in os.listdir(folder):  # older thumbnails of this id
+        if name.startswith(f"{asset_id}.") and name != os.path.basename(cached) and not name.endswith(".part"):
+            try:
+                os.remove(os.path.join(folder, name))
+            except OSError:
+                pass
+    return cached
+
+
+@template_bp.route("/assets/<asset_id>/thumb", methods=["GET"])
+def serve_thumb(asset_id):
+    path = _asset_path(asset_id)
+    if not path:
+        return jsonify({"error": GONE}), 404
+    try:
+        return send_file(_thumb_path(asset_id, path))
+    except (OSError, Image.DecompressionBombError):
+        return jsonify({"error": "That asset is not a readable image."}), 404
 
 
 @template_bp.route("/assets/<asset_id>", methods=["DELETE"])

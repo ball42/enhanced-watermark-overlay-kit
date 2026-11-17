@@ -728,7 +728,7 @@
     state.assets.forEach((a) => {
       const li = document.createElement('li');
       const img = document.createElement('img');
-      img.src = `/api/template/assets/${a.id}`;
+      img.src = `/api/template/assets/${a.id}/thumb`; // small; the original only renders
       img.alt = '';
       const name = document.createElement('span');
       name.className = 'asset-name';
@@ -2073,6 +2073,10 @@
   // arrive and Stop keeps what was checked. Each CSV loaded is a new list;
   // a re-check of the same list is compared with the last complete one.
   const FLEET_CHUNK = 10;
+  // Chunks in flight at once. The server is threaded, so two overlap the
+  // render of one chunk with the transfer and drawing of another; a live
+  // preview sent meanwhile still answers promptly.
+  const FLEET_PARALLEL = 2;
   let fleetRun = null; // the check in progress: { controller, stopped }
   let fleetListId = 0;
   let fleetLast = null; // { listId, counts } of the last complete check
@@ -2121,32 +2125,46 @@
     $('#fleetStaleRecheck').disabled = true;
     fleetStatus(`${fleetNote}Checking ${plural(devices.length, 'device')}…`);
     showFleetProgress(0, devices.length);
-    try {
-      for (let start = 0; start < devices.length; start += FLEET_CHUNK) {
-        const resp = await fetch('/api/template/preview-batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ template, devices: devices.slice(start, start + FLEET_CHUNK), first: start + 1 }),
-          signal: run.controller.signal,
-        });
-        const body = await readJson(resp);
-        if (fleetRun !== run) return;
-        if (!resp.ok) {
-          failure = `Not checked: ${(body.problems || [body.error]).join('; ')}`;
-          break;
+    // Each worker takes the next chunk until none are left. One abort
+    // (Stop, a newer check, a failure) cancels every chunk in flight.
+    let next = 0;
+    let lost = false;
+    const worker = async () => {
+      try {
+        while (next < devices.length && !failure) {
+          const start = next;
+          next += FLEET_CHUNK;
+          const resp = await fetch('/api/template/preview-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ template, devices: devices.slice(start, start + FLEET_CHUNK), first: start + 1 }),
+            signal: run.controller.signal,
+          });
+          const body = await readJson(resp);
+          if (fleetRun !== run || failure) return;
+          if (!resp.ok) {
+            failure = `Not checked: ${(body.problems || [body.error]).join('; ')}`;
+            run.controller.abort();
+            return;
+          }
+          readablePx = body.readable_px;
+          body.results.forEach((r, i) => {
+            const result = { ...r, kinds: r.kinds || [], values: devices[start + i], row: start + i };
+            result.issues = fleetIssues(result);
+            results.push(result);
+          });
+          showFleetProgress(results.length, devices.length);
+          showFleetResults(results, template, signature, readablePx, null);
         }
-        readablePx = body.readable_px;
-        body.results.forEach((r, i) => {
-          const result = { ...r, kinds: r.kinds || [], values: devices[start + i], row: start + i };
-          result.issues = fleetIssues(result);
-          results.push(result);
-        });
-        showFleetProgress(results.length, devices.length);
-        showFleetResults(results, template, signature, readablePx, null);
+      } catch (err) {
+        lost = true;
+        run.controller.abort();
       }
-    } catch (err) {
+    };
+    try {
+      await Promise.all(Array.from({ length: FLEET_PARALLEL }, worker));
       if (fleetRun !== run) return;
-      if (!run.stopped) failure = 'Not checked: could not reach EWOK.';
+      if (lost && !run.stopped && !failure) failure = 'Not checked: could not reach EWOK.';
     } finally {
       if (fleetRun === run) {
         fleetRun = null;
