@@ -7,10 +7,13 @@ and any failure surfaces as TemplateError."""
 
 from __future__ import annotations
 
+import hashlib
 import io
 import logging
 import math
+import threading
 import warnings
+from collections import OrderedDict
 from importlib import resources
 from typing import Any, Callable, Union
 
@@ -43,14 +46,64 @@ _FONT_BYTES = _font_bytes()  # read-only and shared; FreeTypeFont objects are pe
 _VARIATIONS = {"regular": "Regular", "medium": "Medium", "semibold": "SemiBold", "bold": "Bold"}
 
 
+class AssetCache:
+    """Decoded assets and resized image layers kept across renders, for a
+    caller that renders one template many times (a preview after each edit,
+    a check of 200 devices). Entries are keyed by a digest of the bytes the
+    resolver returns, so a replaced asset is decoded again, never served
+    stale. Bounded by the bytes its images hold, least recently used out
+    first. Thread-safe; the images it holds are never modified.
+
+    Optional: render() without a cache decodes and resizes on every call."""
+
+    def __init__(self, max_bytes: int = 256 * 1024 * 1024):
+        self.max_bytes = max_bytes
+        self._lock = threading.Lock()
+        self._items: OrderedDict[tuple, tuple[Any, int]] = OrderedDict()
+        self._bytes = 0
+
+    def get(self, key: tuple) -> Any:
+        with self._lock:
+            item = self._items.get(key)
+            if item is None:
+                return None
+            self._items.move_to_end(key)
+            return item[0]
+
+    def put(self, key: tuple, value: Any, nbytes: int) -> None:
+        if nbytes > self.max_bytes:
+            return
+        with self._lock:
+            old = self._items.pop(key, None)
+            if old is not None:
+                self._bytes -= old[1]
+            self._items[key] = (value, nbytes)
+            self._bytes += nbytes
+            while self._bytes > self.max_bytes:
+                _, (_, size) = self._items.popitem(last=False)
+                self._bytes -= size
+
+    def clear(self) -> None:
+        with self._lock:
+            self._items.clear()
+            self._bytes = 0
+
+
+def _nbytes(img: Image.Image) -> int:
+    return img.width * img.height * len(img.getbands())
+
+
 class _Session:
     """Per-render caches: fonts (FreeTypeFont is not documented as thread-safe)
-    and decoded assets (so a logo used in several layers is decoded once)."""
+    and decoded assets (so a logo used in several layers is decoded once),
+    backed by an AssetCache when the caller passes one."""
 
-    def __init__(self, assets: AssetResolver):
+    def __init__(self, assets: AssetResolver, cache: AssetCache | None = None):
         self._resolve = assets
+        self._cache = cache
         self._fonts: dict[tuple[int, str], ImageFont.FreeTypeFont] = {}
-        self._assets: dict[str, Image.Image] = {}
+        self._assets: dict[str, tuple[Any, Image.Image, bool]] = {}
+        self._fitted: dict[tuple, Image.Image] = {}
 
     def font(self, px: int, weight: str = "regular") -> ImageFont.FreeTypeFont:
         if (px, weight) not in self._fonts:
@@ -64,14 +117,44 @@ class _Session:
             self._fonts[(px, weight)] = f
         return self._fonts[(px, weight)]
 
-    def asset(self, asset_id: str) -> Image.Image:
+    def _load(self, asset_id: str) -> tuple[Any, Image.Image, bool]:
+        """(cache key or None, RGBA image, whether every pixel is opaque)."""
         if asset_id not in self._assets:
             try:
                 data = self._resolve(asset_id)
             except KeyError as e:
                 raise TemplateError([f"asset {asset_id!r} not found"]) from e
-            self._assets[asset_id] = _open(asset_id, data)
+            key = None
+            if self._cache is not None and isinstance(data, (bytes, bytearray)):
+                key = ("asset", asset_id, hashlib.blake2b(data, digest_size=16).digest())
+            hit = key and self._cache.get(key)
+            if hit:
+                img, opaque = hit
+            else:
+                img, opaque = _open(asset_id, data)
+                if key:
+                    self._cache.put(key, (img, opaque), _nbytes(img))
+            self._assets[asset_id] = (key, img, opaque)
         return self._assets[asset_id]
+
+    def asset(self, asset_id: str) -> Image.Image:
+        return self._load(asset_id)[1]
+
+    def opaque(self, asset_id: str) -> bool:
+        return self._load(asset_id)[2]
+
+    def fitted(self, asset_id: str, size: tuple[int, int]) -> Image.Image:
+        """The asset resized to size with LANCZOS, once per asset and size."""
+        key, src, _ = self._load(asset_id)
+        local = (asset_id, size)
+        if local not in self._fitted:
+            img = self._cache.get((*key, size)) if key else None
+            if img is None:
+                img = src.resize(size, Image.Resampling.LANCZOS)
+                if key:
+                    self._cache.put((*key, size), img, _nbytes(img))
+            self._fitted[local] = img
+        return self._fitted[local]
 
 
 def _check_size(asset_id: str, width: int, height: int) -> None:
@@ -82,7 +165,8 @@ def _check_size(asset_id: str, width: int, height: int) -> None:
         raise TemplateError([f"asset {asset_id!r} has an extreme aspect ratio ({width}x{height})"])
 
 
-def _open(asset_id: str, data: AssetData) -> Image.Image:
+def _open(asset_id: str, data: AssetData) -> tuple[Image.Image, bool]:
+    """The asset as RGBA, and whether every pixel of it is opaque."""
     # _check_size is the real bound; Pillow's global bomb check is only a
     # backstop, and its warning or error must not escape as a raw exception.
     with warnings.catch_warnings():
@@ -102,7 +186,11 @@ def _open(asset_id: str, data: AssetData) -> Image.Image:
         except Image.DecompressionBombError as e:
             raise TemplateError([f"asset {asset_id!r} is too large"]) from e
     img = ImageOps.exif_transpose(img)
-    return img.convert("RGBA")
+    opaque = not img.has_transparency_data
+    img = img.convert("RGBA")
+    if not opaque:
+        opaque = img.getchannel("A").getextrema()[0] == 255  # an alpha channel that is all 255
+    return img, opaque
 
 
 def _rgba(hex_color: str | None, default: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
@@ -119,7 +207,9 @@ def _box_px(box: dict[str, float], size: tuple[int, int]) -> tuple[int, int, int
     return (round(box["x"] * w), round(box["y"] * h), max(1, round(box["w"] * w)), max(1, round(box["h"] * h)))
 
 
-def _canvas(template: dict[str, Any], session: _Session) -> Image.Image:
+def _canvas(template: dict[str, Any], session: _Session) -> tuple[Image.Image, bool]:
+    """The background, and whether it is opaque everywhere (then every layer,
+    alpha-composited over it, leaves it opaque, and flattening is a no-op)."""
     background = template["background"]
     canvas = template.get("canvas")
     if "asset" in background:
@@ -128,8 +218,9 @@ def _canvas(template: dict[str, Any], session: _Session) -> Image.Image:
             # fit() crops in source space before resizing, so no intermediate
             # is ever larger than the canvas.
             bg = ImageOps.fit(bg, (canvas["width"], canvas["height"]), Image.Resampling.LANCZOS)
-        return bg.copy()
-    return Image.new("RGBA", (canvas["width"], canvas["height"]), _rgba(background["color"], (0, 0, 0, 255)))
+        return bg.copy(), session.opaque(background["asset"])
+    color = _rgba(background["color"], (0, 0, 0, 255))
+    return Image.new("RGBA", (canvas["width"], canvas["height"]), color), color[3] == 255
 
 
 def _fit_font(session: _Session, text: str, px: int, bw: int, bh: int, floor: int = MIN_FONT_PX,
@@ -326,7 +417,7 @@ def _draw_image(img: Image.Image, session: _Session, layer: dict[str, Any]) -> N
     bx, by, bw, bh = _box_px(layer["box"], img.size)
     scale = min(bw / src.width, bh / src.height)
     size = (max(1, round(src.width * scale)), max(1, round(src.height * scale)))
-    fitted = src.resize(size, Image.Resampling.LANCZOS)
+    fitted = session.fitted(layer["asset"], size)
     img.alpha_composite(fitted, (bx + (bw - fitted.width) // 2, by + (bh - fitted.height) // 2))
 
 
@@ -344,33 +435,36 @@ def _draw_panel(img: Image.Image, layer: dict[str, Any]) -> None:
     img.alpha_composite(shape, (bx, by))
 
 
-def _flatten(img: Image.Image) -> Image.Image:
-    """Transparent areas render black: a defined result for the delivered PNG."""
+def _flatten(img: Image.Image, opaque: bool = False) -> Image.Image:
+    """Transparent areas render black: a defined result for the delivered PNG.
+    An opaque canvas has none, and compositing it over black changes no pixel."""
+    if opaque:
+        return img.convert("RGB")
     base = Image.new("RGBA", img.size, (0, 0, 0, 255))
     base.alpha_composite(img)
     return base.convert("RGB")
 
 
-def render_with_report(template: dict[str, Any], values: dict[str, Any],
-                       assets: AssetResolver) -> tuple[Image.Image, list[str]]:
+def render_with_report(template: dict[str, Any], values: dict[str, Any], assets: AssetResolver,
+                       cache: AssetCache | None = None) -> tuple[Image.Image, list[str]]:
     """Render and also return the variable paths that had no printable value.
 
     Raises only TemplateError, whatever the template, values or assets contain."""
-    img, missing, _, _, _ = _render(template, values, assets)
+    img, missing, _, _, _ = _render(template, values, assets, cache=cache)
     return img, missing
 
 
 def _render(template: dict[str, Any], values: dict[str, Any], assets: AssetResolver,
             fits: list[_TextFit] | None = None, hidden: list[tuple[int, list[str]]] | None = None,
-            qrs: list[_QrFit] | None = None):
+            qrs: list[_QrFit] | None = None, cache: AssetCache | None = None):
     problems = validate(template)
     if problems:
         raise TemplateError(problems)
     template, values = resolve(template, values)
-    session = _Session(assets)
+    session = _Session(assets, cache)
     missing: list[str] = []
     try:
-        img = _canvas(template, session)
+        img, opaque = _canvas(template, session)
         for index, layer in enumerate(template.get("layers", [])):
             kind = layer["type"]
             if kind == "text":
@@ -381,7 +475,7 @@ def _render(template: dict[str, Any], values: dict[str, Any], assets: AssetResol
                 _draw_panel(img, layer)
             else:
                 _draw_image(img, session, layer)
-        return _flatten(img), missing, fits or [], hidden or [], qrs or []
+        return _flatten(img, opaque), missing, fits or [], hidden or [], qrs or []
     except TemplateError:
         raise
     except (ValueError, TypeError, OverflowError, UnicodeError, OSError, MemoryError, RecursionError) as e:
@@ -390,9 +484,11 @@ def _render(template: dict[str, Any], values: dict[str, Any], assets: AssetResol
         raise TemplateError([f"render failed: {type(e).__name__}: {e}"]) from e
 
 
-def render(template: dict[str, Any], values: dict[str, Any], assets: AssetResolver) -> Image.Image:
-    """Render a template with device values into an RGB image ready to deliver."""
-    return render_with_report(template, values, assets)[0]
+def render(template: dict[str, Any], values: dict[str, Any], assets: AssetResolver,
+           cache: AssetCache | None = None) -> Image.Image:
+    """Render a template with device values into an RGB image ready to deliver.
+    Pass an AssetCache to reuse decoded and resized assets across calls."""
+    return render_with_report(template, values, assets, cache)[0]
 
 
 def _missing_glyphs(session: _Session, text: str, notdef: bytes) -> list[str]:
@@ -507,11 +603,12 @@ def _qr_warnings(qrs: list[_QrFit]) -> list[str]:
     return warnings
 
 
-def render_with_lint(template: dict[str, Any], values: dict[str, Any],
-                     assets: AssetResolver) -> tuple[Image.Image, list[str]]:
+def render_with_lint(template: dict[str, Any], values: dict[str, Any], assets: AssetResolver,
+                     cache: AssetCache | None = None) -> tuple[Image.Image, list[str]]:
     """The rendered image and lint's warnings from one render, for callers
     that want both (raises TemplateError like render)."""
-    img, missing, fits, hidden, qrs = _render(template, values, assets, fits=[], hidden=[], qrs=[])
+    img, missing, fits, hidden, qrs = _render(template, values, assets, fits=[], hidden=[], qrs=[],
+                                              cache=cache)
     return img, _lint_warnings(template, values, assets, img, missing, fits, hidden, qrs)
 
 
