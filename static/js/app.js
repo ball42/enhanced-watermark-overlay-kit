@@ -516,6 +516,35 @@
     });
   }
 
+  // ── Overlay rows ───────────────────────────
+
+  // Each control in an overlay row is named with the row's number ("Text 2
+  // size"), so a screen reader can tell the rows apart. Numbers follow the
+  // order on screen and are redone after a Delete.
+  function nameRows(container, selector, kind) {
+    container.querySelectorAll(selector).forEach((row, i) => {
+      const n = i + 1;
+      const title = row.querySelector('.image-overlay-title');
+      if (title) title.textContent = `Image Overlay #${n}`;
+      row.querySelectorAll('[data-name]').forEach((el) => {
+        const name = el.dataset.name;
+        el.setAttribute('aria-label', name === 'Delete'
+          ? `Delete ${kind.toLowerCase()} ${n}` : `${kind} ${n} ${name}`);
+      });
+    });
+  }
+
+  // Focus goes to the next row's Delete, or to the Add button when there is
+  // no next row, so a keyboard user keeps their place.
+  function removeRow(row, container, selector, kind, addBtn) {
+    let next = row.nextElementSibling;
+    while (next && !next.matches(selector)) next = next.nextElementSibling;
+    row.remove();
+    nameRows(container, selector, kind);
+    const target = next && next.querySelector('[data-name="Delete"]');
+    (target || addBtn).focus(); // the click itself schedules the preview
+  }
+
   // ── Text Overlays ──────────────────────────
 
   function getDefaultFontSize() {
@@ -525,28 +554,29 @@
 
   function addTextOverlay() {
     textOverlayCount++;
+    const uid = `text-overlay-${textOverlayCount}`;
     const defaultSize = getDefaultFontSize();
     const div = document.createElement('div');
     div.className = 'text-overlay-item';
     div.innerHTML = `
       <div class="text-overlay-header">
-        <input type="text" class="overlay-text" placeholder="Enter your text" style="flex:1;font-weight:500;">
-        <button type="button" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--danger" data-action="remove-overlay">
+        <input type="text" class="overlay-text" data-name="text" placeholder="Enter your text" style="flex:1;font-weight:500;">
+        <button type="button" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--danger" data-action="remove-overlay" data-name="Delete">
           <i class="fas fa-trash" aria-hidden="true"></i> Delete
         </button>
       </div>
       <div class="overlay-settings">
         <div class="setting-row">
           <div class="setting-group">
-            <label>Position</label>
-            <div class="position-inputs">
-              <input type="text" class="overlay-x" value="50%" placeholder="X" title="Horizontal position (px or %)">
-              <input type="text" class="overlay-y" value="50%" placeholder="Y" title="Vertical position (px or %)">
+            <span class="setting-label" id="${uid}-position">Position</span>
+            <div class="position-inputs" role="group" aria-labelledby="${uid}-position">
+              <input type="text" class="overlay-x" data-name="X position" value="50%" placeholder="X" title="Horizontal position (px or %)">
+              <input type="text" class="overlay-y" data-name="Y position" value="50%" placeholder="Y" title="Vertical position (px or %)">
             </div>
           </div>
           <div class="setting-group">
-            <label>Align</label>
-            <div class="alignment-group" role="group" aria-label="Text alignment">
+            <span class="setting-label">Align</span>
+            <div class="alignment-group" role="group" data-name="alignment">
               <button type="button" class="align-btn" data-align="left" title="Left align" aria-label="Left align" aria-pressed="false">
                 <i class="fas fa-align-left"></i>
               </button>
@@ -559,21 +589,21 @@
             </div>
           </div>
           <div class="setting-group">
-            <label>Size</label>
+            <label for="${uid}-overlay-size">Size</label>
             <div class="size-input-group">
-              <input type="number" class="overlay-size" value="${defaultSize}" min="8" max="200">
+              <input type="number" id="${uid}-overlay-size" data-name="size" class="overlay-size" value="${defaultSize}" min="8" max="200">
               <button type="button" class="size-mode-btn" data-mode="px" title="Toggle px/% sizing">px</button>
             </div>
           </div>
           <div class="setting-group">
-            <label>Color</label>
-            <input type="color" class="overlay-color" value="#FFFFFF">
+            <label for="${uid}-overlay-color">Color</label>
+            <input type="color" id="${uid}-overlay-color" data-name="color" class="overlay-color" value="#FFFFFF">
           </div>
         </div>
         <div class="setting-row">
           <div class="setting-group">
-            <label>Font</label>
-            <select class="overlay-font">
+            <label for="${uid}-overlay-font">Font</label>
+            <select id="${uid}-overlay-font" data-name="font" class="overlay-font">
               <option value="">Default</option>
               <option value="Arial" style="font-family:Arial">Arial</option>
               <option value="Times New Roman" style="font-family:'Times New Roman'">Times New Roman</option>
@@ -585,17 +615,17 @@
             </select>
           </div>
           <div class="setting-group">
-            <label>Text Opacity</label>
+            <label for="${uid}-text-opacity">Text Opacity</label>
             <div class="strength-control">
-              <input type="range" class="text-opacity" min="0" max="100" value="100">
+              <input type="range" id="${uid}-text-opacity" data-name="text opacity" class="text-opacity" min="0" max="100" value="100">
               <span class="text-opacity-value">100%</span>
             </div>
           </div>
         </div>
         <div class="setting-row">
           <div class="setting-group">
-            <label>Effect</label>
-            <select class="text-effect">
+            <label for="${uid}-text-effect">Effect</label>
+            <select id="${uid}-text-effect" data-name="effect" class="text-effect">
               <option value="none">None</option>
               <option value="shadow">Shadow</option>
               <option value="outline">Outline</option>
@@ -603,23 +633,23 @@
             </select>
           </div>
           <div class="setting-group effect-color-group">
-            <label>Effect Color</label>
-            <input type="color" class="effect-color" value="#000000">
+            <label for="${uid}-effect-color">Effect Color</label>
+            <input type="color" id="${uid}-effect-color" data-name="effect color" class="effect-color" value="#000000">
           </div>
           <div class="setting-group">
-            <label>Strength</label>
+            <label for="${uid}-effect-strength">Strength</label>
             <div class="strength-control">
-              <input type="range" class="effect-strength" min="1" max="10" value="3">
+              <input type="range" id="${uid}-effect-strength" data-name="effect strength" class="effect-strength" min="1" max="10" value="3">
               <span class="effect-strength-value">3</span>
             </div>
           </div>
         </div>
       </div>`;
     textOverlaysContainer.appendChild(div);
+    nameRows(textOverlaysContainer, '.text-overlay-item', 'Text');
 
-    // Remove button
     div.querySelector('[data-action="remove-overlay"]').addEventListener('click', () => {
-      div.remove();
+      removeRow(div, textOverlaysContainer, '.text-overlay-item', 'Text', addTextBtn);
     });
 
     // Alignment buttons — toggle active state
@@ -707,12 +737,13 @@
 
   function addImageOverlay() {
     imageOverlayCount++;
+    const uid = `image-overlay-${imageOverlayCount}`;
     const div = document.createElement('div');
     div.className = 'image-overlay-item';
     div.innerHTML = `
       <div class="image-overlay-header">
-        <span class="image-overlay-title">Image Overlay #${imageOverlayCount}</span>
-        <button type="button" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--danger" data-action="remove-image-overlay">
+        <span class="image-overlay-title"></span>
+        <button type="button" class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--danger" data-action="remove-image-overlay" data-name="Delete">
           <i class="fas fa-trash" aria-hidden="true"></i> Delete
         </button>
       </div>
@@ -727,35 +758,35 @@
         </div>
         <div class="setting-row">
           <div class="setting-group">
-            <label>X Position</label>
-            <input type="text" class="image-overlay-x" value="0" placeholder="px or %">
+            <label for="${uid}-image-overlay-x">X Position</label>
+            <input type="text" id="${uid}-image-overlay-x" data-name="X position" class="image-overlay-x" value="0" placeholder="px or %">
           </div>
           <div class="setting-group">
-            <label>Y Position</label>
-            <input type="text" class="image-overlay-y" value="0" placeholder="px or %">
+            <label for="${uid}-image-overlay-y">Y Position</label>
+            <input type="text" id="${uid}-image-overlay-y" data-name="Y position" class="image-overlay-y" value="0" placeholder="px or %">
           </div>
           <div class="setting-group">
-            <label>Width</label>
-            <input type="text" class="image-overlay-width" placeholder="auto" title="px or % (e.g. 200 or 25%)">
+            <label for="${uid}-image-overlay-width">Width</label>
+            <input type="text" id="${uid}-image-overlay-width" data-name="width" class="image-overlay-width" placeholder="auto" title="px or % (e.g. 200 or 25%)">
           </div>
           <div class="setting-group">
-            <label>Height</label>
-            <input type="text" class="image-overlay-height" placeholder="auto" title="px or % (e.g. 150 or 25%)">
+            <label for="${uid}-image-overlay-height">Height</label>
+            <input type="text" id="${uid}-image-overlay-height" data-name="height" class="image-overlay-height" placeholder="auto" title="px or % (e.g. 150 or 25%)">
           </div>
           <div class="setting-group">
-            <label>Opacity</label>
+            <label for="${uid}-image-overlay-opacity">Opacity</label>
             <div class="strength-control">
-              <input type="range" class="image-overlay-opacity" min="0" max="100" value="100">
+              <input type="range" id="${uid}-image-overlay-opacity" data-name="opacity" class="image-overlay-opacity" min="0" max="100" value="100">
               <span class="image-overlay-opacity-value">100%</span>
             </div>
           </div>
         </div>
       </div>`;
     imageOverlaysContainer.appendChild(div);
+    nameRows(imageOverlaysContainer, '.image-overlay-item', 'Image');
 
-    // Remove button
     div.querySelector('[data-action="remove-image-overlay"]').addEventListener('click', () => {
-      div.remove();
+      removeRow(div, imageOverlaysContainer, '.image-overlay-item', 'Image', addImageOverlayBtn);
     });
 
     // File upload handler

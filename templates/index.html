@@ -109,12 +109,12 @@
                         </div>
                         <div class="section-content collapsed" id="wallpaperSection-content">
                             <div class="control-group">
-                                <label class="toggle-button" data-action="toggle-wallpaper">
+                                <div class="toggle-button" data-action="toggle-wallpaper">
                                     <i class="fas fa-mobile-alt toggle-icon"></i>
                                     <span>Wallpaper Mode</span>
                                     <div class="toggle-switch"></div>
                                     <input type="checkbox" id="wallpaperMode">
-                                </label>
+                                </div>
                                 <div id="wallpaperOptions" style="display:none;margin-top:15px;">
                                     <div class="control-group">
                                         <label for="wallpaperPreset">Preset Dimensions:</label>
@@ -177,12 +177,12 @@
                         </div>
                         <div class="section-content collapsed" id="backgroundSection-content">
                             <div class="control-group">
-                                <label class="toggle-button" data-action="toggle-background">
+                                <div class="toggle-button" data-action="toggle-background">
                                     <i class="fas fa-palette toggle-icon"></i>
                                     <span>Add Background</span>
                                     <div class="toggle-switch"></div>
                                     <input type="checkbox" id="enableBackground">
-                                </label>
+                                </div>
                                 <div id="backgroundOptions" style="display:none;margin-top:15px;">
                                     <div class="control-group">
                                         <label for="backgroundType">Background Type:</label>
@@ -262,7 +262,7 @@
                                 </div>
                                 <div class="setting-row">
                                     <div class="setting-group">
-                                        <label>Position</label>
+                                        <label for="watermarkPosition">Position</label>
                                         <select id="watermarkPosition">
                                             <option value="bottom-right">Bottom Right</option>
                                             <option value="bottom-left">Bottom Left</option>
@@ -272,15 +272,15 @@
                                         </select>
                                     </div>
                                     <div class="setting-group">
-                                        <label>Size</label>
+                                        <label for="watermarkSize">Size</label>
                                         <input type="number" id="watermarkSize" value="24" min="8" max="72">
                                     </div>
                                     <div class="setting-group">
-                                        <label>Color</label>
+                                        <label for="watermarkColor">Color</label>
                                         <input type="color" id="watermarkColor" value="#FFFFFF">
                                     </div>
                                     <div class="setting-group">
-                                        <label>Opacity</label>
+                                        <label for="watermarkOpacity">Opacity</label>
                                         <div class="strength-control">
                                             <input type="range" id="watermarkOpacity" min="0" max="100" value="50">
                                             <span id="watermarkOpacityValue">50%</span>

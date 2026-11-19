@@ -407,7 +407,7 @@
                 <aside class="preview-panel tpl-preview" aria-labelledby="previewHeading">
                     <div class="tpl-preview-head">
                         <h3 id="previewHeading"><i class="fas fa-eye" aria-hidden="true"></i> Preview</h3>
-                        <span id="warningCount" class="rb-badge tpl-warn-count" aria-live="polite"></span>
+                        <span id="warningCount" class="rb-badge tpl-warn-count"></span>
                         <button type="button" class="rb-btn rb-btn--outline ewok-btn--neutral" id="downloadPreview" disabled><i class="fas fa-file-image" aria-hidden="true"></i> Download preview PNG</button>
                     </div>
                     <div class="tpl-row tpl-preview-pick">
@@ -425,7 +425,9 @@
                             <select id="previewRole"></select>
                         </div>
                     </div>
-                    <p id="previewStatus" class="tpl-status" aria-live="polite">Waiting for the first render…</p>
+                    <p id="previewStatus" class="tpl-status">Waiting for the first render…</p>
+                    <!-- The one live region for the preview: it speaks only when the outcome changes. -->
+                    <p id="previewAnnounce" class="visually-hidden" role="status" aria-atomic="true"></p>
                     <div class="tpl-preview-frame">
                         <div class="tpl-stage" id="stage">
                             <img id="previewImage" alt="Rendered wallpaper preview" hidden>
@@ -443,7 +445,7 @@
                     </div>
                     <div role="tabpanel" id="panelWarnings" class="tpl-tabpanel" aria-labelledby="tabWarnings">
                         <p id="contrastSay" class="tpl-fix-say" role="status" hidden></p>
-                        <ul id="warningList" class="tpl-warnings" aria-live="polite"></ul>
+                        <ul id="warningList" class="tpl-warnings"></ul>
                         <p class="tpl-hint" id="boxHelp">Drag a box to move it, or its corner to resize it. With a box focused, arrow keys move it and Alt with arrow keys resizes it; hold Shift for bigger steps. While dragging, boxes snap to the center lines, the safe areas and the other layers; hold Option (Alt) to drag freely.</p>
                     </div>
                     <div role="tabpanel" id="panelDevices" class="tpl-tabpanel" aria-labelledby="tabDevices" hidden>
@@ -484,7 +486,7 @@
                             </div>
                         </fieldset>
                         <div id="deviceGrid" class="tpl-device-grid"></div>
-                        <ul id="deviceWarnings" class="tpl-warnings" aria-live="polite"></ul>
+                        <ul id="deviceWarnings" class="tpl-warnings"></ul>
                     </div>
                     <div role="tabpanel" id="panelStress" class="tpl-tabpanel" aria-labelledby="tabStress" hidden>
                         <label class="tpl-inline tpl-stress-toggle">
