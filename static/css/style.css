@@ -489,6 +489,15 @@ body {
   border-bottom: 1px solid var(--color-border);
 }
 
+/* The text box gives way so Delete stays whole at 320 px. */
+.text-overlay-header .overlay-text {
+  min-width: 0;
+}
+
+.text-overlay-header .rb-btn {
+  flex: none;
+}
+
 .overlay-settings {
   display: flex;
   flex-direction: column;
@@ -868,8 +877,10 @@ body {
 
 @media (max-width: 768px) {
 
+  /* minmax(0, 1fr), not 1fr: a bare 1fr column grows to its widest
+     content, which pushed the controls past a 320 px screen. */
   .controls-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .header h1 {
