@@ -4,29 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EWOK — Template designer</title>
-    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-    <link rel="icon" type="image/png" sizes="512x512" href="/static/ewok.png">
-    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="icon" type="image/x-icon" href="{{ static_v('favicon.ico') }}">
+    <link rel="icon" type="image/png" sizes="512x512" href="{{ static_v('ewok.png') }}">
+    <link rel="apple-touch-icon" href="{{ static_v('apple-touch-icon.png') }}">
     <!-- Before the CSS and without defer: sets .dark before first paint. -->
-    <script src="/static/js/vendor/roster-theme.js"></script>
-    <link rel="stylesheet" href="/static/css/vendor/roster-web.css">
-    <link rel="stylesheet" href="/static/css/vendor/roster-html.css">
-    <link rel="stylesheet" href="/static/css/style.css">
-    <link rel="stylesheet" href="/static/css/template.css">
-    <link rel="stylesheet" href="/static/vendor/fontawesome/css/fontawesome.min.css">
-    <link rel="stylesheet" href="/static/vendor/fontawesome/css/solid.min.css">
+    <script src="{{ static_v('js/vendor/roster-theme.js') }}"></script>
+    <link rel="stylesheet" href="{{ static_v('css/vendor/roster-web.css') }}">
+    <link rel="stylesheet" href="{{ static_v('css/vendor/roster-html.css') }}">
+    <link rel="stylesheet" href="{{ static_v('css/style.css') }}">
+    <link rel="stylesheet" href="{{ static_v('css/template.css') }}">
+    <link rel="stylesheet" href="{{ static_v('vendor/fontawesome/css/icons.min.css') }}">
 </head>
 <body>
     <header class="ewok-nav">
-        <a class="ewok-brand" href="/"><img src="/static/ewok-64.png" width="32" height="32" alt=""> EWOK</a>
+        <a class="ewok-brand" href="/"><img src="{{ static_v('ewok-64.png') }}" width="32" height="32" alt=""> EWOK</a>
         <span class="ewok-tagline">Watermarks, wallpapers and Brander templates</span>
         <nav class="mode-nav" aria-label="Mode">
             <a href="/">Photo</a>
             <a href="/template" aria-current="page">Template</a>
         </nav>
         <button type="button" class="ewok-theme-toggle" data-roster-theme-toggle aria-pressed="false" title="Dark mode">
-            <svg class="icon-moon" aria-hidden="true"><use href="/static/css/vendor/icons.svg#moon"></use></svg>
-            <svg class="icon-sun" aria-hidden="true"><use href="/static/css/vendor/icons.svg#sun"></use></svg>
+            <svg class="icon-moon" aria-hidden="true"><use href="{{ static_v('css/vendor/icons.svg') }}#moon"></use></svg>
+            <svg class="icon-sun" aria-hidden="true"><use href="{{ static_v('css/vendor/icons.svg') }}#sun"></use></svg>
             <span class="visually-hidden">Dark mode</span>
         </button>
     </header>
@@ -509,6 +508,6 @@
         </main>
     </div>
 
-    <script src="/static/js/template.js"></script>
+    <script src="{{ static_v('js/template.js') }}"></script>
 </body>
 </html>

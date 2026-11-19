@@ -328,10 +328,13 @@ input[type="color"] {
   pointer-events: none;
 }
 
-/* Selected box: solid thick border plus the word "editing" in its label. */
+/* Selected box: solid thick border plus the word "editing" in its label.
+   A white then a near-black edge outside the border, so one of the two
+   stands out (3:1 or more) on any wallpaper, white or black. */
 .tpl-boxframe.selected {
   border: 3px solid var(--color-primary);
   outline: 1px solid var(--roster-white);
+  box-shadow: 0 0 0 2px var(--roster-gray-950);
   z-index: 2;
 }
 
@@ -359,10 +362,14 @@ input[type="color"] {
   font-weight: 600;
 }
 
-/* Focus is amber and offset, distinct from the blue "editing" border. */
+/* Focus is amber and offset, distinct from the blue "editing" border.
+   Amber alone is 2.2:1 on white, so a near-black band sits inside and
+   outside it (the shadow under the outline): amber holds on dark
+   wallpapers, the dark band on light ones. */
 #templateEditor .tpl-boxframe:focus-visible {
   outline: 3px solid var(--roster-amber-500);
   outline-offset: 2px;
+  box-shadow: 0 0 0 7px var(--roster-gray-950);
 }
 
 .tpl-resize {

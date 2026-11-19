@@ -5,6 +5,7 @@ import base64
 import io
 import json
 import os
+import re
 
 from PIL import Image, ImageChops
 
@@ -92,6 +93,6 @@ def test_navbar_logo_is_small_and_sharp_at_2x(client):
     with Image.open(path, formats=["PNG"]) as img:
         assert img.size == (64, 64)
     for page in ("/", "/template"):
-        body = client.get(page).get_data(as_text=True)
+        body = re.sub(r"\?v=[0-9a-f]{12}", "", client.get(page).get_data(as_text=True))  # the hash on each URL
         assert '<img src="/static/ewok-64.png" width="32" height="32" alt="">' in body
         assert '<img src="/static/ewok.png"' not in body

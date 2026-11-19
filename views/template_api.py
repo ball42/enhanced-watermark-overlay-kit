@@ -94,12 +94,34 @@ def _json_body():
         return None
 
 
+def _describe(template, values, size, hidden):
+    """What the render shows, for the preview image's alt: the canvas, then each
+    text and QR layer drawn, with its substituted value, in layer order."""
+    template, values = resolve(template, values)  # role.* text comes from the variant
+    gone = {index for index, _ in hidden}
+    parts = []
+    for index, layer in enumerate(template.get("layers", [])):
+        if index in gone or layer["type"] not in ("text", "qr"):
+            continue
+        if layer["type"] == "text":
+            text = " ".join(substitute(layer["text"], values).split())
+            if text:
+                parts.append(f"text '{text}'")
+        else:
+            data = substitute(layer["data"], values, limit=None)
+            if data:
+                parts.append(f"QR {data}")
+    head = f"{size[0]}×{size[1]} wallpaper"
+    return f"{head}: {', '.join(parts)}" if parts else f"{head} with no text or QR"
+
+
 def _render_one(template, values, assets, label, devices=(), screen="lock"):
     # render_with_lint(), keeping the text fits so low contrast can carry its fix.
     image, missing, fits, hidden, qrs = _render(template, values, assets, fits=[], hidden=[], qrs=[],
                                                 cache=ASSET_CACHE)
     warnings = _lint_warnings(template, values, assets, image, missing, fits, hidden, qrs)
     return {"label": label, "image": _preview_data_url(image, template, values),
+            "description": _describe(template, values, image.size, hidden),
             "warnings": warnings, "kinds": [warning_kind(w) for w in warnings],
             "contrast": _contrast_fixes(fits, image.height),
             "device_warnings": fit_warnings(template, image.size, list(devices), screen)}
@@ -270,6 +292,14 @@ MAX_BATCH = 200
 THUMB_WIDTH = 240
 
 
+def _thumb(image):
+    """The device check's thumbnail, at most THUMB_WIDTH wide. Image.reduce()
+    averages whole blocks of pixels: about 3 ms on a 1290x2796 render, where
+    thumbnail()'s resample took about 12. The sheet shows it at most 160 px
+    tall, so the plain box average looks the same there."""
+    return image.reduce(max(1, math.ceil(image.width / THUMB_WIDTH)))
+
+
 @template_bp.route("/preview-batch", methods=["POST"])
 def preview_batch():
     """Render one template for many devices (a CSV the designer loaded in the
@@ -301,7 +331,7 @@ def preview_batch():
                                                         qrs=[], cache=ASSET_CACHE)
             warnings = _lint_warnings(template, values, assets, image, missing, fits, hidden, qrs)
             smallest = min(fits, key=lambda f: f.used, default=None)
-            image.thumbnail((THUMB_WIDTH, THUMB_WIDTH * 8))
+            image = _thumb(image)
             label = values.get("device_name") or values.get("serial_number") or f"Device {n}"
             results.append({
                 "label": str(label), "warnings": warnings, "kinds": [warning_kind(w) for w in warnings],

@@ -297,6 +297,7 @@
       const render = body.renders[0];
       const img = $('#previewImage');
       img.src = render.image;
+      img.alt = render.description || 'Rendered wallpaper preview';
       img.hidden = false;
       $('.tpl-preview').classList.remove('is-stale');
       state.contrastFixes = render.contrast || [];
@@ -399,6 +400,7 @@
       img.src = r.image;
       img.alt = STRESS_CAPTIONS[r.label] ? `Preview with ${STRESS_CAPTIONS[r.label].toLowerCase()}`
         : `Preview as ${stressCaption(r.label)}`;
+      if (r.description) img.alt += `. ${r.description}`;
       const ul = document.createElement('ul');
       ul.className = 'tpl-warnings';
       fig.append(cap, img, ul);
