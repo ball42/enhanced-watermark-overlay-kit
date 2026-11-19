@@ -9,8 +9,8 @@ from wallrender import render, validate
 BLACK_BG = {"schema_version": 1, "canvas": {"width": 400, "height": 800}, "background": {"color": "#000000"}}
 TEXT = {"type": "text", "text": "Front Desk iPad 7", "box": {"x": 0.1, "y": 0.5, "w": 0.8, "h": 0.1},
         "size": 0.05, "color": "#FFFFFF", "align": "center"}
-# sha256 of TEXT's pixels from wallrender 0.11.0 (no weight property), Pillow 11.3.
-REGULAR_SHA = "9768ebf9b83785bef43a3ec068ff5c68bbe664e11ff3b021576ffb05ad54f79b"
+# sha256 of TEXT's pixels from wallrender 0.11.0 (no weight property), Pillow 13.0.
+REGULAR_SHA = "0e90ab7b3f2383e141d195d111f7138b6bbf39cad5b2370680fc8922a6c5ae27"
 
 
 def tpl(**layer):

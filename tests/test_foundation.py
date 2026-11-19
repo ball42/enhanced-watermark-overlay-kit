@@ -71,11 +71,11 @@ def test_wallrender_is_importable_from_the_app():
 
 def test_pillow_is_pinned_to_jawas_range():
     """Text pixels differ between Pillow releases, so EWOK must render with
-    the Pillow JAWA's Brander uses (JAWA requirements.txt: >=11.3,<12)."""
+    the Pillow JAWA's Brander uses (JAWA requirements.txt: >=13.0,<14)."""
     import PIL
 
     major, minor = (int(p) for p in PIL.__version__.split(".")[:2])
-    assert (11, 3) <= (major, minor) < (12, 0)
+    assert (13, 0) <= (major, minor) < (14, 0)
 
 
 def test_help_explains_the_options(capsys):

@@ -62,7 +62,7 @@ EWOK has no authentication, so it limits who can reach it:
 
 ## Design decisions
 
-- **Same renderer as the consumer.** Sharing wallrender with JAWA removes a class of "it looked different on the device" bugs. The cost is that the Pillow version must match; both projects pin `Pillow>=11.3,<12` and move together.
+- **Same renderer as the consumer.** Sharing wallrender with JAWA removes a class of "it looked different on the device" bugs. The cost is that the Pillow version must match; both projects pin `Pillow>=13.0,<14` and move together.
 - **No server-side template storage.** The browser owns the template, so there is nothing to migrate or clean up and nothing sensitive on disk.
 - **Validate at the boundary.** Templates and packages are untrusted input, so `schema.py` checks them before any rendering.
 - **Vanilla JavaScript, no build step.** The frontend is plain files under `static/`; there is nothing to compile.
