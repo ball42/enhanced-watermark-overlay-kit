@@ -11,6 +11,15 @@ from PIL import Image
 from app_factory import create_app
 
 
+@pytest.fixture(autouse=True)
+def no_real_library(tmp_path, monkeypatch):
+    """No test reads, writes or moves a real asset library: `ewok` moves the
+    one inside the checkout on start, and tests call main()."""
+    import config
+    monkeypatch.setattr(config, "TEMPLATE_ASSETS_FOLDER", str(tmp_path / "template_assets"))
+    monkeypatch.setattr(config, "LEGACY_ASSETS_FOLDER", str(tmp_path / "legacy_template_assets"))
+
+
 @pytest.fixture()
 def app(tmp_path):
     """Create a Flask app with isolated temp directories."""

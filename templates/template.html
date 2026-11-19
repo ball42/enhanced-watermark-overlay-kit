@@ -134,10 +134,14 @@
                         <summary><h3 id="assetsHeading" class="tpl-heading"><i class="fas fa-images" aria-hidden="true"></i> Assets</h3></summary>
                         <p class="tpl-hint">PNG or JPEG backgrounds and logos. Brander loads them by id from its assets folder.</p>
                         <ul id="assetList" class="tpl-asset-list"></ul>
-                        <label class="rb-btn rb-btn--outline ewok-btn--neutral tpl-file-btn">
-                            <i class="fas fa-upload" aria-hidden="true"></i> Upload asset
-                            <input type="file" id="assetFile" accept="image/png,image/jpeg">
-                        </label>
+                        <div class="tpl-asset-actions">
+                            <label class="rb-btn rb-btn--outline ewok-btn--neutral tpl-file-btn">
+                                <i class="fas fa-upload" aria-hidden="true"></i> Upload asset
+                                <input type="file" id="assetFile" accept="image/png,image/jpeg">
+                            </label>
+                            <a class="rb-btn rb-btn--outline ewok-btn--neutral" id="downloadLibrary" href="/api/template/assets.zip" download hidden><i class="fas fa-file-archive" aria-hidden="true"></i> Download library (.zip)</a>
+                        </div>
+                        <p class="tpl-hint">EWOK keeps the only copy of these files. Download the library now and then to keep one elsewhere.</p>
                         <p id="assetStatus" class="tpl-status tpl-asset-status" aria-live="polite"></p>
                     </details>
 

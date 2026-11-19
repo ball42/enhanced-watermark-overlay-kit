@@ -30,6 +30,7 @@ from wallrender.render import (LARGE_TEXT, MIN_FONT_PX, READABLE_MIN, _box_px, _
 from wallrender.roles import resolve
 from wallrender.variables import substitute
 from wallrender.schema import ASSET_ID, MAX_PIXELS, MAX_SIDE, newer_than
+from utils.pillow_target import pillow_check
 
 template_bp = Blueprint("template_api", __name__, url_prefix="/api/template")
 
@@ -198,7 +199,9 @@ def preview():
     renders[0]["kinds"] = ["target"] * len(newer) + renders[0]["kinds"]
     # For the JAWA preflight: whether the release JAWA runs renders this template.
     target = ".".join(config.WALLRENDER_TARGET.split(".")[:2])
-    return jsonify({"renders": renders, "target": {"version": target, "renders": not newer}})
+    # And whether EWOK measures text with the Pillow JAWA renders with.
+    return jsonify({"renders": renders, "target": {"version": target, "renders": not newer,
+                                                   "pillow": pillow_check()}})
 
 
 @template_bp.route("/preview.png", methods=["POST"])
@@ -539,6 +542,30 @@ def list_assets():
             except (OSError, Image.DecompressionBombError):
                 continue  # not a readable image: leave it out of the library
     return jsonify({"assets": assets})
+
+
+def _library_files():
+    """(id, path) of every asset in the library: not the trash or thumbnails."""
+    for name in sorted(os.listdir(_folder())):
+        asset_id, ext = os.path.splitext(name)
+        path = os.path.join(_folder(), name)
+        if ext.lstrip(".") in EXTENSIONS and ASSET_ID.fullmatch(asset_id) and os.path.isfile(path):
+            yield asset_id, path
+
+
+@template_bp.route("/assets.zip", methods=["GET"])
+def download_library():
+    """The whole library as one .zip: a copy to keep somewhere else."""
+    files = list(_library_files())
+    if not files:
+        return jsonify({"error": "The asset library is empty."}), 404
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as library:  # PNG and JPEG are compressed already
+        for _asset_id, path in files:
+            library.write(path, os.path.basename(path))
+    buffer.seek(0)
+    return send_file(buffer, mimetype="application/zip", as_attachment=True,
+                     download_name=f"ewok-asset-library-{time.strftime('%Y-%m-%d')}.zip")
 
 
 @template_bp.route("/assets", methods=["POST"])

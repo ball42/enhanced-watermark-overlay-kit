@@ -111,12 +111,12 @@ def test_backdrop_refuses_what_is_not_a_text_layer(client):
 
 def test_the_preview_says_whether_jawas_wallrender_renders_it(client):
     body = preview(client)
-    assert body["target"] == {"version": "0.9", "renders": True}
+    assert {k: body["target"][k] for k in ("version", "renders")} == {"version": "0.9", "renders": True}
     newer = copy.deepcopy(TEMPLATE)
     newer["layers"][0]["weight"] = "bold"
     body = preview(client, newer)
     render = body["renders"][0]
-    assert body["target"] == {"version": "0.9", "renders": False}  # weight came in 0.12
+    assert {k: body["target"][k] for k in ("version", "renders")} == {"version": "0.9", "renders": False}  # weight came in 0.12
     assert render["kinds"][0] == "target" and "needs wallrender 0.12.0" in render["warnings"][0]
     assert len(render["kinds"]) == len(render["warnings"])
 
