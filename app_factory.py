@@ -95,7 +95,10 @@ def create_app(config_name=None):
     from utils.cleanup import cleanup_old_files
 
     # EWOK has no login, so it only answers to its own address: a foreign
-    # Host header (DNS rebinding) or a cross-site write is refused.
+    # Host header (DNS rebinding) or a cross-site write is refused. Under
+    # /api/ a cross-site read is refused too, so another site can't embed a
+    # library image or learn from load or error which asset ids exist; a
+    # page opened from a link elsewhere still loads.
     from flask import abort
 
     LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
@@ -105,18 +108,21 @@ def create_app(config_name=None):
         host = request.host.rsplit(":", 1)[0] if not request.host.startswith("[") else request.host.split("]")[0] + "]"
         if host not in LOCAL_HOSTS:
             abort(403)
-        if request.method not in ("GET", "HEAD", "OPTIONS"):
+        if request.method not in ("GET", "HEAD", "OPTIONS") or request.path.startswith("/api/"):
             site = request.headers.get("Sec-Fetch-Site")
             if site not in (None, "same-origin", "none"):
                 abort(403)
 
     # No other site may frame EWOK's pages: inside a frame, a tricked click
-    # would be a same-origin request and pass the check above.
+    # would be a same-origin request and pass the check above. Nor may it
+    # embed any response (Cross-Origin-Resource-Policy), whatever the browser
+    # sends as Sec-Fetch-Site.
     @app.after_request
     def no_framing(response):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
         response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         return response
 
     @app.before_request
