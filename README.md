@@ -158,7 +158,7 @@ Template designer:
 | Layer | Technology |
 |-------|-----------|
 | Backend | Flask 3.1, Python 3.12+ |
-| Rendering | Pillow 11.3 (pinned below 12, the same as JAWA), qrcode |
+| Rendering | Pillow 13 (pinned below 14, the same as JAWA), qrcode |
 | Frontend | HTML, CSS, vanilla JavaScript |
 | Icons | Font Awesome Free 6 (solid), vendored as a subset of the icons in use in `static/vendor/fontawesome/` (made by `scripts/subset_icons.py`), so no page loads anything from the internet |
 | Testing | pytest, pytest-flask, Playwright |
@@ -171,12 +171,12 @@ Template designer:
 | Port 5055 is in use | Start on another port: `uv run ewok --port 5056`. |
 | 403 from another computer or a hostname | EWOK answers only to `127.0.0.1`, `localhost` and `[::1]`. Open it by one of those. |
 | Weight (Medium, Semibold, Bold) looks like Regular on devices | The JAWA install vendors a wallrender older than 0.12.0. Update JAWA's copy. |
-| Preview text differs slightly from the device | Pillow versions differ between EWOK and JAWA. Both pin `Pillow>=11.3,<12`; keep them equal. |
+| Preview text differs slightly from the device | Pillow versions differ between EWOK and JAWA. Both pin `Pillow>=13.0,<14`; keep them equal. |
 | Uploaded photo disappears | Uploads are deleted an hour after last use. Upload it again. |
 
 ## Maintenance
 
-- **Dependencies.** Pillow is pinned below 12 to match JAWA, and a Pillow change shifts text pixels. Move EWOK and JAWA to a new Pillow release together. Run `uv lock --upgrade` to refresh other dependencies, then both test suites.
+- **Dependencies.** Pillow is pinned below 14 to match JAWA, and a Pillow change shifts text pixels. Move EWOK and JAWA to a new Pillow release together. Run `uv lock --upgrade` to refresh other dependencies, then both test suites.
 - **Design files.** `static/css/vendor/` and `static/js/vendor/` are generated copies of the shared design system. Replace them whole; do not edit them.
 - **wallrender.** It is versioned in `wallrender/pyproject.toml`. When you release a new version, update the copy vendored in JAWA and raise `EWOK_WALLRENDER_TARGET`'s default if appropriate.
 - **Data.** Everything EWOK writes is under `static/uploads/`, `temp/` and `template_assets/`. Back up `template_assets/` if you rely on the asset library; the other two are disposable.

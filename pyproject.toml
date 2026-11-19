@@ -6,7 +6,7 @@ requires-python = ">=3.12"
 license = { text = "MIT" }
 dependencies = [
     "Flask>=3.1,<4",
-    "Pillow>=11.3,<12",  # same as JAWA: text pixels differ across Pillow versions
+    "Pillow>=13.0,<14",  # same as JAWA: text pixels differ across Pillow versions
     "wallrender",
 ]
 
