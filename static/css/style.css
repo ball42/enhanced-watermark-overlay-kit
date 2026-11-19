@@ -509,7 +509,8 @@ body {
   min-width: 80px;
 }
 
-.setting-group label {
+.setting-group label,
+.setting-group .setting-label {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-text-muted);
@@ -1039,12 +1040,32 @@ body {
 }
 
 .control-group .toggle-button {
-  display: flex;   /* beats .control-group label { display: block } */
+  display: flex;
   flex-wrap: nowrap;
   margin-bottom: 0;
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .toggle-button .toggle-switch {
   margin-left: auto;
   flex-shrink: 0;
+}
+
+/* A 320 px screen (or 400% zoom): the brand, both modes and the theme
+   toggle still fit on one line. */
+@media (max-width: 400px) {
+  .ewok-nav {
+    gap: var(--space-sm);
+    padding-left: var(--space-md);
+    padding-right: var(--space-md);
+  }
+
+  .mode-nav a {
+    padding: 6px 10px;
+  }
+}
+
+.ewok-theme-toggle {
+  flex: none;
 }

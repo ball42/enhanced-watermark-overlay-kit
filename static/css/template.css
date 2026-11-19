@@ -247,7 +247,7 @@
 
 @media (max-width: 900px) {
   .tpl-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr); /* 1fr alone keeps the cards' min-content width */
   }
 
   .tpl-preview {
@@ -1312,9 +1312,16 @@ button.tpl-fleet-fact-link {
     border-radius: 0;
   }
 
+  /* The menu hangs from the bar, not the More button, so it stays on a
+     320 px screen whatever row More wrapped to. */
+  .tpl-more {
+    position: static;
+  }
+
   .tpl-more-menu {
-    right: auto;
-    left: 0;
+    right: var(--space-sm);
+    left: var(--space-sm);
+    min-width: 0;
   }
 }
 
@@ -1770,7 +1777,9 @@ button.tpl-fleet-fact-link {
 
   .tpl-jawa-split #downloadPackage {
     flex: 1;
+    min-width: 0;
     justify-content: center;
+    white-space: normal; /* wraps on a 320 px screen rather than pushing ▾ off it */
   }
 
   .tpl-preflight {

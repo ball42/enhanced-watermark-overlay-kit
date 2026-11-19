@@ -290,6 +290,8 @@
         drawPreflight();
         setStatus(resp.status === 400 ? 'Not rendered: the template has problems (listed below).'
           : 'Not rendered: an asset or value could not be used (listed below).');
+        announcePreview(resp.status === 400 ? 'Preview not rendered: the template has problems.'
+          : 'Preview not rendered: an asset or value could not be used.');
         return;
       }
       const render = body.renders[0];
@@ -315,11 +317,14 @@
       $('#tabDevices').textContent = nd ? `Devices and safe areas (${nd})` : 'Devices and safe areas';
       const size = state.template.canvas ? `${state.template.canvas.width}×${state.template.canvas.height} ` : '';
       setStatus(`Rendered ${size}with ${previewSubject()}.`);
+      const n = render.warnings.length;
+      announcePreview(n ? `Preview: ${n} warning${n > 1 ? 's' : ''}.` : 'Preview: no warnings.');
       drawPreflight();
     } catch (err) {
       if (err.name !== 'AbortError') {
         $('#downloadPreview').disabled = true;
         setStatus('Not rendered: could not reach EWOK.');
+        announcePreview('Preview not rendered: could not reach EWOK.');
         state.preflight = { rendered: false, offline: true };
         drawPreflight();
       }
@@ -339,6 +344,21 @@
 
   function setStatus(text) {
     $('#previewStatus').textContent = text;
+  }
+
+  // A message about something the user just did: shown and spoken.
+  function sayStatus(text) {
+    setStatus(text);
+    announcePreview(text);
+  }
+
+  // The preview re-renders 300 ms after each keystroke. Only a change of
+  // outcome (rendered or not, how many warnings) is spoken, so a screen
+  // reader does not talk over the typing; the visible status, badge and
+  // lists update silently.
+  function announcePreview(text) {
+    const live = $('#previewAnnounce');
+    if (live.textContent !== text) live.textContent = text;
   }
 
   // "2 warnings" beside the Preview heading, with an icon; never color alone.
@@ -999,6 +1019,20 @@
     drawLayers();
     drawProperties();
     schedulePreview();
+    // The same button in the layer's new row, or its other arrow when this
+    // one is now disabled (moved to the top or bottom).
+    const dir = delta < 0 ? 'up' : 'down';
+    const other = delta < 0 ? 'down' : 'up';
+    focusRow(i + delta, `[aria-label$=" ${dir}"]:not(:disabled)`, `[aria-label$=" ${other}"]:not(:disabled)`);
+  }
+
+  // Rebuilding the list drops focus to the page; put it back in a row so a
+  // keyboard user keeps their place. Falls back to the row's select button,
+  // then to Add text when no layers are left.
+  function focusRow(i, ...selectors) {
+    const li = $('#layerList').children[i];
+    const target = li && [...selectors, '.layer-select'].map((sel) => li.querySelector(sel)).find(Boolean);
+    (target || $('[data-add="text"]')).focus();
   }
 
   // A matching layer right after the original, placed just below it.
@@ -1009,6 +1043,7 @@
     state.template.layers.splice(i + 1, 0, layer);
     select(i + 1);
     schedulePreview();
+    focusRow(i + 1);
   }
 
   function remove(i) {
@@ -1017,6 +1052,8 @@
     drawLayers();
     drawProperties();
     schedulePreview();
+    // The layer that took its place, or the new last one.
+    focusRow(Math.min(i, state.template.layers.length - 1));
   }
 
   function bindLayerButtons() {
@@ -1549,7 +1586,7 @@
           const next = roleKey(input.value);
           if (!next || (next !== key && roles.variants[next])) {
             input.value = state.roleLabels[key] || key;
-            setStatus(next ? `There is already a variant for "${next}".` : 'A role needs a name.');
+            sayStatus(next ? `There is already a variant for "${next}".` : 'A role needs a name.');
             return;
           }
           const variant = roles.variants[key];
@@ -2965,7 +3002,7 @@
         if (!resp.ok) throw new Error(String(resp.status));
         saveBlob(await resp.blob(), `${slug(state.template.name)}-${slug(state.values.device_name || 'sample')}.png`);
       } catch (err) {
-        setStatus('Not downloaded: EWOK could not render the PNG. Try again after the next preview.');
+        sayStatus('Not downloaded: EWOK could not render the PNG. Try again after the next preview.');
       }
     });
     $('#newTemplate').addEventListener('click', () => {
