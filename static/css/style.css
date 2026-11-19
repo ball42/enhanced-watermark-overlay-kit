@@ -654,6 +654,24 @@ body {
   margin-bottom: var(--space-md);
 }
 
+/* Choose Image: the file input stays in the tab order (not display:none),
+   invisible inside its button, and the button shows the focus ring. */
+.image-upload-btn {
+  position: relative;
+}
+
+.image-upload-btn input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.image-upload-btn:focus-within {
+  outline: 3px solid var(--roster-ring);
+  outline-offset: 2px;
+}
+
 .image-overlay-filename {
   font-size: 0.8rem;
   color: var(--color-text-muted);

@@ -750,8 +750,8 @@
       <div class="overlay-settings">
         <div class="image-upload-group">
           <label class="rb-btn rb-btn--outline rb-btn--sm ewok-btn--neutral image-upload-btn">
-            <i class="fas fa-upload"></i> Choose Image
-            <input type="file" class="image-overlay-file" accept="image/*" style="display:none;">
+            <i class="fas fa-upload" aria-hidden="true"></i> Choose Image
+            <input type="file" class="image-overlay-file" data-name="image file" accept="image/*">
           </label>
           <span class="image-overlay-filename">No file chosen</span>
           <input type="hidden" class="image-overlay-uploaded-name">
