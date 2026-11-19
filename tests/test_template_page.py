@@ -1,5 +1,7 @@
 """Template mode T2: the editor page and its navigation."""
 
+import re
+
 
 def test_template_page_renders(client):
     resp = client.get("/template")
@@ -104,7 +106,7 @@ def test_role_attribute_can_load_names_exported_by_jawa(client):
 
 def test_icons_are_linked_and_served(client):
     for page in ("/", "/template"):
-        body = client.get(page).get_data(as_text=True)
+        body = re.sub(r"\?v=[0-9a-f]{12}", "", client.get(page).get_data(as_text=True))  # the hash on each URL
         assert 'href="/static/favicon.ico"' in body and 'href="/static/apple-touch-icon.png"' in body
     for path in ("/static/favicon.ico", "/static/ewok.png", "/static/apple-touch-icon.png"):
         assert client.get(path).status_code == 200

@@ -13,6 +13,9 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
 )
 
+STATIC_MAX_AGE = 24 * 3600  # seconds; a versioned static file never changes under its URL
+
+
 def create_app(config_name=None):
     """Create and configure Flask app"""
     app = Flask(__name__)
@@ -61,6 +64,32 @@ def create_app(config_name=None):
 
     for code in API_ERRORS:
         app.register_error_handler(code, api_error)
+
+    # Static files: the pages name each one with a hash of its bytes
+    # (?v=...), so it can be cached for a day and a changed file still
+    # shows at once. A request without the hash keeps Flask's no-cache.
+    import hashlib
+
+    static_hashes = {}
+
+    def static_v(path):
+        full = os.path.join(app.static_folder, path)
+        stat = os.stat(full)
+        key = (path, stat.st_mtime_ns, stat.st_size)
+        if key not in static_hashes:
+            with open(full, "rb") as fh:
+                static_hashes[key] = hashlib.sha256(fh.read()).hexdigest()[:12]
+        return f"/static/{path}?v={static_hashes[key]}"
+
+    app.jinja_env.globals["static_v"] = static_v
+
+    @app.after_request
+    def cache_versioned_static(response):
+        if request.endpoint == "static" and request.args.get("v") and response.status_code == 200:
+            response.cache_control.no_cache = None
+            response.cache_control.public = True
+            response.cache_control.max_age = STATIC_MAX_AGE
+        return response
 
     # Periodic cleanup of old temp files
     from utils.cleanup import cleanup_old_files

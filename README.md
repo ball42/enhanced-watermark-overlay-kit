@@ -160,7 +160,7 @@ Template designer:
 | Backend | Flask 3.1, Python 3.12+ |
 | Rendering | Pillow 11.3 (pinned below 12, the same as JAWA), qrcode |
 | Frontend | HTML, CSS, vanilla JavaScript |
-| Icons | Font Awesome Free 6 (solid), vendored in `static/vendor/fontawesome/`, so no page loads anything from the internet |
+| Icons | Font Awesome Free 6 (solid), vendored as a subset of the icons in use in `static/vendor/fontawesome/` (made by `scripts/subset_icons.py`), so no page loads anything from the internet |
 | Testing | pytest, pytest-flask, Playwright |
 
 ## Troubleshooting

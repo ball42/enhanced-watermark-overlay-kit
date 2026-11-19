@@ -81,7 +81,7 @@ def test_status_and_warning_markup_use_roster_classes():
 
 @pytest.mark.parametrize("path", ["/", "/template"])
 def test_theme_script_runs_before_the_css_and_the_toggle_is_there(client, path):
-    body = client.get(path).get_data(as_text=True)
+    body = re.sub(r"\?v=[0-9a-f]{12}", "", client.get(path).get_data(as_text=True))  # the hash on each URL
     script = body.index('<script src="/static/js/vendor/roster-theme.js"></script>')
     assert script < body.index("</head>") and script < body.index(ROSTER_CSS[0])
     assert "data-roster-theme-toggle" in body and 'aria-pressed="false"' in body
