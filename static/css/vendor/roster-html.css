@@ -1,4 +1,4 @@
-/* roster-bridge 0.1.0 from @blakesteve/roster 5.17.0 roster-html.css sha256:285a18849c24 */
+/* roster-bridge 0.1.0 from @blakesteve/roster 5.17.0 roster-html.css sha256:2d21e847eb2b */
 /* Plain-CSS primitives for server-rendered pages, from roster's variants. Load roster-web.css first; every
    colour is one of its variables. Dark mode: .dark on <html> (theme.js). Icons: icons.svg. */
 
@@ -231,8 +231,8 @@
   .rb-theme-switch__opt[aria-pressed="true"] { border-color: Highlight; }
 }
 
-/* Stat tile (rb.stat): label, value, signed delta with an arrow icon, sparkline. Good is blue, bad orange; the icon
-   and sign carry direction. */
+/* Stat tile (rb.stat): label, value, signed delta with an arrow icon, sparkline. Good is blue, bad orange plus
+   "worse"; the icon and sign carry direction. */
 .rb-stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); gap: var(--rb-space-3); }
 .rb-stat {
   --_line: var(--roster-primary-500); --_now: var(--roster-primary-700);
@@ -332,6 +332,7 @@
 .rb-field--check { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rb-space-2); }
 .rb-label { display: block; margin-bottom: calc(var(--rb-space-1) * 1.5); color: var(--roster-control-text); font-size: var(--rb-text-sm); line-height: 1; font-weight: 500; }
 .rb-field--check .rb-label { margin: 0; }
+.rb-label__req { margin-left: .25em; color: var(--rb-text-soft); font-weight: 400; }
 .rb-input {
   display: flex; box-sizing: border-box; width: 100%; height: var(--rb-space-10); padding: 0 var(--rb-space-4);
   border: 1px solid var(--roster-control-border); border-radius: var(--rb-radius-md);
