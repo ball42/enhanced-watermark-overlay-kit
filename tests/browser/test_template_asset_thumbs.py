@@ -10,6 +10,8 @@ def test_the_library_loads_small_thumbnails_and_never_the_originals(page):
             "file": {"name": f"photo-{k}.jpg", "mimeType": "image/jpeg", "buffer": original}})
         assert resp.status == 201
     fetched = {}
+    corp = {}
+    page.on("response", lambda r: corp.__setitem__(r.url, r.headers.get("cross-origin-resource-policy")))
     page.on("requestfinished", lambda req: fetched.__setitem__(req.url, req.sizes()["responseBodySize"]))
     page.goto("/template")
     page.wait_for_selector("#previewImage:not([hidden])")
@@ -21,3 +23,5 @@ def test_the_library_loads_small_thumbnails_and_never_the_originals(page):
     assets = {url: size for url, size in fetched.items() if "/api/template/assets/" in url}
     assert sorted(url.rsplit("/assets/", 1)[1] for url in assets) == [f"photo-{k}/thumb" for k in range(1, 4)]
     assert sum(assets.values()) < 3 * 12_000 < len(original)
+    # Same-origin only, and the page's own thumbnails still load under it.
+    assert all(corp[url] == "same-origin" for url in assets)
