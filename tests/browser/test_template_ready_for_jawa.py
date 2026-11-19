@@ -57,9 +57,10 @@ def test_the_preflight_says_what_is_left_and_ready_when_all_pass(page, tmp_path)
     page.wait_for_selector("#preflight:not([hidden])")
     lines = page.locator(".tpl-preflight-line").all_text_contents()
     assert lines[0] == "Renders on JAWA's wallrender 0.9"
-    assert lines[1].startswith("Not checked against your devices")
-    assert lines[2].startswith("1 contrast warning")
-    assert lines[3] == "No assets to include"
+    assert lines[1] == "Same Pillow as JAWA (13.0)"
+    assert lines[2].startswith("Not checked against your devices")
+    assert lines[3].startswith("1 contrast warning")
+    assert lines[4] == "No assets to include"
     assert page.text_content("#downloadPackage").strip() == "Download for JAWA's template store"
     page.mouse.move(5, 600)
     page.wait_for_selector("#preflight", state="hidden")

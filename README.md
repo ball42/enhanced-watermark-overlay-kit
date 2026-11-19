@@ -63,6 +63,8 @@ JAWA vendors its own copy of `wallrender`. An older copy renders a feature it do
 
 `EWOK_WALLRENDER_TARGET` is the release JAWA runs (default `0.9.0`). The preview warns for each feature that needs a newer release. Set it to the release JAWA vendors, for example `EWOK_WALLRENDER_TARGET=0.13.0 uv run ewok`.
 
+`EWOK_PILLOW_TARGET` is the Pillow major.minor JAWA renders with (default `13.0`). When EWOK runs another one, `ewok` prints a warning at start and "Ready for JAWA?" says the preview may differ from devices, since text fits follow Pillow's measurements.
+
 ## Testing
 
 ```bash
@@ -131,10 +133,11 @@ Template designer:
 | `POST` | `/api/template/fit-names` | The size each named text layer needs so the devices sent (up to 200) print without shrinking; changes nothing, and says when that size would be too small to read |
 | `POST` | `/api/template/preview-batch` | Render a template for up to 200 devices (rows of a CSV loaded in the browser); returns a 240 px thumbnail and the warnings for each, and keeps nothing; optional `first` numbers unnamed devices when the page sends a long list in chunks |
 | `GET` | `/api/template/assets` | List the asset library |
+| `GET` | `/api/template/assets.zip` | Download every asset in the library as one `.zip` (not the trash or thumbnails) |
 | `POST` | `/api/template/assets` | Add a PNG or JPEG to the asset library |
 | `GET` | `/api/template/assets/<asset_id>` | Serve one asset |
-| `GET` | `/api/template/assets/<asset_id>/thumb` | A thumbnail of one asset, at most 96 px on its longest side, for the library list (made once, kept in `template_assets/.thumbs/`) |
-| `DELETE` | `/api/template/assets/<asset_id>` | Delete one asset (it waits a day in `template_assets/.trash/`) |
+| `GET` | `/api/template/assets/<asset_id>/thumb` | A thumbnail of one asset, at most 96 px on its longest side, for the library list (made once, kept in the library's `.thumbs/`) |
+| `DELETE` | `/api/template/assets/<asset_id>` | Delete one asset (it waits a day in the library's `.trash/`) |
 | `POST` | `/api/template/assets/<asset_id>/restore` | Undo a delete: bring the asset back from the trash |
 | `POST` | `/api/template/export` | Download a `.zip` bundle: the template JSON, its assets and a README |
 | `POST` | `/api/template/backdrop` | For a low-contrast text layer: the panel to put just behind it, at the lowest opacity a real render confirms reaches WCAG's ratio; changes nothing |
@@ -148,7 +151,7 @@ Template designer:
 | Address | `127.0.0.1:5055` (`--port` or `EWOK_PORT`) |
 | Upload folder | `static/uploads/` |
 | Temp folder | `temp/` |
-| Template asset library | `template_assets/` |
+| Template asset library | `~/Library/Application Support/EWOK/template_assets` on a Mac, `$XDG_DATA_HOME/EWOK/template_assets` (or `~/.local/share/...`) on Linux; `EWOK_ASSETS_DIR` overrides |
 | Max file size | 16 MB |
 | Photo formats | PNG, JPG, JPEG, GIF, BMP, WebP |
 | SECRET_KEY | `$SECRET_KEY` env var (random fallback) |
@@ -171,7 +174,7 @@ Template designer:
 | Port 5055 is in use | Start on another port: `uv run ewok --port 5056`. |
 | 403 from another computer or a hostname | EWOK answers only to `127.0.0.1`, `localhost` and `[::1]`. Open it by one of those. |
 | Weight (Medium, Semibold, Bold) looks like Regular on devices | The JAWA install vendors a wallrender older than 0.12.0. Update JAWA's copy. |
-| Preview text differs slightly from the device | Pillow versions differ between EWOK and JAWA. Both pin `Pillow>=13.0,<14`; keep them equal. |
+| Preview text differs slightly from the device, or "Preview may differ from devices" | Pillow versions differ between EWOK and JAWA. Both pin `Pillow>=13.0,<14`; keep them equal, and set `EWOK_PILLOW_TARGET` to JAWA's. |
 | Uploaded photo disappears | Uploads are deleted an hour after last use. Upload it again. |
 
 ## Maintenance
@@ -179,7 +182,7 @@ Template designer:
 - **Dependencies.** Pillow is pinned below 14 to match JAWA, and a Pillow change shifts text pixels. Move EWOK and JAWA to a new Pillow release together. Run `uv lock --upgrade` to refresh other dependencies, then both test suites.
 - **Design files.** `static/css/vendor/` and `static/js/vendor/` are generated copies of the shared design system. Replace them whole; do not edit them.
 - **wallrender.** It is versioned in `wallrender/pyproject.toml`. When you release a new version, update the copy vendored in JAWA and raise `EWOK_WALLRENDER_TARGET`'s default if appropriate.
-- **Data.** Everything EWOK writes is under `static/uploads/`, `temp/` and `template_assets/`. Back up `template_assets/` if you rely on the asset library; the other two are disposable.
+- **Data.** The asset library is the only copy of every logo and background, so it lives outside the checkout, in `~/Library/Application Support/EWOK/template_assets` (set `EWOK_ASSETS_DIR` to put it elsewhere). A library left in the checkout's old `template_assets/` folder moves there on the first `ewok` start, which prints one line saying so. Back it up, or use **Download library** in the Assets panel for a `.zip` copy. `static/uploads/` and `temp/` are disposable.
 - **More detail.** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains the components and design decisions.
 
 ## Contributing

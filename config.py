@@ -6,6 +6,8 @@ import logging
 import os
 import secrets
 
+from utils.asset_home import default_assets_folder
+
 from wallrender.devices import device_profiles
 
 logger = logging.getLogger(__name__)
@@ -15,8 +17,13 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # File upload settings (absolute, so they do not depend on the cwd)
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
 TEMP_FOLDER = os.path.join(BASE_DIR, 'temp')
-# Template mode's asset library (backgrounds, logos): kept, not cleaned up
-TEMPLATE_ASSETS_FOLDER = os.path.join(BASE_DIR, 'template_assets')
+# Template mode's asset library (backgrounds, logos): kept, not cleaned up.
+# It is the only copy, so it lives outside the checkout (on a Mac in
+# ~/Library/Application Support/EWOK/template_assets; EWOK_ASSETS_DIR
+# overrides). The `ewok` command moves a library from the old place inside
+# the checkout on its first start.
+TEMPLATE_ASSETS_FOLDER = default_assets_folder()
+LEGACY_ASSETS_FOLDER = os.path.join(BASE_DIR, 'template_assets')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
 # Pillow decoders the photo editor may use: a file is decoded by its content,
 # not its name, so a PSD named .png must not reach the PSD plugin.
@@ -92,6 +99,11 @@ PORT = int(os.environ.get('EWOK_PORT', '5055'))  # 5000 is macOS AirPlay
 # The wallrender release JAWA's Brander runs. The designer warns when a
 # template uses a feature newer than this, since devices would not show it.
 WALLRENDER_TARGET = os.environ.get('EWOK_WALLRENDER_TARGET', '0.9.0')
+# The Pillow major.minor JAWA's Brander renders with (its requirements pin).
+# Text pixels and fits differ between releases, so the designer warns when
+# EWOK runs another one.
+PILLOW_TARGET_DEFAULT = '13.0'
+PILLOW_TARGET = os.environ.get('EWOK_PILLOW_TARGET', PILLOW_TARGET_DEFAULT)
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
     SECRET_KEY = secrets.token_hex(32)

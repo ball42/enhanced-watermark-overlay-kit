@@ -164,6 +164,12 @@
   font-family: var(--font-mono);
 }
 
+.tpl-asset-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
 .tpl-file-btn input[type="file"] {
   position: absolute;
   width: 1px;

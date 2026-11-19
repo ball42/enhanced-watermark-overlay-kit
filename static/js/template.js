@@ -747,6 +747,8 @@
       li.textContent = 'No assets yet.';
       ul.append(li);
     }
+    // A copy of the whole library, to keep somewhere other than this Mac.
+    $('#downloadLibrary').hidden = !state.assets.length;
     state.assets.forEach((a) => {
       const li = document.createElement('li');
       const img = document.createElement('img');
@@ -3168,6 +3170,13 @@
     } else {
       lines.push({ state: 'fail', text: `Uses features JAWA's wallrender ${p.target.version} does not draw`,
         action: ['Show', showWarningsTab] });
+    }
+    // Text fits follow Pillow's measurements, so another Pillow than JAWA's
+    // can fit a name that devices cut off.
+    const pillow = p && p.rendered && p.target.pillow;
+    if (pillow) {
+      lines.push(pillow.matches ? { state: 'ok', text: `Same Pillow as JAWA (${pillow.jawa})` }
+        : { state: 'warn', text: pillow.warning });
     }
     lines.push(fleetLine());
     if (p && p.rendered) lines.push(warningLine(p));

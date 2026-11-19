@@ -18,10 +18,11 @@ EWOK is a single Flask process that runs on one person's computer. It has two pa
    |-- views/template_api.py  template API     --> wallrender/ (Pillow + qrcode)
    |-- before_request: local_only, run_cleanup (utils/cleanup.py)
    v
- Folders on disk (all gitignored)
-   static/uploads/   photo uploads and results
-   temp/             processed photos
-   template_assets/  the template designer's asset library
+ Folders on disk
+   static/uploads/   photo uploads and results (gitignored)
+   temp/             processed photos (gitignored)
+   ~/Library/Application Support/EWOK/template_assets/
+                     the asset library, outside the checkout (EWOK_ASSETS_DIR)
 ```
 
 ## The two modes
