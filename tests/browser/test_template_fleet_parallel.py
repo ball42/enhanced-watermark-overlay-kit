@@ -1,9 +1,16 @@
 """Template designer in a browser: the device check keeps two chunks in flight."""
 
 import json
+import statistics
 import time
 
 import pytest
+
+# Server CPU per device for the default template (render, lint, thumbnail):
+# 32 to 33 ms here at load 350 to 400. Rendering each device twice measured
+# 61.5, so the bound fails a 2x slowdown with room for a slower machine.
+BUDGET_CPU_MS = 48
+
 
 
 @pytest.fixture()
@@ -84,14 +91,34 @@ def test_a_failed_chunk_stops_the_others(designer, tmp_path):
     page.unroute_all(behavior="ignoreErrors")
 
 
-def test_a_200_device_check_of_the_default_template_finishes_quickly(designer, tmp_path):
+# Each preview-batch the page sent: when the browser sent it and when the
+# answer was in (ms on the page's clock), and the server's CPU time for it.
+CHUNKS = """() => performance.getEntriesByType('resource')
+  .filter(e => e.name.endsWith('/api/template/preview-batch'))
+  .map(e => ({ start: e.startTime, end: e.responseEnd,
+               cpu: (e.serverTiming.find(t => t.name === 'render') || {}).duration }))"""
+
+
+def test_a_200_device_check_keeps_two_chunks_busy_and_renders_within_budget(designer, tmp_path):
+    """A fixed wall-clock bound (6.5 s) failed on unchanged code whenever the
+    shared machine was loaded (7.8 to 16.4 s at load 600), so the budget is
+    made of two things load does not move: how many chunks the page keeps in
+    flight, read from the browser's own timings, and the server's CPU time per
+    device, which a busy machine does not inflate the way it does wall time."""
     page = designer
-    csv = devices_csv(tmp_path, 200)
-    started = time.perf_counter()
-    page.set_input_files("#fleetFile", str(csv))
+    page.set_input_files("#fleetFile", str(devices_csv(tmp_path, 200)))
     page.wait_for_function(
-        "document.querySelector('#fleetStatus').textContent.startsWith('Checked 200 devices')", timeout=60000)
-    took = time.perf_counter() - started
-    # One chunk at a time took 8.2 s here before renders got faster; two at
-    # once take about 3.5 s on a loaded machine. The bound leaves headroom.
-    assert took < 6.5, f"200-device check took {took:.1f} s"
+        "document.querySelector('#fleetStatus').textContent.startsWith('Checked 200 devices')", timeout=120000)
+    chunks = page.evaluate(CHUNKS)
+    assert len(chunks) == 20
+
+    # Two in flight measured 1.97 at load 400; one at a time (FLEET_PARALLEL
+    # = 1, a run about twice as long on an idle machine) measured 0.99.
+    span = max(c["end"] for c in chunks) - min(c["start"] for c in chunks)
+    in_flight = sum(c["end"] - c["start"] for c in chunks) / span
+    assert in_flight >= 1.6, f"{in_flight:.2f} chunks in flight on average"
+
+    # The server's CPU per device, median over the chunks after the first,
+    # which also loads fonts and fills the render cache.
+    per_device = statistics.median(c["cpu"] for c in chunks[1:]) / 10
+    assert per_device <= BUDGET_CPU_MS, f"{per_device:.1f} ms of CPU per device"

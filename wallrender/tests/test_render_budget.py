@@ -48,15 +48,17 @@ def with_logo(background=None):
 
 
 def test_the_default_template_renders_within_its_budget():
-    # 33.6 ms before an opaque canvas skipped the flatten (about 9 ms after),
-    # so the bound has room for a loaded machine.
+    # 33.6 ms before an opaque canvas skipped the flatten (about 9 ms after;
+    # 15.5 ms of CPU at load 250 on Pillow 13).
+    # CPU time, not wall time: in a full suite on a loaded machine the wall
+    # clock failed this bound on unchanged code, and passed run alone.
     for _ in range(3):
         render(DEFAULT, VALUES, no_assets)
     times = []
     for _ in range(15):
-        start = time.perf_counter()
+        start = time.thread_time()
         render(DEFAULT, VALUES, no_assets)
-        times.append(time.perf_counter() - start)
+        times.append(time.thread_time() - start)
     assert statistics.median(times) * 1000 <= 22
 
 
