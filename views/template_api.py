@@ -326,6 +326,7 @@ def preview_batch():
         return jsonify({"problems": problems}), 400
     assets = folder_assets(_folder())
     results = []
+    cpu_started = time.thread_time()
     try:
         for n, values in enumerate(devices, first):
             # The same render and lint as render_with_lint(), keeping the text
@@ -343,7 +344,12 @@ def preview_batch():
             })
     except TemplateError as err:
         return jsonify({"problems": err.problems}), 422
-    return jsonify({"results": results, "readable_px": math.ceil(READABLE_MIN * template["canvas"]["height"])})
+    response = jsonify({"results": results, "readable_px": math.ceil(READABLE_MIN * template["canvas"]["height"])})
+    # CPU time of this request's thread, which a busy machine does not inflate
+    # the way it does wall time; the device check's budget test reads it.
+    cpu_ms = (time.thread_time() - cpu_started) * 1000
+    response.headers["Server-Timing"] = f'render;dur={cpu_ms:.1f};desc="CPU"'
+    return response
 
 
 NAME_KINDS = ("shrank", "cut_off", "too_small")

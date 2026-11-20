@@ -3,6 +3,7 @@
 import base64
 import os
 import io
+import re
 
 import pytest
 from PIL import Image
@@ -525,6 +526,15 @@ def test_preview_batch_numbers_unnamed_devices_from_first(client):
     resp = client.post("/api/template/preview-batch",
                        json={"template": TEMPLATE, "devices": [{}, {"device_name": "iPad"}], "first": 11})
     assert [r["label"] for r in resp.get_json()["results"]] == ["Device 11", "iPad"]
+
+
+def test_preview_batch_reports_its_cpu_time_in_server_timing(client):
+    """The device check's budget test reads the server's CPU time from here,
+    since wall time on a busy machine says more about the load than the code."""
+    resp = client.post("/api/template/preview-batch",
+                       json={"template": TEMPLATE, "devices": [{"device_name": "iPad"}] * 3})
+    match = re.fullmatch(r'render;dur=(\d+\.\d);desc="CPU"', resp.headers["Server-Timing"])
+    assert match and float(match.group(1)) > 0
 
 
 @pytest.mark.parametrize("first", [0, -1, "3", 1.5, True])
